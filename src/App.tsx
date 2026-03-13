@@ -1,15 +1,38 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { STORAGE_KEYS } from './lib/storageKeys';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
+import Settings from './pages/Settings';
 
-// A simple protective wrapper for authenticated routes
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+/**
+ * Route Guard: only for authenticated users.
+ * If not logged in → goes to /login.
+ * If logged in but onboarding not done → goes to /onboarding.
+ */
+function ProtectedRoute({
+  children,
+  requireOnboarding = false,
+}: {
+  children: React.ReactNode;
+  requireOnboarding?: boolean;
+}) {
   const { user } = useAuth();
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+
+  // If this is the Dashboard or Settings, ensure onboarding has been completed first
+  if (!requireOnboarding) {
+    const onboardingDone = localStorage.getItem(STORAGE_KEYS.ONBOARDING_DONE);
+    if (!onboardingDone) {
+      return <Navigate to="/onboarding" replace />;
+    }
+  }
+
   return <>{children}</>;
 }
 
@@ -19,24 +42,45 @@ function AppContent() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={ user ? <Navigate to="/dashboard" replace /> : <Login /> } />
-        <Route 
-          path="/onboarding" 
+        {/* Public: Login */}
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/dashboard" replace /> : <Login />}
+        />
+
+        {/* Protected: Onboarding (requires auth, but NOT prior onboarding) */}
+        <Route
+          path="/onboarding"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireOnboarding={true}>
               <Onboarding />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/dashboard" 
+
+        {/* Protected: Dashboard (requires auth + onboarding) */}
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
-          } 
+          }
         />
+
+        {/* Protected: Settings (requires auth + onboarding) */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default: redirect to dashboard (will cascade to /onboarding or /login as needed) */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>
   );
