@@ -52,8 +52,8 @@ export interface AlternativeInvestment {
 
 export interface FamilyConfig {
   householdName: string;
-  member1: { name: string; email: string };
-  member2: { name: string; email: string };
+  member1: { name: string; email: string; lastName?: string; idNumber?: string };
+  member2: { name: string; email: string; lastName?: string; idNumber?: string };
   extraAuthorizedEmails: string[];
   completedAt: string;
 }

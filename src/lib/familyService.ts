@@ -87,6 +87,8 @@ export async function createFamily(
       [uid]: {
         name: config.member1.name,
         email: config.member1.email,
+        lastName: config.member1.lastName || '',
+        idNumber: config.member1.idNumber || '',
         role: 'owner',
       },
     },

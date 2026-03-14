@@ -29,7 +29,12 @@ test.describe('AI Wealth Monitor - Flow Tests (Phase 3)', () => {
     await page.goto('/onboarding?demo=true');
 
     await page.getByPlaceholder(/דוד/i).fill('אבי');
+    await page.locator('input[placeholder="לדוגמה: ישראלי"]').nth(0).fill('לוי');
+    await page.locator('input[placeholder="לדוגמה: 012345678"]').nth(0).fill('123456789');
+    
     await page.getByPlaceholder(/מירי/i).fill('שרה');
+    await page.locator('input[placeholder="לדוגמה: ישראלי"]').nth(1).fill('כהן');
+    await page.locator('input[placeholder="לדוגמה: 012345678"]').nth(1).fill('987654321');
 
     // Button should be enabled now
     const submitBtn = page.getByRole('button', { name: /סיום הגדרה/i });

@@ -8,14 +8,16 @@ import { Users, Plus, CheckCircle2, ChevronLeft, AlertCircle, Trash2, UserCircle
 interface FamilyMember {
   name: string;
   email: string;
+  lastName?: string;
+  idNumber?: string;
 }
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, refreshFamily } = useAuth();
   const [householdName, setHouseholdName] = useState('');
-  const [member1, setMember1] = useState<FamilyMember>({ name: '', email: '' });
-  const [member2, setMember2] = useState<FamilyMember>({ name: '', email: '' });
+  const [member1, setMember1] = useState<FamilyMember>({ name: '', email: '', lastName: '', idNumber: '' });
+  const [member2, setMember2] = useState<FamilyMember>({ name: '', email: '', lastName: '', idNumber: '' });
   const [extraEmails, setExtraEmails] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +39,14 @@ export default function Onboarding() {
       member1: {
         name: member1.name || 'בעל/ת הבית',
         email: member1.email,
+        lastName: member1.lastName,
+        idNumber: member1.idNumber,
       },
       member2: {
         name: member2.name || 'בן/בת הזוג',
         email: member2.email,
+        lastName: member2.lastName,
+        idNumber: member2.idNumber,
       },
       extraAuthorizedEmails: extraEmails.filter(e => e.trim() !== ''),
       completedAt: new Date().toISOString(),
@@ -127,10 +133,25 @@ export default function Onboarding() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1.5">שם לתצוגה בלוח הבקרה</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">שם פרטי (לתצוגה בלוח הבקרה)</label>
                 <input type="text" placeholder='לדוגמה: דוד' value={member1.name}
                   onChange={e => setMember1({ ...member1, name: e.target.value })}
                   className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">שם משפחה</label>
+                <input type="text" placeholder='לדוגמה: ישראלי' value={member1.lastName || ''}
+                  onChange={e => setMember1({ ...member1, lastName: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">תעודת זהות</label>
+                <input type="text" placeholder='לדוגמה: 012345678' value={member1.idNumber || ''}
+                  onChange={e => setMember1({ ...member1, idNumber: e.target.value })}
+                  dir="ltr"
+                  className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 text-sm"
                 />
               </div>
               <div>
@@ -154,10 +175,25 @@ export default function Onboarding() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1.5">שם לתצוגה בלוח הבקרה</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">שם פרטי (לתצוגה בלוח הבקרה)</label>
                 <input type="text" placeholder='לדוגמה: מירי' value={member2.name}
                   onChange={e => setMember2({ ...member2, name: e.target.value })}
                   className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">שם משפחה</label>
+                <input type="text" placeholder='לדוגמה: ישראלי' value={member2.lastName || ''}
+                  onChange={e => setMember2({ ...member2, lastName: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">תעודת זהות</label>
+                <input type="text" placeholder='לדוגמה: 012345678' value={member2.idNumber || ''}
+                  onChange={e => setMember2({ ...member2, idNumber: e.target.value })}
+                  dir="ltr"
+                  className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 text-sm"
                 />
               </div>
               <div>
