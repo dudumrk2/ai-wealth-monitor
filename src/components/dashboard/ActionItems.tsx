@@ -1,11 +1,18 @@
-import { useState } from 'react';
-import { MOCK_DATA } from '../../data/mockData';
+import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, AlertTriangle, Info, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import type { Severity, ActionItem } from '../../types/portfolio';
 
-export default function ActionItems() {
-  const [items, setItems] = useState<ActionItem[]>(MOCK_DATA.action_items);
+interface ActionItemsProps {
+  items: ActionItem[];
+}
+
+export default function ActionItems({ items: initialItems = [] }: ActionItemsProps) {
+  const [items, setItems] = useState<ActionItem[]>(initialItems);
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
 
   const toggleItem = (id: string) => {
     setItems(items.map(item =>

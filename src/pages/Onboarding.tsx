@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { createFamily } from '../lib/familyService';
@@ -21,6 +21,36 @@ export default function Onboarding() {
   const [extraEmails, setExtraEmails] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEYS.ONBOARDING_DRAFT);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.householdName) setHouseholdName(parsed.householdName);
+        if (parsed.member1) setMember1(parsed.member1);
+        if (parsed.member2) setMember2(parsed.member2);
+        if (parsed.extraEmails) setExtraEmails(parsed.extraEmails);
+      } catch (e) {
+        console.error('Error loading onboarding draft:', e);
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save to localStorage on change
+  useEffect(() => {
+    if (!isLoaded) return;
+    const dataToSave = {
+      householdName,
+      member1,
+      member2,
+      extraEmails
+    };
+    localStorage.setItem(STORAGE_KEYS.ONBOARDING_DRAFT, JSON.stringify(dataToSave));
+  }, [householdName, member1, member2, extraEmails, isLoaded]);
 
   const handleAddEmail = () => setExtraEmails([...extraEmails, '']);
   const handleExtraEmailChange = (index: number, value: string) => {
@@ -55,6 +85,7 @@ export default function Onboarding() {
     try {
       await createFamily(user!.uid, config);
       await refreshFamily(); // update AuthContext in-memory state
+      localStorage.removeItem(STORAGE_KEYS.ONBOARDING_DRAFT); // Clear draft after success
       navigate('/dashboard');
     } catch (err: any) {
       if (err?.message === 'USER_ALREADY_IN_FAMILY' || err?.message === 'EMAIL_ALREADY_IN_FAMILY') {
@@ -87,11 +118,6 @@ export default function Onboarding() {
               <p className="text-blue-100 mt-1">הגדר את שמות בני הבית שיופיעו בלוח הבקרה</p>
             </div>
           </div>
-          <div className="flex gap-2 mt-2">
-            <div className="flex-1 h-1 rounded-full bg-white/80"></div>
-            <div className="flex-1 h-1 rounded-full bg-white/30"></div>
-          </div>
-          <p className="text-xs text-blue-200 mt-2">שלב 1 מתוך 1 — הגדרה ראשונית</p>
         </div>
 
         {/* Content */}
@@ -106,7 +132,7 @@ export default function Onboarding() {
           )}
 
           {/* Household Name */}
-          <div>
+          <div className="space-y-2">
             <label className="block text-sm font-semibold text-slate-700 mb-2">שם הבית / המשפחה</label>
             <input
               type="text"

@@ -5,4 +5,5 @@
 export const STORAGE_KEYS = {
   ONBOARDING_DONE: 'wealth_monitor_onboarding_done',
   FAMILY_CONFIG: 'wealth_monitor_family_config',
+  ONBOARDING_DRAFT: 'wealth_monitor_onboarding_draft',
 } as const;
