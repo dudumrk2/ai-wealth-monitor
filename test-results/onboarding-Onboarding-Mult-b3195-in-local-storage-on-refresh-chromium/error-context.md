@@ -1,0 +1,73 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e6]:
+    - img [ref=e8]
+    - generic [ref=e13]:
+      - heading "הגדרת המשפחה" [level=1] [ref=e14]
+      - paragraph [ref=e15]: "שלב 1: פרטים בסיסיים והרשאות"
+  - generic [ref=e19]:
+    - generic [ref=e20]:
+      - generic [ref=e21]: "שם הבית / המשפחה (למשל: משפחת לוי)"
+      - 'textbox "שם הבית / המשפחה (למשל: משפחת לוי)" [ref=e22]':
+        - /placeholder: "לדוגמה: משפחת לוי"
+    - generic [ref=e23]:
+      - img [ref=e24]
+      - paragraph [ref=e26]: השמות שתזין כאן יופיעו כשמות הלשוניות בלוח הבקרה. חשבונות ה-Google המורשים יקבעו מי יכול להתחבר.
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - img [ref=e30]
+        - heading "בן/בת משפחה ראשון/ה (אתה)" [level=3] [ref=e34]
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]: שם פרטי
+          - textbox "שם פרטי" [ref=e38]:
+            - /placeholder: "לדוגמה: דוד"
+        - generic [ref=e39]:
+          - generic [ref=e40]: שם משפחה (אופציונלי)
+          - textbox "שם משפחה (אופציונלי)" [ref=e41]:
+            - /placeholder: "לדוגמה: ישראלי"
+        - generic [ref=e42]:
+          - generic [ref=e43]: תעודת זהות
+          - textbox "תעודת זהות" [ref=e44]:
+            - /placeholder: "לדוגמה: 012345678"
+        - generic [ref=e45]:
+          - generic [ref=e46]: כתובת Google (אימייל)
+          - textbox "כתובת Google (אימייל)" [ref=e47]:
+            - /placeholder: david@gmail.com
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - img [ref=e51]
+        - heading "בן/בת משפחה שני/ה (בן/בת זוג)" [level=3] [ref=e55]
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - generic [ref=e58]: שם פרטי
+          - textbox "שם פרטי" [ref=e59]:
+            - /placeholder: "לדוגמה: מירי"
+        - generic [ref=e60]:
+          - generic [ref=e61]: שם משפחה (אופציונלי)
+          - textbox "שם משפחה (אופציונלי)" [ref=e62]:
+            - /placeholder: "לדוגמה: ישראלי"
+        - generic [ref=e63]:
+          - generic [ref=e64]: תעודת זהות
+          - textbox "תעודת זהות" [ref=e65]:
+            - /placeholder: "לדוגמה: 012345678"
+        - generic [ref=e66]:
+          - generic [ref=e67]: כתובת Google (אימייל)
+          - textbox "כתובת Google (אימייל)" [ref=e68]:
+            - /placeholder: miri@gmail.com
+    - generic [ref=e69]:
+      - generic [ref=e70]:
+        - generic [ref=e71]: גישה נוספת (ילדים / מטפל פיננסי)
+        - generic [ref=e72]: רשות
+      - button "הוסף גישה נוספת" [ref=e73]:
+        - img [ref=e74]
+        - text: הוסף גישה נוספת
+    - separator [ref=e75]
+    - generic [ref=e76]:
+      - paragraph [ref=e77]: ניתן לשנות הגדרות אלה בכל עת בעמוד ההגדרות
+      - button "המשך לשלב הבא" [disabled] [ref=e78]:
+        - text: המשך לשלב הבא
+        - img [ref=e79]
+```
