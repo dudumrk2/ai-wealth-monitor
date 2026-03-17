@@ -84,8 +84,8 @@ export default function Dashboard() {
   }, [user]);
 
   const { member1Name, member2Name, householdName } = useMemo(() => ({
-    member1Name: familyConfig?.member1?.name || 'התיק שלי',
-    member2Name: familyConfig?.member2?.name || 'בן/בת הזוג',
+    member1Name: familyConfig?.member1?.name?.split(' ')[0] || 'המבוטח הראשי',
+    member2Name: familyConfig?.member2?.name?.split(' ')[0] || 'בן/בת הזוג',
     householdName: familyConfig?.householdName || 'המשפחה',
   }), [familyConfig]);
 
@@ -375,7 +375,7 @@ export default function Dashboard() {
         <>
           <div className="mb-8 flex justify-between items-end">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">סקירת נכסים</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">סקירת תיק פנסיוני</h1>
               <p className="text-slate-500 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
             </div>
             <div className="flex gap-2">

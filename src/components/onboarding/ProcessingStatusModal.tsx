@@ -28,7 +28,7 @@ export default function ProcessingStatusModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
         <div className="p-8 text-center">
-          
+
           {/* Status Icon */}
           <div className="flex justify-center mb-6">
             {status === 'loading' && (
@@ -94,7 +94,7 @@ export default function ProcessingStatusModal({
 
         {/* Footer Brand */}
         <div className="bg-slate-50 py-4 border-t border-slate-100 text-center">
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Powered by Claude 3.5 Sonnet</p>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Powered by claude-sonnet-4-6</p>
         </div>
       </div>
     </div>

@@ -170,12 +170,14 @@ export async function getUserFamily(uid: string, email: string): Promise<(Family
     if (!familySnap.exists()) return null;
 
     const data = familySnap.data();
+    const pii = data.pii_data || data;
+
     const config: FamilyConfig & { familyId: string } = {
       familyId,
-      householdName: data.householdName,
-      member1: data.member1,
-      member2: data.member2,
-      extraAuthorizedEmails: data.extraAuthorizedEmails || [],
+      householdName: pii.householdName || data.householdName,
+      member1: pii.member1 || data.member1,
+      member2: pii.member2 || data.member2,
+      extraAuthorizedEmails: pii.extraAuthorizedEmails || data.extraAuthorizedEmails || [],
       completedAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
     };
 

@@ -24,9 +24,63 @@ if not load_dotenv():
 print(f"ANTHROPIC_API_KEY loaded: {'Yes (starts with ' + os.environ.get('ANTHROPIC_API_KEY')[:10] + '...)' if os.environ.get('ANTHROPIC_API_KEY') else 'No'}")
 sys.stdout.flush()
 
+import asyncio
+
 from mock_data import MOCK_DATA
 import db_manager
 import ai_advisor
+import market_data as market_data_module
+
+
+def _collect_market_data(portfolios: dict) -> dict:
+    """
+    Fetch top-3 competitors for every unique (product_type, track_name) pair
+    found in the user's portfolio, and return a dict keyed by track_name.
+
+    Uses asyncio.run() so it is callable from synchronous FastAPI endpoints.
+    Result shape:
+      {
+        "<track_name>": [
+          {"provider_name": ..., "yield_1yr": ..., "yield_3yr": ...,
+           "management_fee_accumulation": ...},
+          ...
+        ],
+        ...
+      }
+    """
+    print("\n📊 [APP] Collecting market competitor data for all tracks...")
+
+    async def _fetch_all(tasks: list[tuple[str, str]]) -> dict:
+        results = {}
+        for product_type, track_name in tasks:
+            if track_name and track_name not in results:
+                competitors = await market_data_module.get_top_competitors(
+                    product_type=product_type,
+                    track_name=track_name,
+                )
+                results[track_name] = competitors
+        return results
+
+    # Gather all (product_type, track_name) pairs from both owners
+    tasks: list[tuple[str, str]] = []
+    for owner_key in ["user", "spouse"]:
+        for fund in portfolios.get(owner_key, {}).get("funds", []):
+            tasks.append((
+                fund.get("category", ""),
+                fund.get("track_name", ""),
+            ))
+
+    if not tasks:
+        print("ℹ️  [APP] No funds found — skipping market data collection.")
+        return {}
+
+    try:
+        market_data_result = asyncio.run(_fetch_all(tasks))
+        print(f"✅ [APP] Market data collected for {len(market_data_result)} unique track(s).")
+        return market_data_result
+    except Exception as e:
+        print(f"⚠️  [APP] Market data collection failed: {e}. Proceeding with empty market data.")
+        return {}
 
 # Test UID removed - now using dynamic UID from token
 
@@ -443,9 +497,11 @@ CRITICAL:
     
     if total_funds_extracted > 0 and pii_request.analyze:
         print(f"\n🤖 [APP] Orchestrating Action Items generation ({total_funds_extracted} funds found)...")
+        # Fetch live competitor benchmarks for every track in the portfolio
+        live_market_data = _collect_market_data(MOCK_DATA["portfolios"])
         action_items = ai_advisor.generate_action_items(
-            family_portfolio=MOCK_DATA["portfolios"], 
-            market_data={}, 
+            family_portfolio=MOCK_DATA["portfolios"],
+            market_data=live_market_data,
             financial_profile=f_profile
         )
     elif not pii_request.analyze:
@@ -497,11 +553,14 @@ def test_reprocess_advisory(user: dict = Depends(verify_token)):
     family_profile = db_manager.get_family_profile(uid)
     f_profile = family_profile.get("financial_profile", {}) if family_profile else {}
     
-    # 3. Re-run AI Advisor
+    # 3. Fetch live competitor benchmarks, then re-run AI Advisor
+    print("📊 [APP] Fetching live market data for reprocess...")
+    saved_portfolios = portfolio_doc.get("portfolios", {})
+    live_market_data = _collect_market_data(saved_portfolios)
     print("🤖 [APP] Re-generating action items from saved portfolio...")
     action_items = ai_advisor.generate_action_items(
-        family_portfolio=portfolio_doc.get("portfolios", {}),
-        market_data={},
+        family_portfolio=saved_portfolios,
+        market_data=live_market_data,
         financial_profile=f_profile
     )
     

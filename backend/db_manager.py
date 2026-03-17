@@ -128,3 +128,62 @@ def save_processed_portfolio(uid: str, portfolio_data: dict):
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error saving portfolio: {e}")
         return False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Market Data Cache  (Stale-While-Revalidate pattern)
+# Collection: market_cache / Document ID: track_name
+# ──────────────────────────────────────────────────────────────────────────────
+
+def save_market_cache(track_name: str, data: list) -> bool:
+    """
+    Persist a list of top-competitor dicts to Firestore for a given track.
+
+    Document path: market_cache/{track_name}
+    Fields stored:
+      - competitors  : the raw list of competitor dicts
+      - last_updated : Firestore server timestamp
+
+    Returns True on success, False otherwise.
+    """
+    print(f"\n💾 [DB_MANAGER] Saving market cache for track: '{track_name}'...")
+    if db is None:
+        print("⚠️ [DB_MANAGER] Firestore not initialized. Skipping market cache save.")
+        return False
+    try:
+        doc_ref = db.collection("market_cache").document(track_name)
+        doc_ref.set({
+            "competitors": data,
+            "last_updated": firestore.SERVER_TIMESTAMP,
+        })
+        print(f"✅ [DB_MANAGER] Market cache saved for track '{track_name}' ({len(data)} competitors).")
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving market cache for '{track_name}': {e}")
+        return False
+
+
+def get_market_cache(track_name: str):
+    """
+    Retrieve the cached competitor list from Firestore for a given track.
+
+    Returns:
+      list  – the cached competitors list if found.
+      None  – if the document does not exist or Firestore is unavailable.
+    """
+    print(f"\n🔍 [DB_MANAGER] Fetching market cache for track: '{track_name}'...")
+    if db is None:
+        print("⚠️ [DB_MANAGER] Firestore not initialized. Skipping market cache fetch.")
+        return None
+    try:
+        doc_ref = db.collection("market_cache").document(track_name)
+        doc = doc_ref.get()
+        if doc.exists:
+            cached = doc.to_dict().get("competitors")
+            print(f"✅ [DB_MANAGER] Market cache HIT for '{track_name}' ({len(cached or [])} competitors).")
+            return cached
+        print(f"ℹ️ [DB_MANAGER] Market cache MISS for '{track_name}' – no document found.")
+        return None
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error reading market cache for '{track_name}': {e}")
+        return None

@@ -60,9 +60,11 @@ export default function Onboarding() {
       } catch (e) {
         console.error('Error loading onboarding draft:', e);
       }
+    } else if (user?.email) {
+      setMember1(prev => ({ ...prev, email: user.email! }));
     }
     setIsLoaded(true);
-  }, []);
+  }, [user]);
 
   // Save to localStorage on change
   useEffect(() => {

@@ -123,7 +123,7 @@ Generate the 3 action items now.
 
     try:
         client = Anthropic(api_key=api_key)
-        print("🧠 [AI_ADVISOR] Sending request to Claude 3.5 Sonnet...")
+        print("🧠 [AI_ADVISOR] Sending request to claude-sonnet-4-6...")
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=8192,
