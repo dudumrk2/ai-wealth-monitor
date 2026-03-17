@@ -139,7 +139,17 @@ export async function getUserFamily(uid: string, email: string): Promise<(Family
 
     let familyId: string | null = userSnap.exists() ? userSnap.data().familyId : null;
 
-    // 2. If not found by uid, try finding by email in authorizedEmails
+    // 2. If not found by uid mapping, try direct uid check in families collection
+    if (!familyId) {
+      const directFamilySnap = await getDoc(doc(db, 'families', uid));
+      if (directFamilySnap.exists()) {
+        familyId = uid;
+        // Retroactively link user for future faster lookups
+        await setDoc(userRef, { familyId, email, joinedAt: serverTimestamp() }, { merge: true });
+      }
+    }
+
+    // 3. If still not found, try finding by email in authorizedEmails
     if (!familyId && email) {
       const q = query(
         collection(db, 'families'),
@@ -155,7 +165,7 @@ export async function getUserFamily(uid: string, email: string): Promise<(Family
 
     if (!familyId) return null;
 
-    // 3. Fetch the family doc
+    // 4. Fetch the family doc
     const familySnap = await getDoc(doc(db, 'families', familyId));
     if (!familySnap.exists()) return null;
 

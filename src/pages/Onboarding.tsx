@@ -140,7 +140,16 @@ export default function Onboarding() {
 
     try {
       // Save directly to Firestore as requested
-      await setDoc(doc(db, 'families', user.uid), finalPayload);
+      const familyRef = doc(db, 'families', user.uid);
+      await setDoc(familyRef, finalPayload);
+      
+      // Also link the user in the 'users' collection for proper mapping and future lookups
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        familyId: user.uid,
+        email: user.email,
+        joinedAt: serverTimestamp(),
+      }, { merge: true });
       
       // Update local storage and navigate
       localStorage.setItem(STORAGE_KEYS.ONBOARDING_DONE, 'true');

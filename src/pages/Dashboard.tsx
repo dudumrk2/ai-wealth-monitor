@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
 import AssetTable from '../components/dashboard/AssetTable';
@@ -10,7 +10,7 @@ import { CATEGORY_LABELS } from '../types/portfolio';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import RedactionPreviewModal from '../components/onboarding/RedactionPreviewModal';
+import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -56,12 +56,16 @@ export default function Dashboard() {
 
   // Analysis Flow State
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [fileGroups, setFileGroups] = useState<FilePreviewGroup[]>([]);
   const [seenFiles, setSeenFiles] = useState<Set<string>>(new Set());
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>('loading');
   const [processingResultsSummary, setProcessingResultsSummary] = useState<any>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+
+  // Guard to prevent auto-scan from firing more than once per session
+  const autoScanFiredRef = useRef(false);
 
   const fetchPortfolio = useCallback(async (silent = false) => {
     try {
@@ -96,6 +100,10 @@ export default function Dashboard() {
   // Auto-scan for inbox files whenever familyConfig becomes available
   useEffect(() => {
     if (!user || !familyConfig) return;
+
+    // Prevent double-firing (React StrictMode or deps changing twice)
+    if (autoScanFiredRef.current) return;
+    autoScanFiredRef.current = true;
     
     const checkInbox = async () => {
       try {
@@ -123,17 +131,26 @@ export default function Dashboard() {
         
         const result = await res.json();
         
-        // Only show preview if there are NEW files we haven't seen in this session
-        const newFiles = (result.results || []).filter((r: any) => !seenFiles.has(r.filename));
+        // Detect new files by filename (backend returns {filename, status:'preview_only'})
+        const allResults: any[] = result.results || [];
+        const newFiles = allResults
+          .filter((r: any) => !r.error && !seenFiles.has(r.filename))
+          .map((r: any) => r.filename);
         
         if (newFiles.length > 0) {
-          const allImages = newFiles.reduce((acc: string[], r: any) => [...acc, ...(r.preview_images || [])], []);
-          setPreviewImages(allImages);
-          
+          // Build per-file groups preserving {filename, images} structure
+          const groups: FilePreviewGroup[] = allResults
+            .filter((r: any) => !r.error && !seenFiles.has(r.filename))
+            .map((r: any) => ({
+              filename: r.filename,
+              images: r.preview_images || [],
+            }));
+          setFileGroups(groups);
+
           const nextSeen = new Set(seenFiles);
-          newFiles.forEach((r: any) => nextSeen.add(r.filename));
+          newFiles.forEach((name: string) => nextSeen.add(name));
           setSeenFiles(nextSeen);
-          
+
           setIsPreviewOpen(true);
         }
       } catch (e) {
@@ -199,6 +216,28 @@ export default function Dashboard() {
       console.error('Analysis error:', err);
       setProcessingStatus('error');
       setProcessingError(err.message || 'לא ניתן היה להשלים את הניתוח.');
+    }
+  };
+
+  const handleReprocessAdvisory = async () => {
+    if (!user) return;
+    setIsReprocessing(true);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${API_URL}/api/test-reprocess-advisory`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      if (!response.ok) throw new Error('Reprocess failed');
+      alert('ההמלצות רועננו בהצלחה מהדאטה הקיים!');
+      fetchPortfolio(true);
+    } catch (err) {
+      console.error('Reprocess error:', err);
+      alert('שגיאה בריענון ההמלצות.');
+    } finally {
+      setIsReprocessing(false);
     }
   };
 
@@ -310,7 +349,7 @@ export default function Dashboard() {
       <RedactionPreviewModal 
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
-        images={previewImages}
+        fileGroups={fileGroups}
         onConfirm={handleConfirmAnalysis}
         isProcessing={processingStatus === 'loading' && isStatusModalOpen}
       />
@@ -350,9 +389,22 @@ export default function Dashboard() {
               <h1 className="text-3xl font-bold tracking-tight text-slate-900">סקירת נכסים</h1>
               <p className="text-slate-500 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
             </div>
-            <button onClick={() => fetchPortfolio()} className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-white border border-slate-200 rounded-lg shadow-sm">
-              <RefreshCw className={clsx("w-5 h-5", loading && "animate-spin")} />
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleReprocessAdvisory} 
+                disabled={isReprocessing}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+              >
+                {isReprocessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                רענן המלצות (בדיקה)
+              </button>
+              <button 
+                onClick={() => fetchPortfolio()} 
+                className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-white border border-slate-200 rounded-lg shadow-sm"
+              >
+                <RefreshCw className={clsx("w-5 h-5", loading && "animate-spin")} />
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col xl:flex-row gap-8">
