@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { ArrowUpLeft, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
+import CompetitorModal from './CompetitorModal';
 
 interface Fund {
   id: string;
@@ -22,6 +24,7 @@ interface AssetTableProps {
 }
 
 export default function AssetTable({ title, funds, ownerColumn = false }: AssetTableProps) {
+  const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
 
   if (!funds || funds.length === 0) {
     return (
@@ -67,7 +70,11 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
               const hasCompetitors = fund.top_competitors && fund.top_competitors.length > 0;
 
               return (
-                <tr key={fund.id} className="hover:bg-slate-50/80 transition-colors group">
+                <tr 
+                  key={fund.id} 
+                  className="hover:bg-slate-50/80 transition-colors group cursor-pointer hover:shadow-sm"
+                  onClick={() => setSelectedFund(fund)}
+                >
                   <td className="p-4">
                     <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2">
                       {fund.provider_name}
@@ -127,6 +134,12 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
           )}
         </table>
       </div>
+      <CompetitorModal 
+        isOpen={!!selectedFund} 
+        onClose={() => setSelectedFund(null)} 
+        product={selectedFund}
+        productType={title}
+      />
     </div>
   );
 }
