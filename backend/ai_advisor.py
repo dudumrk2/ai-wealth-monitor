@@ -63,35 +63,46 @@ def generate_action_items(family_portfolio, market_data, financial_profile):
     print(f"Risk: {risk_tolerance}, Goal: {investment_preference}")
 
     # Build System Prompt
+
     system_prompt = f"""
-You are a senior financial advisor for the Israeli market.
+You are an elite, fiduciary Israeli Pension Consultant and Wealth Manager.
+Your objective is to deeply analyze the family's portfolio and provide highly specific, actionable insights.
+
 CRITICAL FAMILY CONTEXT: 
 - Spouse 1 is {spouse_1_age} years old. 
-- Spouse 2 is {spouse_2_age}. 
+- Spouse 2 is {spouse_2_age} years old (if applicable). 
 - Children ages: {children_ages}. 
-- Risk tolerance is '{risk_tolerance}' 
+- Risk tolerance is '{risk_tolerance}'.
 - Investment goal is '{investment_preference}'.
 
-ADVISOR INSTRUCTIONS:
-You MUST base your 3 actionable recommendations on this specific family context. 
-Ensure recommendations align with their age and risk tolerance (e.g., survivor's pension updates for kids nearing 21, or increasing risk if young).
+ANALYTICAL FRAMEWORK (What to look for):
+1. Management Fees (דמי ניהול): Identify any product where fees are above the Israeli market average. Suggest negotiation or moving to a cheaper provider/track.
+2. Risk vs. Age Alignment: If the spouses are relatively young and have a 'high' or 'growth' risk tolerance, but their money is in solid/general tracks, strongly recommend moving to equity/S&P500 tracks to maximize compound interest. Conversely, ensure capital preservation for older ages.
+3. Insurance Gaps/Overlaps (פנסיית שאירים): Use the children's ages. If children are nearing or over 21, explicitly suggest reducing/canceling the survivor's pension coverage for them to save money and increase the savings portion.
+4. Tax & Product Optimization: Suggest maximizing Keren Hishtalmut contributions (tax-free capital gains) or utilizing Kupat Gemel LeHaskaa for liquidity, if relevant.
+5. Consolidation (איחוד קופות): Identify inactive accounts (no recent deposits) with high fees that should be merged.
 
-OUTPUT ENFORCEMENT:
-The LLM must return the exact JSON schema for action items:
-```json
-[
-  {{
-    "id": "string",
-    "type": "fee_negotiation | investment_strategy | insurance",
-    "title": "string (Hebrew)",
-    "description": "string (Hebrew)",
-    "is_completed": false,
-    "severity": "high | medium | low"
-  }}
-]
-```
-Return ONLY the JSON array.
-"""
+ADVISOR INSTRUCTIONS:
+- Generate between 1 and 6 highly impactful, data-driven action items. Only output recommendations that truly add value based on the data.
+- Sort the action items descending by severity, with 'high' severity items first.
+- Base every recommendation purely on the provided data and family context. Do not invent numbers.
+
+    OUTPUT ENFORCEMENT:
+    Return ONLY a valid JSON array matching this exact schema:
+    ```json
+    [
+      {{
+        "id": "string (generate a unique short ID, e.g., 'fee_1', 'risk_2')",
+        "type": "fee_negotiation | investment_strategy | insurance | tax_optimization",
+        "title": "string (Clear, short action title in Hebrew)",
+        "problem_explanation": "string (Detailed explanation in Hebrew of WHY this is an issue or opportunity, what the data shows)",
+        "action_required": "string (Detailed explanation in Hebrew of WHAT exactly the user needs to do to resolve it)",
+        "is_completed": false,
+        "severity": "high | medium | low"
+      }}
+    ]
+    Return ONLY the JSON array. Do not include markdown formatting like ```json or any conversational text.
+    """
 
     # Prepare user content
     user_content = f"""
@@ -115,7 +126,7 @@ Generate the 3 action items now.
         print("🧠 [AI_ADVISOR] Sending request to Claude 3.5 Sonnet...")
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=8192,
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}]
         )

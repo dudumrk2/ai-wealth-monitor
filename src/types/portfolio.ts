@@ -64,7 +64,9 @@ export interface ActionItem {
   id: string;
   type: string;
   title: string;
-  description: string;
+  description?: string; // Legacy field for older recommendations
+  problem_explanation?: string;
+  action_required?: string;
   is_completed: boolean;
   severity: Severity;
 }

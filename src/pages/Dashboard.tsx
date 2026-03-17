@@ -17,9 +17,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 type TabView = 'user' | 'spouse' | 'joint';
 
-const fmt = (val: number) =>
-  new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
-
 const CATEGORY_COLORS: Record<FundCategory, string> = {
   pension:              '#3b82f6', // blue
   managers:             '#ef4444', // red/pink (classic ביטוח color)
@@ -296,15 +293,7 @@ export default function Dashboard() {
               <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
               <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
             </div>
-            <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl relative overflow-hidden">
-              <div className="absolute left-0 bottom-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2 pointer-events-none"></div>
-              <p className="text-slate-400 text-sm font-medium mb-1">עושר משפחתי מאוחד — {householdName}</p>
-              <h2 className="text-3xl font-bold tracking-tight mb-4 tabular-nums" dir="ltr">{fmt(joint.total_family_wealth)}</h2>
-              <div className="flex gap-3 flex-wrap">
-                <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1 text-sm"><div className="w-2 h-2 bg-blue-400 rounded-full"></div><span className="text-slate-300">{member1Name}</span></div>
-                <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1 text-sm"><div className="w-2 h-2 bg-emerald-400 rounded-full"></div><span className="text-slate-300">{member2Name}</span></div>
-              </div>
-            </div>
+            <ActionItems items={portfolioData.action_items as ActionItem[]} />
             {categories.map(cat => {
               const catFunds = [...jointUserFunds.filter(f => f.category === cat), ...jointSpouseFunds.filter(f => f.category === cat)];
               if (catFunds.length === 0) return null;
@@ -407,8 +396,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="flex flex-col xl:flex-row gap-8">
-            <div className="flex-1 min-w-0">
+          <div className="flex flex-col gap-8">
+            <div className="min-w-0">
               <div className="bg-slate-200/50 p-1 rounded-xl inline-flex mb-6 overflow-x-auto max-w-full">
                 {([
                   { id: 'joint',  label: 'תצוגה משותפת' },
@@ -426,7 +415,6 @@ export default function Dashboard() {
               </div>
               {renderTabContent()}
             </div>
-            <div className="xl:w-80 shrink-0"><ActionItems items={portfolioData.action_items as ActionItem[]} /></div>
           </div>
         </>
       )}
