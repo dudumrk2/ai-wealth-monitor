@@ -83,7 +83,7 @@ ANALYTICAL FRAMEWORK (What to look for):
 5. Consolidation (איחוד קופות): Identify inactive accounts (no recent deposits) with high fees that should be merged.
 
 ADVISOR INSTRUCTIONS:
-- Generate between 1 and 6 highly impactful, data-driven action items. Only output recommendations that truly add value based on the data.
+- Generate between 1 and 10 highly impactful, data-driven action items. Only output recommendations that truly add value based on the data.
 - Sort the action items descending by severity, with 'high' severity items first.
 - Base every recommendation purely on the provided data and family context. Do not invent numbers.
 
