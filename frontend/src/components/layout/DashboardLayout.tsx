@@ -1,8 +1,15 @@
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, Settings, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+}
+
+export default function DashboardLayout({ children, onRefresh, isRefreshing }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -27,6 +34,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Right side: Settings + User + Logout */}
         <div className="flex items-center gap-2">
+
+          {/* Refresh button (optional) */}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="רענן"
+            >
+              <RefreshCw className={clsx("w-4 h-4", isRefreshing && "animate-spin")} />
+            </button>
+          )}
 
           {/* Settings button */}
           <button

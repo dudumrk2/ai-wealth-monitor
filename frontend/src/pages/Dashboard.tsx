@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
 import AssetTable from '../components/dashboard/AssetTable';
@@ -10,7 +9,7 @@ import type { Fund, FundCategory, ActionItem, AlternativeInvestment } from '../t
 import { CATEGORY_LABELS } from '../types/portfolio';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
-import { Loader2, AlertCircle, RefreshCw, Settings } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
@@ -47,7 +46,6 @@ function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit'): Summary
 
 export default function Dashboard() {
   const { user, familyConfig } = useAuth();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabView>('joint');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -302,7 +300,10 @@ export default function Dashboard() {
                 <h3 className="font-bold text-slate-800 mb-4 text-lg">חשיפה לספקים</h3>
                 <div className="space-y-3">
                   {Object.entries(joint.provider_exposure || {}).map(([provider, value]) => (
-                    <div key={provider} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg text-sm font-semibold"><span className="text-slate-700">{provider}</span><span className="text-slate-900">{value as number}%</span></div>
+                    <div key={provider} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg text-sm font-semibold">
+                      <span className="text-slate-700">{provider}</span>
+                      <span className="text-slate-900">{value as number}%</span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -314,7 +315,7 @@ export default function Dashboard() {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout onRefresh={() => fetchPortfolio()} isRefreshing={loading}>
       {/* Analysis Modals - Rendered here so they stay in DOM during content swaps */}
       <RedactionPreviewModal 
         isOpen={isPreviewOpen}
@@ -339,7 +340,7 @@ export default function Dashboard() {
       {loading ? (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
           <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-          <p className="text-slate-500 font-medium">טוען נתונים פיננסיים...</p>
+          <p className="text-slate-500 font-medium">טוען ננתונים פיננסיים...</p>
         </div>
       ) : error || !portfolioData ? (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4 max-w-md mx-auto text-center">
@@ -354,29 +355,10 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="mb-8 flex justify-between items-end">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">סקירת תיק פנסיוני</h1>
-              <p className="text-slate-500 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => fetchPortfolio()} 
-                className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-white border border-slate-200 rounded-lg shadow-sm"
-                title="רענן"
-              >
-                <RefreshCw className={clsx("w-5 h-5", loading && "animate-spin")} />
-              </button>
-              <button
-                onClick={() => navigate('/settings')}
-                className="p-2 text-slate-400 hover:text-slate-700 transition-colors bg-white border border-slate-200 rounded-lg shadow-sm"
-                title="הגדרות"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">סקירת תיק פנסיוני</h1>
+            <p className="text-slate-500 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
           </div>
-
 
           <div className="flex flex-col gap-8">
             <div className="min-w-0">
