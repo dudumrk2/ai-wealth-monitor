@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, UploadFile, File, Form
 import firebase_admin
 import datetime
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,15 +38,7 @@ def _collect_market_data(portfolios: dict) -> dict:
     found in the user's portfolio, and return a dict keyed by track_name.
 
     Uses asyncio.run() so it is callable from synchronous FastAPI endpoints.
-    Result shape:
-      {
-        "<track_name>": [
-          {"provider_name": ..., "yield_1yr": ..., "yield_3yr": ...,
-           "management_fee_accumulation": ...},
-          ...
-        ],
-        ...
-      }
+    For async endpoints, use _collect_market_data_async() instead.
     """
     print("\n📊 [APP] Collecting market competitor data for all tracks...")
 
@@ -81,6 +73,42 @@ def _collect_market_data(portfolios: dict) -> dict:
     except Exception as e:
         print(f"⚠️  [APP] Market data collection failed: {e}. Proceeding with empty market data.")
         return {}
+
+async def _collect_market_data_async(portfolios: dict) -> dict:
+    """
+    Async-native version of _collect_market_data.
+    Use this inside async FastAPI endpoints (e.g. process_reports) so that
+    asyncio.run() is never called from within a running event loop.
+    """
+    print("\n📊 [APP] Collecting market competitor data for all tracks (async)...")
+
+    tasks: list[tuple[str, str]] = []
+    for owner_key in ["user", "spouse"]:
+        for fund in portfolios.get(owner_key, {}).get("funds", []):
+            tasks.append((
+                fund.get("category", ""),
+                fund.get("track_name", ""),
+            ))
+
+    if not tasks:
+        print("ℹ️  [APP] No funds found — skipping market data collection.")
+        return {}
+
+    results: dict = {}
+    try:
+        for product_type, track_name in tasks:
+            if track_name and track_name not in results:
+                competitors = await market_data_module.get_top_competitors(
+                    product_type=product_type,
+                    track_name=track_name,
+                )
+                results[track_name] = competitors
+        print(f"✅ [APP] Market data collected for {len(results)} unique track(s).")
+        return results
+    except Exception as e:
+        print(f"⚠️  [APP] Market data collection failed: {e}. Proceeding with empty market data.")
+        return {}
+
 
 # Test UID removed - now using dynamic UID from token
 
@@ -533,6 +561,283 @@ CRITICAL:
     
     print(f"\n🏁 [APP] Processing flow for {uid} COMPLETE.")
     return {"status": "success", "processed_count": len(pdf_files), "results": results, "final_data": final_json}
+
+@app.post("/api/process-reports")
+async def process_reports(
+    files: List[UploadFile] = File(...),
+    uid: str = Form(...),
+    user: dict = Depends(verify_token),
+):
+    """
+    Stateless, in-memory PDF processing endpoint.
+    Accepts up to 2 PDF files via multipart/form-data.
+    No files are written to disk — everything is processed from memory.
+    """
+    print("\n" + "="*50)
+    print(f"🚀 INCOMING REQUEST: /api/process-reports for uid={uid}")
+    print("="*50 + "\n")
+    sys.stdout.flush()
+
+    # ── Validation ───────────────────────────────────────────────────────────
+    if len(files) == 0:
+        raise HTTPException(status_code=422, detail="נדרש לפחות קובץ PDF אחד.")
+    if len(files) > 2:
+        raise HTTPException(status_code=422, detail="ניתן להעלות לכל היותר 2 קבצי PDF.")
+    for f in files:
+        filename_lower = (f.filename or "").lower()
+        content_type = (f.content_type or "")
+        if not filename_lower.endswith(".pdf") and "pdf" not in content_type:
+            raise HTTPException(status_code=422, detail=f"הקובץ '{f.filename}' אינו קובץ PDF.")
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+
+    # ── Fetch family profile from Firestore ───────────────────────────────────
+    family_profile = db_manager.get_family_profile(uid)
+    f_profile: dict = {}
+    all_target_strings: list[str] = []
+
+    if family_profile:
+        print(f"✅ [APP] Family profile found for {uid}")
+        f_pii = family_profile.get("pii_data", {})
+        f_profile = family_profile.get("financial_profile", {})
+        for m_key in ["member1", "member2"]:
+            m_data = f_pii.get(m_key)
+            if m_data:
+                name   = m_data.get("name", "")
+                last   = m_data.get("lastName", "")
+                id_num = m_data.get("idNumber", "")
+                email  = m_data.get("email", "")
+                all_target_strings.extend([name, last, id_num, email])
+                if id_num and id_num.startswith("0"):
+                    all_target_strings.append(id_num[1:])
+    else:
+        print(f"⚠️ [APP] No family profile found for {uid}. PII redaction will be minimal.")
+
+    all_target_strings = list(set([s for s in all_target_strings if s and len(s.strip()) > 2]))
+    print(f"DEBUG: Total redaction strings: {len(all_target_strings)}")
+
+    # Initialise a clean portfolio accumulator (user + spouse), so results from
+    # multiple uploads merge correctly and don't bleed into MOCK_DATA.
+    accumulated_portfolios: dict = {
+        "user":   {"funds": []},
+        "spouse": {"funds": []},
+    }
+
+    results = []
+
+    # ── Process each uploaded file ────────────────────────────────────────────
+    for upload_file in files:
+        filename = upload_file.filename or "unknown.pdf"
+        print(f"\n📄 [APP] Processing uploaded file: {filename}")
+
+        try:
+            pdf_bytes = await upload_file.read()
+
+            # Open entirely from memory — zero disk I/O
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            # ── Owner detection ───────────────────────────────────────────────
+            detected_owner = "unknown"
+            if doc.is_encrypted:
+                print(f"DEBUG: {filename} is encrypted — trying ID passwords…")
+                authenticated = False
+                if family_profile:
+                    for m_key in ["member1", "member2"]:
+                        m_id = family_profile.get("pii_data", {}).get(m_key, {}).get("idNumber")
+                        if m_id and doc.authenticate(m_id):
+                            authenticated = True
+                            detected_owner = "member_1" if m_key == "member1" else "member_2"
+                            print(f"✅ Authenticated via Firestore {m_key} ID.")
+                            break
+                if not authenticated:
+                    print(f"❌ [APP] Could not authenticate {filename}")
+                    results.append({"filename": filename, "error": "PDF מוגן בסיסמה ואף ת.ז. לא עבדה."})
+                    doc.close()
+                    continue
+            else:
+                # Count PII hits per member to guess owner
+                match_counts: dict[str, int] = {"member_1": 0, "member_2": 0}
+                if family_profile:
+                    for page in doc:
+                        text = page.get_text().lower()
+                        for m_key in ["member1", "member2"]:
+                            m_pii  = family_profile.get("pii_data", {}).get(m_key, {})
+                            label  = "member_1" if m_key == "member1" else "member_2"
+                            if m_pii.get("name") and m_pii["name"].lower().strip() in text:
+                                match_counts[label] += 1
+                            if m_pii.get("idNumber") and m_pii["idNumber"].strip() in text:
+                                match_counts[label] += 1
+                if match_counts["member_1"] > match_counts["member_2"]:
+                    detected_owner = "member_1"
+                elif match_counts["member_2"] > match_counts["member_1"]:
+                    detected_owner = "member_2"
+                print(f"DEBUG: Detected owner={detected_owner} (matches={match_counts})")
+
+            # ── Redact & render pages to base64 PNG ──────────────────────────
+            redacted_images_b64: list[str] = []
+            start_page = 3 if len(doc) > 3 else 0
+
+            for page_num in range(start_page, len(doc)):
+                page = doc[page_num]
+                for text in all_target_strings:
+                    for inst in page.search_for(text):
+                        page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
+                mat = fitz.Matrix(2, 2)
+                pix = page.get_pixmap(matrix=mat)
+                img_data = pix.tobytes("png")
+                redacted_images_b64.append(base64.b64encode(img_data).decode("utf-8"))
+
+            doc.close()
+            print(f"✅ Redacted {len(redacted_images_b64)} pages for {filename}")
+
+            if not api_key:
+                print("DEBUG: No API key — skipping AI extraction.")
+                results.append({"filename": filename, "status": "preview_only"})
+                continue
+
+            # ── Anthropic Vision extraction ───────────────────────────────────
+            print(f"🧠 [APP] Sending redacted images to Claude for {filename}…")
+            anthropic_client = Anthropic(api_key=api_key)
+
+            extraction_system_prompt = """
+אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
+חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
+המבנה חייב להיות:
+{
+  "products": [
+    {
+      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
+      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
+      "track_name": "string (שם המסלול)",
+      "policy_number": "string",
+      "balance": number,
+      "monthly_deposit": number,
+      "management_fee_deposit": number,
+      "management_fee_accumulation": number,
+      "yield_1yr": number,
+      "yield_3yr": number,
+      "yield_5yr": number
+    }
+  ]
+}
+
+CRITICAL:
+- החזר JSON תקני בלבד ללא markdown, ללא הסברים
+- השתמש במרכאות כפולות לכל מחרוזות
+- אל תכניס מרכאות לתוך ערכי מחרוזות (השתמש ב-slash או הסר)
+- כל הערכים המספריים ללא פסיקים (1234567 ולא 1,234,567)
+- אם שדה לא קיים, השתמש ב-0 עבור מספרים ו-"" עבור מחרוזות
+"""
+
+            content_blocks: list[dict] = []
+            for b64 in redacted_images_b64[:10]:
+                content_blocks.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": b64},
+                })
+            content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
+
+            response = anthropic_client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                system=extraction_system_prompt,
+                messages=[{"role": "user", "content": content_blocks}],
+            )
+
+            response_text = response.content[0].text.strip()
+
+            # Robust JSON parsing
+            import re as _re
+            response_text = _re.sub(r'^```(?:json)?\s*', '', response_text, flags=_re.MULTILINE)
+            response_text = _re.sub(r'```\s*$', '', response_text, flags=_re.MULTILINE).strip()
+
+            start_idx = response_text.find('{')
+            if start_idx == -1:
+                raise ValueError(f"No JSON in Anthropic response: {response_text[:200]}")
+            try:
+                pension_data, _ = json.JSONDecoder().raw_decode(response_text, start_idx)
+            except json.JSONDecodeError:
+                brace_count = 0
+                end_idx = start_idx
+                for i, ch in enumerate(response_text[start_idx:], start_idx):
+                    if ch == '{': brace_count += 1
+                    elif ch == '}': brace_count -= 1
+                    if brace_count == 0:
+                        end_idx = i + 1
+                        break
+                pension_data = json.loads(response_text[start_idx:end_idx])
+
+            print(f"✅ [APP] Extracted {len(pension_data.get('products', []))} products from {filename}")
+
+            # ── Map products → fund schema ────────────────────────────────────
+            owner_key = "user" if detected_owner == "member_1" else "spouse"
+            for p in pension_data.get("products", []):
+                raw_type = p.get("product_type", "")
+                if "פנסיה" in raw_type:            category = "pension"
+                elif "מנהלים" in raw_type:         category = "managers"
+                elif "השתלמות" in raw_type:        category = "study"
+                elif "גמל להשקעה" in raw_type:     category = "investment_provident"
+                elif "גמל" in raw_type:            category = "provident"
+                else:                              category = "provident"
+
+                accumulated_portfolios[owner_key]["funds"].append({
+                    "id": f"ai_{filename}_{os.urandom(2).hex()}",
+                    "category": category,
+                    "provider_name": p.get("provider_name", "Unknown"),
+                    "track_name": p.get("track_name", "Unknown"),
+                    "status": "active",
+                    "balance": p.get("balance", 0),
+                    "monthly_deposit": p.get("monthly_deposit", 0),
+                    "management_fee_deposit": p.get("management_fee_deposit", 0),
+                    "management_fee_accumulation": p.get("management_fee_accumulation", 0),
+                    "yield_1yr": p.get("yield_1yr", 0),
+                    "yield_3yr": p.get("yield_3yr", 0),
+                    "yield_5yr": p.get("yield_5yr", 0),
+                    "policy_number": p.get("policy_number", ""),
+                })
+
+            results.append({"filename": filename, "status": "success", "products_found": len(pension_data.get("products", []))})
+
+        except Exception as e:
+            print(f"💥 [APP] Error processing {filename}: {e}")
+            results.append({"filename": filename, "error": str(e)})
+
+    # ── Generate action items if any funds were extracted ─────────────────────
+    total_funds = sum(len(accumulated_portfolios[k]["funds"]) for k in ["user", "spouse"])
+
+    if total_funds > 0:
+        print(f"\n🤖 [APP] Generating action items ({total_funds} funds)…")
+        live_market_data = await _collect_market_data_async(accumulated_portfolios)
+        action_items = ai_advisor.generate_action_items(
+            family_portfolio=accumulated_portfolios,
+            market_data=live_market_data,
+            financial_profile=f_profile,
+        )
+    else:
+        print("\n⚠️ [APP] No funds extracted — skipping action items.")
+        action_items = []
+
+    # ── Persist to Firestore ──────────────────────────────────────────────────
+    now = datetime.datetime.now().isoformat()
+    final_json = {
+        "uid": uid,
+        "last_updated": now,
+        "portfolios": accumulated_portfolios,
+        "action_items": action_items,
+    }
+
+    print("\n☁️ [APP] Saving to Firestore…")
+    db_manager.save_processed_portfolio(uid, final_json)
+
+    print(f"\n🏁 [APP] /api/process-reports COMPLETE for {uid}.")
+    return {
+        "status": "success",
+        "processed_count": len([r for r in results if not r.get("error")]),
+        "results": results,
+        "final_data": final_json,
+    }
+
+
 
 @app.post("/api/test-reprocess-advisory")
 def test_reprocess_advisory(user: dict = Depends(verify_token)):

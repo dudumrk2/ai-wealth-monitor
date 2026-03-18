@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { deleteFamily, addAuthorizedEmail } from '../lib/familyService';
 import { STORAGE_KEYS } from '../lib/storageKeys';
-import { Trash2, AlertTriangle, Users, UserCircle2, Mail, Shield, ChevronRight, X } from 'lucide-react';
+import { Trash2, AlertTriangle, Users, UserCircle2, Mail, Shield, ChevronRight, X, RefreshCw, Loader2 } from 'lucide-react';
+import UploadSection from '../components/dashboard/UploadSection';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -22,6 +25,10 @@ export default function Settings() {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Reprocess advisory state
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const [reprocessMsg, setReprocessMsg] = useState<string | null>(null);
 
   // Add email state
   const [newEmail, setNewEmail] = useState('');
@@ -54,7 +61,7 @@ export default function Settings() {
     try {
       await addAuthorizedEmail(familyId, user.uid, newEmail);
       setNewEmail('');
-      await refreshFamily(); // Pull fresh data to re-render
+      await refreshFamily();
     } catch (err: any) {
       if (err?.message === 'NOT_FAMILY_OWNER') {
         alert('רק מנהל המשפחה יכול להוסיף רשאות גישה.');
@@ -63,6 +70,25 @@ export default function Settings() {
       }
     } finally {
       setAddingEmail(false);
+    }
+  };
+
+  const handleReprocessAdvisory = async () => {
+    if (!user) return;
+    setIsReprocessing(true);
+    setReprocessMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/test-reprocess-advisory`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) throw new Error('failed');
+      setReprocessMsg('✅ ההמלצות רועננו בהצלחה מהדאטה הקיים!');
+    } catch {
+      setReprocessMsg('❌ שגיאה בריענון ההמלצות.');
+    } finally {
+      setIsReprocessing(false);
     }
   };
 
@@ -83,7 +109,41 @@ export default function Settings() {
 
       <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
 
-        {/* Family Info Card */}
+        {/* PDF Upload Card */}
+        {user && <UploadSection user={user} onSuccess={() => {}} />}
+
+        {/* Reprocess Advisory Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+              <RefreshCw className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 text-lg">רענן המלצות AI</h2>
+              <p className="text-xs text-slate-400 mt-0.5">מחשב מחדש המלצות על בסיס הנתונים השמורים — ללא העלאת קבצים</p>
+            </div>
+          </div>
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <p className="text-sm text-slate-500">מושך נתוני שוק עדכניים ומריץ את יועץ ה-AI על הפורטפוליו הנוכחי.</p>
+            <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
+              <button
+                onClick={handleReprocessAdvisory}
+                disabled={isReprocessing}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
+              >
+                {isReprocessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {isReprocessing ? 'מחשב...' : 'רענן המלצות'}
+              </button>
+              {reprocessMsg && (
+                <p className={`text-xs font-medium ${reprocessMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                  {reprocessMsg}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">

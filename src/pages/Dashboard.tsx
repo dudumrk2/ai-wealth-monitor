@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
 import AssetTable from '../components/dashboard/AssetTable';
@@ -9,7 +10,7 @@ import type { Fund, FundCategory, ActionItem, AlternativeInvestment } from '../t
 import { CATEGORY_LABELS } from '../types/portfolio';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Settings } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
@@ -46,6 +47,7 @@ function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit'): Summary
 
 export default function Dashboard() {
   const { user, familyConfig } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabView>('joint');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,6 @@ export default function Dashboard() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>('loading');
   const [processingResultsSummary, setProcessingResultsSummary] = useState<any>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
-  const [isReprocessing, setIsReprocessing] = useState(false);
 
   // Guard to prevent auto-scan from firing more than once per session
   const autoScanFiredRef = useRef(false);
@@ -216,27 +217,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleReprocessAdvisory = async () => {
-    if (!user) return;
-    setIsReprocessing(true);
-    try {
-      const idToken = await user.getIdToken();
-      const response = await fetch(`${API_URL}/api/test-reprocess-advisory`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
-      });
-      if (!response.ok) throw new Error('Reprocess failed');
-      alert('ההמלצות רועננו בהצלחה מהדאטה הקיים!');
-      fetchPortfolio(true);
-    } catch (err) {
-      console.error('Reprocess error:', err);
-      alert('שגיאה בריענון ההמלצות.');
-    } finally {
-      setIsReprocessing(false);
-    }
-  };
+
 
   const userFunds    = portfolioData?.portfolios?.user?.funds as Fund[] || [];
   const spouseFunds  = portfolioData?.portfolios?.spouse?.funds as Fund[] || [];
@@ -380,21 +361,22 @@ export default function Dashboard() {
             </div>
             <div className="flex gap-2">
               <button 
-                onClick={handleReprocessAdvisory} 
-                disabled={isReprocessing}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-              >
-                {isReprocessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                רענן המלצות (בדיקה)
-              </button>
-              <button 
                 onClick={() => fetchPortfolio()} 
                 className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-white border border-slate-200 rounded-lg shadow-sm"
+                title="רענן"
               >
                 <RefreshCw className={clsx("w-5 h-5", loading && "animate-spin")} />
               </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="p-2 text-slate-400 hover:text-slate-700 transition-colors bg-white border border-slate-200 rounded-lg shadow-sm"
+                title="הגדרות"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
             </div>
           </div>
+
 
           <div className="flex flex-col gap-8">
             <div className="min-w-0">
