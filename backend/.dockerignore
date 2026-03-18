@@ -1,0 +1,26 @@
+# Environments
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Git
+.git
+.gitignore
+
+# Google Cloud / Firebase (Secret management)
+# CRITICAL SECURITY: Do not bake these into the image.
+# These will be managed via environment variables/secrets in GCP.
+credentials.json
+serviceAccountKey.json
+
+# Local Data and Inbox
+data/
+local_inbox/
+
+# IDEs
+.vscode/
+.idea/
