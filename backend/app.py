@@ -937,7 +937,7 @@ def _extract_pdf_url(html_body: str, text_body: str) -> str | None:
 # ── /api/cron/fetch-emails endpoint ──────────────────────────────────────────
 
 @app.post("/api/cron/fetch-emails")
-async def fetch_emails_from_gmail(request: Request):
+async def fetch_emails_from_gmail(request: Request, uid: Optional[str] = None):
     """
     Stateless cron endpoint.
     Searches Gmail for unprocessed pension reports, downloads + processes each
@@ -954,24 +954,52 @@ async def fetch_emails_from_gmail(request: Request):
     if not cron_secret or incoming_secret != cron_secret:
         raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
 
-    body = await request.json()
-    uid: str = body.get("uid", "").strip()
-    if not uid:
-        raise HTTPException(status_code=422, detail="uid is required in request body")
+    # ── 2. Resolve target UIDs ────────────────────────────────────────────────
+    # uid can come from query param (?uid=xxx). If omitted, process ALL families.
+    target_uid = (uid or "").strip()
+    if target_uid:
+        uids_to_process = [target_uid]
+    else:
+        uids_to_process = db_manager.get_all_family_uids()
+        if not uids_to_process:
+            return {"status": "success", "message": "No families found in Firestore", "processed": 0}
 
     print(f"\n{'='*50}")
-    print(f"📧 [CRON] fetch-emails for uid={uid}")
+    print(f"📧 [CRON] fetch-emails — targeting {len(uids_to_process)} family/families")
     print(f"{'='*50}\n")
     sys.stdout.flush()
 
-    # ── 2. Fetch family profile ───────────────────────────────────────────────
+    all_results = []
+    for current_uid in uids_to_process:
+        result = await _process_family_emails(current_uid)
+        all_results.append({"uid": current_uid, **result})
+
+    total_processed = sum(r.get("processed", 0) for r in all_results)
+    return {
+        "status": "success",
+        "families_processed": len(all_results),
+        "total_emails_processed": total_processed,
+        "results": all_results,
+    }
+
+
+async def _process_family_emails(uid: str) -> dict:
+    """Process all unread Gmail reports for a single family UID."""
+    import base64 as _base64
+    import re as _re
+    import httpx as _httpx
+
+
+    # ── 1. Fetch family profile ───────────────────────────────────────────────
     family_profile = db_manager.get_family_profile(uid)
     if not family_profile:
-        raise HTTPException(status_code=404, detail=f"No family profile found for uid={uid}")
+        print(f"⚠️ [CRON] No family profile for {uid} — skipping.")
+        return {"processed": 0, "error": "no_family_profile"}
 
     refresh_token: str | None = family_profile.get("gmail_refresh_token")
     if not refresh_token:
-        raise HTTPException(status_code=400, detail="No gmail_refresh_token in family profile")
+        print(f"⚠️ [CRON] No gmail_refresh_token for {uid} — skipping.")
+        return {"processed": 0, "error": "no_gmail_refresh_token"}
 
     member_id_numbers: list[str] = family_profile.get("member_id_numbers", [])
     f_profile: dict = family_profile.get("financial_profile", {})
@@ -984,11 +1012,13 @@ async def fetch_emails_from_gmail(request: Request):
         all_target_strings.extend([m.get("name", ""), m.get("lastName", ""), m.get("email", "")])
     all_target_strings = list(set([s for s in all_target_strings if s and len(s.strip()) > 2]))
 
-    # ── 3. Build Gmail service ────────────────────────────────────────────────
+    # ── 2. Build Gmail service ────────────────────────────────────────────────
     try:
         service = _get_gmail_service(refresh_token)
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Gmail authentication failed: {e}")
+        print(f"❌ [CRON] Gmail auth failed for {uid}: {e}")
+        return {"processed": 0, "error": f"gmail_auth_failed: {e}"}
+
 
     # ── 4. Search for unprocessed emails ──────────────────────────────────────
     query = 'from:no-reply@surense.com subject:"דוח מצב ביטוח ופנסיה" -label:AI_PROCESSED'

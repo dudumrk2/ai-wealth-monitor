@@ -144,6 +144,30 @@ def get_processed_portfolio(uid: str):
         print(f"💥 [DB_MANAGER] Error fetching processed portfolio: {e}")
         return None
 
+def get_all_family_uids() -> list:
+    """
+    Return UIDs of all family documents in Firestore that have a
+    `gmail_refresh_token` field set. Used by the cron endpoint to
+    automatically find and process every Gmail-enabled family.
+    """
+    print("\n🔍 [DB_MANAGER] Fetching all Gmail-enabled family UIDs...")
+    if db is None:
+        print("⚠️ [DB_MANAGER] Firestore not initialized. Skipping.")
+        return []
+    try:
+        # Filter server-side: only families where gmail_refresh_token exists and is non-empty
+        docs = (
+            db.collection("families")
+            .where("gmail_refresh_token", "!=", "")
+            .stream()
+        )
+        uids = [doc.id for doc in docs]
+        print(f"✅ [DB_MANAGER] Found {len(uids)} Gmail-enabled family/families.")
+        return uids
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching Gmail-enabled family UIDs: {e}")
+        return []
+
 def save_processed_portfolio(uid: str, portfolio_data: dict):
     """
     Save the final processed portfolio JSON to the 'portfolios' collection.
