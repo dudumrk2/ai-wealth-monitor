@@ -54,7 +54,14 @@ import json
 
 def get_family_profile(uid: str):
     """
-    Fetch family PII and financial profile from Firestore.
+    Fetch family PII, financial profile, gmail_refresh_token, and all member
+    idNumbers from Firestore.
+
+    Returns a dict with:
+      - pii_data            : dict (legacy map, may be empty)
+      - financial_profile   : dict
+      - gmail_refresh_token : str | None
+      - member_id_numbers   : list[str]  — all idNumbers across all family members
     """
     print(f"\n🔍 [DB_MANAGER] Fetching family profile for UID: {uid}...")
     if db is None:
@@ -63,22 +70,54 @@ def get_family_profile(uid: str):
     try:
         doc_ref = db.collection("families").document(uid)
         doc = doc_ref.get()
-        if doc.exists:
-            data = doc.to_dict()
-            # Handle Firestore timestamps (DatetimeWithNanoseconds) for JSON serialization
-            for key, value in data.items():
-                if hasattr(value, 'isoformat'):
-                    data[key] = value.isoformat()
-            
-            print(f"✅ [DB_MANAGER] Profile found for {uid}:")
-            # print(json.dumps(data, indent=2, ensure_ascii=False)) # Commented out to avoid serialization issues in logs
-            return {
-                "pii_data": data.get("pii_data", {}),
-                "financial_profile": data.get("financial_profile", {})
-            }
-        else:
+        if not doc.exists:
             print(f"❌ [DB_MANAGER] Family profile for UID {uid} NOT FOUND.")
             return None
+
+        data = doc.to_dict()
+        # Serialise any Firestore timestamps
+        for key, value in data.items():
+            if hasattr(value, 'isoformat'):
+                data[key] = value.isoformat()
+
+        # ── Collect all member ID numbers ─────────────────────────────────────
+        member_id_numbers: list = []
+
+        # 1. Try `members` sub-collection first (preferred path)
+        try:
+            members_ref = doc_ref.collection("members")
+            members_docs = members_ref.stream()
+            for m_doc in members_docs:
+                m_data = m_doc.to_dict() or {}
+                id_num = m_data.get("idNumber", "")
+                if id_num:
+                    member_id_numbers.append(id_num)
+                    # Also add version without leading zero
+                    if id_num.startswith("0"):
+                        member_id_numbers.append(id_num[1:])
+            print(f"✅ [DB_MANAGER] Found {len(member_id_numbers)} ID(s) from members sub-collection.")
+        except Exception as sub_err:
+            print(f"⚠️ [DB_MANAGER] Could not read members sub-collection: {sub_err}")
+
+        # 2. Fallback: legacy `pii_data` map (member1/member2 keys)
+        if not member_id_numbers:
+            pii_data = data.get("pii_data", {})
+            for m_key in ["member1", "member2"]:
+                id_num = pii_data.get(m_key, {}).get("idNumber", "")
+                if id_num:
+                    member_id_numbers.append(id_num)
+                    if id_num.startswith("0"):
+                        member_id_numbers.append(id_num[1:])
+            if member_id_numbers:
+                print(f"✅ [DB_MANAGER] Found {len(member_id_numbers)} ID(s) from pii_data map (fallback).")
+
+        print(f"✅ [DB_MANAGER] Profile found for {uid}.")
+        return {
+            "pii_data": data.get("pii_data", {}),
+            "financial_profile": data.get("financial_profile", {}),
+            "gmail_refresh_token": data.get("gmail_refresh_token"),
+            "member_id_numbers": list(dict.fromkeys(member_id_numbers)),  # deduplicate, preserve order
+        }
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error fetching family profile: {e}")
         return None

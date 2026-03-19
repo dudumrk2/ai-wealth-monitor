@@ -882,6 +882,367 @@ def test_reprocess_advisory(user: dict = Depends(verify_token)):
     
     return {"status": "success", "message": "Advisories reprocessed from Firestore data", "action_items_count": len(action_items)}
 
+
+# ── Gmail Fetcher Helpers ─────────────────────────────────────────────────────
+
+
+def _get_gmail_service(refresh_token: str):
+    """Build a stateless Gmail API service using a user refresh token."""
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+
+    creds = Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        scopes=["https://www.googleapis.com/auth/gmail.modify"],
+    )
+    return build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+
+def _get_or_create_label(service, label_name: str) -> str:
+    """Return the Gmail label ID for label_name, creating it if it doesn't exist."""
+    labels_response = service.users().labels().list(userId="me").execute()
+    for label in labels_response.get("labels", []):
+        if label.get("name") == label_name:
+            return label["id"]
+    # Create label
+    created = service.users().labels().create(
+        userId="me",
+        body={
+            "name": label_name,
+            "labelListVisibility": "labelShow",
+            "messageListVisibility": "show",
+        },
+    ).execute()
+    print(f"✅ [GMAIL] Created label '{label_name}' (id={created['id']})")
+    return created["id"]
+
+
+def _extract_pdf_url(html_body: str, text_body: str) -> str | None:
+    """Extract a surense.com download URL from an email body."""
+    import re as _re
+    pattern = r"https://(?:u|api)\.surense\.com/[^\s\"'<>]+"
+    for body in (html_body, text_body):
+        if not body:
+            continue
+        match = _re.search(pattern, body)
+        if match:
+            return match.group(0)
+    return None
+
+
+# ── /api/cron/fetch-emails endpoint ──────────────────────────────────────────
+
+@app.post("/api/cron/fetch-emails")
+async def fetch_emails_from_gmail(request: Request):
+    """
+    Stateless cron endpoint.
+    Searches Gmail for unprocessed pension reports, downloads + processes each
+    PDF, and persists the results to Firestore.
+    Secured via X-Cron-Secret header.
+    """
+    import base64 as _base64
+    import re as _re
+    import httpx as _httpx
+
+    # ── 1. Auth ───────────────────────────────────────────────────────────────
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    body = await request.json()
+    uid: str = body.get("uid", "").strip()
+    if not uid:
+        raise HTTPException(status_code=422, detail="uid is required in request body")
+
+    print(f"\n{'='*50}")
+    print(f"📧 [CRON] fetch-emails for uid={uid}")
+    print(f"{'='*50}\n")
+    sys.stdout.flush()
+
+    # ── 2. Fetch family profile ───────────────────────────────────────────────
+    family_profile = db_manager.get_family_profile(uid)
+    if not family_profile:
+        raise HTTPException(status_code=404, detail=f"No family profile found for uid={uid}")
+
+    refresh_token: str | None = family_profile.get("gmail_refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="No gmail_refresh_token in family profile")
+
+    member_id_numbers: list[str] = family_profile.get("member_id_numbers", [])
+    f_profile: dict = family_profile.get("financial_profile", {})
+
+    # Build PII redaction strings from all known members
+    all_target_strings: list[str] = list(member_id_numbers)
+    pii_data = family_profile.get("pii_data", {})
+    for m_key in ["member1", "member2"]:
+        m = pii_data.get(m_key, {})
+        all_target_strings.extend([m.get("name", ""), m.get("lastName", ""), m.get("email", "")])
+    all_target_strings = list(set([s for s in all_target_strings if s and len(s.strip()) > 2]))
+
+    # ── 3. Build Gmail service ────────────────────────────────────────────────
+    try:
+        service = _get_gmail_service(refresh_token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Gmail authentication failed: {e}")
+
+    # ── 4. Search for unprocessed emails ──────────────────────────────────────
+    query = 'from:no-reply@surense.com subject:"דוח מצב ביטוח ופנסיה" -label:AI_PROCESSED'
+    try:
+        search_result = service.users().messages().list(userId="me", q=query).execute()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gmail search failed: {e}")
+
+    messages = search_result.get("messages", [])
+    print(f"📬 [CRON] Found {len(messages)} unprocessed message(s).")
+    if not messages:
+        return {"status": "success", "processed": 0, "results": [], "message": "No new emails found"}
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+
+    accumulated_portfolios: dict = {
+        "user":   {"funds": []},
+        "spouse": {"funds": []},
+    }
+    results = []
+
+    # ── 5. Process each email ─────────────────────────────────────────────────
+    for msg_stub in messages:
+        msg_id = msg_stub["id"]
+        print(f"\n📄 [CRON] Processing message id={msg_id}")
+        try:
+            # Fetch full message
+            msg = service.users().messages().get(
+                userId="me", id=msg_id, format="full"
+            ).execute()
+
+            # Decode body parts
+            html_body = ""
+            text_body = ""
+            payload = msg.get("payload", {})
+
+            def _decode_part(part: dict) -> str:
+                data = part.get("body", {}).get("data", "")
+                if data:
+                    return _base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+                return ""
+
+            def _walk_parts(payload: dict):
+                nonlocal html_body, text_body
+                mime = payload.get("mimeType", "")
+                if mime == "text/html":
+                    html_body += _decode_part(payload)
+                elif mime == "text/plain":
+                    text_body += _decode_part(payload)
+                for sub in payload.get("parts", []):
+                    _walk_parts(sub)
+
+            _walk_parts(payload)
+
+            # Extract download URL
+            pdf_url = _extract_pdf_url(html_body, text_body)
+            if not pdf_url:
+                print(f"⚠️ [CRON] No download URL found in message {msg_id} — skipping.")
+                results.append({"msg_id": msg_id, "status": "skipped", "reason": "no_url"})
+                continue
+
+            print(f"🔗 [CRON] Download URL: {pdf_url}")
+
+            # Download PDF
+            async with _httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                response = await client.get(pdf_url)
+                if response.status_code != 200:
+                    print(f"❌ [CRON] Download failed ({response.status_code}) for {pdf_url}")
+                    results.append({"msg_id": msg_id, "status": "skipped", "reason": f"download_http_{response.status_code}"})
+                    continue
+                pdf_bytes = response.content
+
+            print(f"✅ [CRON] Downloaded {len(pdf_bytes):,} bytes")
+
+            # Open PDF from memory
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            # Decrypt with any known member ID
+            detected_owner = "user"
+            if doc.is_encrypted:
+                authenticated = False
+                for id_num in member_id_numbers:
+                    if doc.authenticate(id_num):
+                        authenticated = True
+                        # Guess owner (first ID → user, second → spouse)
+                        idx = member_id_numbers.index(id_num)
+                        detected_owner = "user" if idx == 0 else "spouse"
+                        print(f"✅ [CRON] PDF decrypted using member ID index {idx}")
+                        break
+                if not authenticated:
+                    print(f"❌ [CRON] Could not decrypt PDF for message {msg_id}")
+                    results.append({"msg_id": msg_id, "status": "skipped", "reason": "decryption_failed"})
+                    doc.close()
+                    continue
+
+            # Redact PII and render pages to base64 PNG
+            redacted_images_b64: list[str] = []
+            start_page = 3 if len(doc) > 3 else 0
+            for page_num in range(start_page, len(doc)):
+                page = doc[page_num]
+                for txt in all_target_strings:
+                    for inst in page.search_for(txt):
+                        page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
+                mat = fitz.Matrix(2, 2)
+                pix = page.get_pixmap(matrix=mat)
+                redacted_images_b64.append(base64.b64encode(pix.tobytes("png")).decode("utf-8"))
+            doc.close()
+            print(f"✅ [CRON] Redacted {len(redacted_images_b64)} page(s)")
+
+            if not api_key:
+                results.append({"msg_id": msg_id, "status": "preview_only", "reason": "no_anthropic_key"})
+                continue
+
+            # ── Anthropic Vision extraction ───────────────────────────────────
+            print(f"🧠 [CRON] Sending to Claude Vision...")
+            anthropic_client = Anthropic(api_key=api_key)
+            extraction_system_prompt = """
+אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
+חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
+המבנה חייב להיות:
+{
+  "products": [
+    {
+      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
+      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
+      "track_name": "string (שם המסלול)",
+      "policy_number": "string",
+      "balance": number,
+      "monthly_deposit": number,
+      "management_fee_deposit": number,
+      "management_fee_accumulation": number,
+      "yield_1yr": number,
+      "yield_3yr": number,
+      "yield_5yr": number
+    }
+  ]
+}
+
+CRITICAL:
+- החזר JSON תקני בלבד ללא markdown, ללא הסברים
+- כל הערכים המספריים ללא פסיקים
+- אם שדה לא קיים, השתמש ב-0 עבור מספרים ו-"" עבור מחרוזות
+"""
+            content_blocks: list[dict] = [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}}
+                for b64 in redacted_images_b64[:10]
+            ]
+            content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
+
+            ai_response = anthropic_client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                system=extraction_system_prompt,
+                messages=[{"role": "user", "content": content_blocks}],
+            )
+            response_text = ai_response.content[0].text.strip()
+            response_text = _re.sub(r'^```(?:json)?\s*', '', response_text, flags=_re.MULTILINE)
+            response_text = _re.sub(r'```\s*$', '', response_text, flags=_re.MULTILINE).strip()
+
+            start_idx = response_text.find('{')
+            if start_idx == -1:
+                raise ValueError(f"No JSON in response: {response_text[:200]}")
+            try:
+                pension_data, _ = json.JSONDecoder().raw_decode(response_text, start_idx)
+            except json.JSONDecodeError:
+                brace_count = 0
+                end_idx = start_idx
+                for i, ch in enumerate(response_text[start_idx:], start_idx):
+                    if ch == '{': brace_count += 1
+                    elif ch == '}': brace_count -= 1
+                    if brace_count == 0:
+                        end_idx = i + 1
+                        break
+                pension_data = json.loads(response_text[start_idx:end_idx])
+
+            products = pension_data.get("products", [])
+            print(f"✅ [CRON] Extracted {len(products)} product(s)")
+
+            # Map products → fund schema
+            for p in products:
+                raw_type = p.get("product_type", "")
+                if "פנסיה" in raw_type:              category = "pension"
+                elif "מנהלים" in raw_type:           category = "managers"
+                elif "השתלמות" in raw_type:          category = "study"
+                elif "גמל להשקעה" in raw_type:       category = "investment_provident"
+                elif "גמל" in raw_type:              category = "provident"
+                else:                                category = "provident"
+
+                accumulated_portfolios[detected_owner]["funds"].append({
+                    "id": f"gmail_{msg_id}_{os.urandom(2).hex()}",
+                    "category": category,
+                    "provider_name": p.get("provider_name", "Unknown"),
+                    "track_name": p.get("track_name", "Unknown"),
+                    "status": "active",
+                    "balance": p.get("balance", 0),
+                    "monthly_deposit": p.get("monthly_deposit", 0),
+                    "management_fee_deposit": p.get("management_fee_deposit", 0),
+                    "management_fee_accumulation": p.get("management_fee_accumulation", 0),
+                    "yield_1yr": p.get("yield_1yr", 0),
+                    "yield_3yr": p.get("yield_3yr", 0),
+                    "yield_5yr": p.get("yield_5yr", 0),
+                    "policy_number": p.get("policy_number", ""),
+                })
+
+            # ── Apply AI_PROCESSED label ──────────────────────────────────────
+            label_id = _get_or_create_label(service, "AI_PROCESSED")
+            service.users().messages().modify(
+                userId="me",
+                id=msg_id,
+                body={"addLabelIds": [label_id]},
+            ).execute()
+            print(f"🏷️ [CRON] Labeled message {msg_id} as AI_PROCESSED")
+            results.append({"msg_id": msg_id, "status": "success", "products_found": len(products)})
+
+        except Exception as e:
+            print(f"💥 [CRON] Error processing message {msg_id}: {e}")
+            results.append({"msg_id": msg_id, "status": "error", "reason": str(e)})
+
+    # ── 6. Generate action items & persist ────────────────────────────────────
+    total_funds = sum(len(accumulated_portfolios[k]["funds"]) for k in ["user", "spouse"])
+
+    if total_funds > 0:
+        print(f"\n🤖 [CRON] Generating action items ({total_funds} funds)…")
+        live_market_data = await _collect_market_data_async(accumulated_portfolios)
+        action_items = ai_advisor.generate_action_items(
+            family_portfolio=accumulated_portfolios,
+            market_data=live_market_data,
+            financial_profile=f_profile,
+        )
+    else:
+        print("\n⚠️ [CRON] No funds extracted — skipping action items.")
+        action_items = []
+
+    now = datetime.datetime.now().isoformat()
+    final_json = {
+        "uid": uid,
+        "last_updated": now,
+        "portfolios": accumulated_portfolios,
+        "action_items": action_items,
+    }
+
+    print("\n☁️ [CRON] Saving to Firestore…")
+    db_manager.save_processed_portfolio(uid, final_json)
+
+    processed_count = len([r for r in results if r.get("status") == "success"])
+    print(f"\n🏁 [CRON] fetch-emails COMPLETE — {processed_count}/{len(messages)} processed.")
+    return {
+        "status": "success",
+        "processed": processed_count,
+        "total_found": len(messages),
+        "results": results,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
