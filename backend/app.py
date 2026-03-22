@@ -883,7 +883,189 @@ def test_reprocess_advisory(user: dict = Depends(verify_token)):
     return {"status": "success", "message": "Advisories reprocessed from Firestore data", "action_items_count": len(action_items)}
 
 
+# ── Gmail OAuth Endpoints ─────────────────────────────────────────────────────
+
+GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+GMAIL_REDIRECT_PATH = "/api/auth/gmail/callback"
+
+def _build_oauth_url(uid: str, member_id: str) -> str:
+    """Build the Google OAuth2 authorization URL for Gmail access."""
+    from urllib.parse import urlencode
+    client_id = os.environ["GOOGLE_CLIENT_ID"]
+    base_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+    redirect_uri = f"{base_url}{GMAIL_REDIRECT_PATH}"
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(GMAIL_SCOPES),
+        "access_type": "offline",   # ← gets refresh_token
+        "prompt": "consent",        # ← force refresh_token even if previously granted
+        "state": f"{uid}::{member_id}", # ← passed back verbatim so we know which family and member
+    }
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+
+
+@app.get("/api/auth/gmail/url")
+async def get_gmail_auth_url(uid: str = None, member: str = "member1", credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """
+    Return the Google OAuth URL for Gmail authorization.
+    Requires Firebase auth token in Authorization header.
+    Query param: ?uid=<firebase-uid>  (defaults to the authenticated user's uid)
+                 ?member=<member_id>  (defaults to member1)
+    """
+    import httpx as _httpx
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        requester_uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    target_uid = uid or requester_uid
+    oauth_url = _build_oauth_url(target_uid, member)
+    return {"url": oauth_url}
+
+
+@app.get("/api/auth/gmail/callback")
+async def gmail_oauth_callback(code: str = None, state: str = None, error: str = None):
+    """
+    Google redirects here after the user approves (or denies) Gmail access.
+    Exchanges authorization code for refresh_token and saves it to Firestore.
+    Then redirects the browser back to the frontend.
+    """
+    import httpx as _httpx
+    from urllib.parse import urlencode
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
+    # User denied access
+    if error or not code:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/settings?gmail=denied")
+
+    uid_state = state  # we encoded uid::member_id in the state param
+    if not uid_state:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/settings?gmail=error&reason=missing_state")
+
+    parts = uid_state.split("::")
+    uid = parts[0]
+    member_id = parts[1] if len(parts) > 1 else "member1"
+
+    # Exchange code for tokens
+    base_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+    redirect_uri = f"{base_url}{GMAIL_REDIRECT_PATH}"
+    try:
+        async with _httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": os.environ["GOOGLE_CLIENT_ID"],
+                    "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+            )
+            token_data = resp.json()
+    except Exception as e:
+        print(f"❌ [OAUTH] Token exchange failed: {e}")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/settings?gmail=error&reason=token_exchange")
+
+    refresh_token = token_data.get("refresh_token")
+    if not refresh_token:
+        print(f"❌ [OAUTH] No refresh_token in response: {token_data}")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/settings?gmail=error&reason=no_refresh_token")
+
+    # Save to Firestore
+    saved = db_manager.save_gmail_token(uid, refresh_token)
+    if saved:
+        db_manager.update_family_field(uid, "gmail_connected_member", member_id)
+    print(f"{'✅' if saved else '❌'} [OAUTH] Token save for uid={uid}: {'OK' if saved else 'FAILED'}")
+
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"{frontend_url}/settings?gmail={'connected' if saved else 'error'}")
+
+
+class GmailSettingsPayload(BaseModel):
+    gmail_sender_email: Optional[str] = None
+    gmail_subject: Optional[str] = None
+    cron_day: Optional[int] = None
+    cron_frequency_months: Optional[int] = None
+
+
+@app.put("/api/settings/gmail")
+async def save_gmail_settings(
+    payload: GmailSettingsPayload,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Save Gmail search settings and cron schedule for the authenticated family."""
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    updates: dict = {}
+    if payload.gmail_sender_email is not None:
+        updates["gmail_sender_email"] = payload.gmail_sender_email.strip()
+    if payload.gmail_subject is not None:
+        updates["gmail_subject"] = payload.gmail_subject.strip()
+    if payload.cron_day is not None:
+        updates["cron_day"] = max(1, min(30, payload.cron_day))
+    if payload.cron_frequency_months is not None:
+        updates["cron_frequency_months"] = max(1, min(12, payload.cron_frequency_months))
+
+    if not updates:
+        raise HTTPException(status_code=422, detail="No fields to update")
+
+    for field, value in updates.items():
+        db_manager.update_family_field(uid, field, value)
+
+    return {"status": "success", "updated": list(updates.keys())}
+
+
+@app.get("/api/settings/gmail")
+async def get_gmail_settings(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Return the current Gmail settings + connection status for the authenticated family."""
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    profile = db_manager.get_family_profile(uid) or {}
+    return {
+        "gmail_connected": bool(profile.get("gmail_refresh_token")),
+        "gmail_connected_member": profile.get("gmail_connected_member", "member1"),
+        "gmail_sender_email": profile.get("gmail_sender_email", "no-reply@surense.com"),
+        "gmail_subject": profile.get("gmail_subject", "דוח מצב ביטוח ופנסיה"),
+        "cron_day": profile.get("cron_day", 1),
+        "cron_frequency_months": profile.get("cron_frequency_months", 3),
+        "last_fetched_at": profile.get("last_fetched_at"),
+    }
+
+@app.delete("/api/settings/gmail")
+async def disconnect_gmail(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Removes the Gmail refresh token and associated member linkage."""
+    from firebase_admin import firestore
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    try:
+        db_manager.update_family_field(uid, "gmail_refresh_token", firestore.DELETE_FIELD)
+        db_manager.update_family_field(uid, "gmail_connected_member", firestore.DELETE_FIELD)
+        return {"status": "success", "message": "Gmail disconnected"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── Gmail Fetcher Helpers ─────────────────────────────────────────────────────
+
 
 
 def _get_gmail_service(refresh_token: str):
@@ -1012,20 +1194,43 @@ async def _process_family_emails(uid: str) -> dict:
         all_target_strings.extend([m.get("name", ""), m.get("lastName", ""), m.get("email", "")])
     all_target_strings = list(set([s for s in all_target_strings if s and len(s.strip()) > 2]))
 
-    # ── 2. Build Gmail service ────────────────────────────────────────────────
+    # ── 2. Schedule check ────────────────────────────────────────────────────
+    from datetime import date as _date
+    cron_day = int(family_profile.get("cron_day") or 1)
+    cron_freq = int(family_profile.get("cron_frequency_months") or 3)
+    last_fetched = family_profile.get("last_fetched_at")  # ISO string or None
+    today = _date.today()
+
+    if today.day != cron_day:
+        print(f"⏭️  [CRON] Skipping {uid} — today is day {today.day}, scheduled for day {cron_day}.")
+        return {"processed": 0, "skipped": f"not_scheduled_day (today={today.day}, scheduled={cron_day})"}
+
+    if last_fetched:
+        try:
+            last_dt = _date.fromisoformat(str(last_fetched)[:10])
+            months_passed = (today.year - last_dt.year) * 12 + (today.month - last_dt.month)
+            if months_passed < cron_freq:
+                print(f"⏭️  [CRON] Skipping {uid} — only {months_passed}/{cron_freq} months since last run.")
+                return {"processed": 0, "skipped": f"too_soon ({months_passed}/{cron_freq} months)"}
+        except Exception:
+            pass  # bad date format — proceed anyway
+
+    # ── 3. Build Gmail service ────────────────────────────────────────────────
     try:
         service = _get_gmail_service(refresh_token)
     except Exception as e:
         print(f"❌ [CRON] Gmail auth failed for {uid}: {e}")
         return {"processed": 0, "error": f"gmail_auth_failed: {e}"}
 
-
     # ── 4. Search for unprocessed emails ──────────────────────────────────────
-    query = 'from:no-reply@surense.com subject:"דוח מצב ביטוח ופנסיה" -label:AI_PROCESSED'
+    sender  = family_profile.get("gmail_sender_email") or "no-reply@surense.com"
+    subject = family_profile.get("gmail_subject") or "דוח מצב ביטוח ופנסיה"
+    query = f'from:{sender} subject:"{subject}" -label:AI_PROCESSED'
+    print(f"🔍 [CRON] Gmail query: {query}")
     try:
         search_result = service.users().messages().list(userId="me", q=query).execute()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gmail search failed: {e}")
+        return {"processed": 0, "error": f"gmail_search_failed: {e}"}
 
     messages = search_result.get("messages", [])
     print(f"📬 [CRON] Found {len(messages)} unprocessed message(s).")

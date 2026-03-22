@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { deleteFamily, addAuthorizedEmail } from '../lib/familyService';
 import { STORAGE_KEYS } from '../lib/storageKeys';
-import { Trash2, AlertTriangle, Users, UserCircle2, Mail, Shield, ChevronRight, X, RefreshCw, Loader2 } from 'lucide-react';
+import { Trash2, AlertTriangle, Users, UserCircle2, Mail, ChevronRight, X, RefreshCw, Loader2, Link2, Settings2, Clock } from 'lucide-react';
 import UploadSection from '../components/dashboard/UploadSection';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -34,6 +34,114 @@ export default function Settings() {
   const [newEmail, setNewEmail] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
   const { refreshFamily } = useAuth();
+
+  // Gmail settings state
+  const [searchParams] = useSearchParams();
+  const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [gmailConnectedMember, setGmailConnectedMember] = useState<string | null>(null);
+  const [gmailSender, setGmailSender] = useState('no-reply@surense.com');
+  const [gmailSubject, setGmailSubject] = useState('דוח מצב ביטוח ופנסיה');
+  const [cronDay, setCronDay] = useState(1);
+  const [cronFreq, setCronFreq] = useState(3);
+  const [lastFetched, setLastFetched] = useState<string | null>(null);
+  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [gmailSaving, setGmailSaving] = useState(false);
+  const [gmailSaveMsg, setGmailSaveMsg] = useState<string | null>(null);
+  const [gmailBannerMsg, setGmailBannerMsg] = useState<string | null>(null);
+
+  // Load Gmail settings from backend on mount + handle OAuth return
+  useEffect(() => {
+    const gmailParam = searchParams.get('gmail');
+    if (gmailParam === 'connected') setGmailBannerMsg('✅ Gmail חובר בהצלחה!');
+    else if (gmailParam === 'denied') setGmailBannerMsg('⚠️ לא חיברת את Gmail — תוכל לחבר בכל עת.');
+    else if (gmailParam === 'error') setGmailBannerMsg('❌ שגיאה בחיבור Gmail. נסה שנית.');
+
+    const load = async () => {
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`${API_URL}/api/settings/gmail`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setGmailConnected(data.gmail_connected);
+        setGmailConnectedMember(data.gmail_connected_member ?? null);
+        setGmailSender(data.gmail_sender_email ?? 'no-reply@surense.com');
+        setGmailSubject(data.gmail_subject ?? 'דוח מצב ביטוח ופנסיה');
+        setCronDay(data.cron_day ?? 1);
+        setCronFreq(data.cron_frequency_months ?? 3);
+        setLastFetched(data.last_fetched_at ?? null);
+      } catch { /* silent */ }
+    };
+    load();
+  }, [user, searchParams]);
+
+  const handleConnectGmail = async (memberId: string) => {
+    if (!user) return;
+    setGmailConnecting(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/auth/gmail/url?member=${memberId}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {
+      setGmailBannerMsg('❌ שגיאה בהכנת קישור Gmail.');
+    } finally {
+      setGmailConnecting(false);
+    }
+  };
+
+  const handleDisconnectGmail = async () => {
+    if (!user) return;
+    if (!window.confirm('האם אתה בטוח שברצונך לנתק את החשבון מקריאת מיילים? (עדיף להימנע אם אין סיבה מיוחדת)')) return;
+    setGmailConnecting(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/gmail`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        setGmailConnected(false);
+        setGmailConnectedMember(null);
+        setGmailBannerMsg('✅ החשבון נותק בהצלחה');
+      } else {
+        setGmailBannerMsg('❌ שגיאה בניתוק החשבון');
+      }
+    } catch {
+      setGmailBannerMsg('❌ שגיאה בניתוק החשבון');
+    } finally {
+      setGmailConnecting(false);
+    }
+  };
+
+  const handleSaveGmailSettings = async () => {
+    if (!user) return;
+    setGmailSaving(true);
+    setGmailSaveMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/gmail`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gmail_sender_email: gmailSender,
+          gmail_subject: gmailSubject,
+          cron_day: cronDay,
+          cron_frequency_months: cronFreq,
+        }),
+      });
+      if (res.ok) setGmailSaveMsg('✅ ההגדרות נשמרו בהצלחה');
+      else setGmailSaveMsg('❌ שגיאה בשמירה');
+    } catch {
+      setGmailSaveMsg('❌ שגיאה בשמירה');
+    } finally {
+      setGmailSaving(false);
+    }
+  };
 
   const householdName = config?.householdName || 'המשפחה';
   const confirmNeeded = householdName;
@@ -109,6 +217,187 @@ export default function Settings() {
 
       <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
 
+        {/* Family Details & Gmail Integration Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 text-lg">פרטי המשפחה וקריאת מיילים</h2>
+              <p className="text-xs text-slate-400 mt-0.5">ניהול בני הזוג וחיבור לקריאה אוטומטית של דוחות</p>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            
+            {/* Banner (OAuth result) */}
+            {gmailBannerMsg && (
+              <div className={`flex items-start justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium ${
+                gmailBannerMsg.startsWith('✅') ? 'bg-green-50 text-green-800' :
+                gmailBannerMsg.startsWith('⚠️') ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-800'
+              }`}>
+                <span>{gmailBannerMsg}</span>
+                <button onClick={() => setGmailBannerMsg(null)} className="shrink-0 opacity-60 hover:opacity-100"><X className="w-4 h-4" /></button>
+              </div>
+            )}
+
+            {/* Household Name */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">שם הבית</p>
+              <p className="text-lg font-bold text-slate-900">{config?.householdName || '—'}</p>
+            </div>
+
+            {/* Members List */}
+            <div className="space-y-3">
+              {[
+                { obj: config?.member1, key: 'member1' },
+                { obj: config?.member2, key: 'member2' }
+              ].map(({ obj, key }) => {
+                if (!obj) return null;
+                const isConnected = gmailConnected && gmailConnectedMember === key;
+                const disableConnect = gmailConnected && !isConnected;
+
+                return (
+                  <div key={key} className={`p-4 rounded-xl border transition-colors ${isConnected ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-50 border-slate-100'}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                         <UserCircle2 className={`w-10 h-10 shrink-0 ${isConnected ? 'text-blue-500' : 'text-slate-400'}`} />
+                         <div>
+                           <p className="font-bold text-slate-800 text-sm">{obj.name}</p>
+                           <p className="text-xs text-slate-500" dir="ltr">{obj.email || '—'}</p>
+                         </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                         {isConnected ? (
+                            <>
+                              <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 bg-green-100 text-green-800 rounded-lg">
+                                <Link2 className="w-3.5 h-3.5" /> Gmail מחובר לסריקה
+                              </span>
+                              <button 
+                                onClick={handleDisconnectGmail}
+                                disabled={gmailConnecting}
+                                className="text-xs font-semibold px-3 py-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+                              >
+                                ניתוק
+                              </button>
+                            </>
+                         ) : (
+                            <button
+                              onClick={() => handleConnectGmail(key)}
+                              disabled={disableConnect || gmailConnecting}
+                              className="flex items-center gap-2 text-xs font-semibold px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:bg-slate-400 transition-colors"
+                            >
+                              <Link2 className="w-3.5 h-3.5" /> 
+                              {disableConnect ? 'חשבון אחר מחובר' : 'חבר ל-Gmail'}
+                            </button>
+                         )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Gmail Settings & Explanation (inline in Family) */}
+            <div className="mt-6 pt-6 border-t border-slate-100 space-y-6">
+              
+              <div className="text-sm text-slate-600 leading-relaxed bg-slate-50 rounded-xl p-4">
+                <p className="font-semibold text-slate-700 mb-1">למה אנחנו צריכים גישה ל-Gmail?</p>
+                <p>כדי שנייצר המלצות עדכניות אנחנו צריכים את דוחות הפנסיה האחרונים שלכם. האפליקציה בודקת רק את תיבת המייל שחוברה, מחפשת מיילים מהכתובת והנושא שהוגדרו מטה, מחלצת את ה-PDF ולא נוגעת באף מייל אחר. <strong className="text-slate-800">ניתן לחבר רק חשבון אחד למשפחה בכל זמן נתון.</strong></p>
+                {lastFetched && <p className="text-xs text-slate-400 mt-2 font-medium">קריאה אחרונה התבצעה ב: <span dir="ltr">{lastFetched}</span></p>}
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        {/* Gmail Search Settings Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-9 h-9 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
+              <Settings2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 text-lg">הגדרות סריקת דוחות ממייל</h2>
+              <p className="text-xs text-slate-400 mt-0.5">פרטי חיפוש ותזמונים (מתייחס לחשבון ה-Gmail המחובר)</p>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            
+            {/* Search settings */}
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">כתובת שולח הדוח</label>
+                  <input
+                    type="email"
+                    value={gmailSender}
+                    onChange={e => setGmailSender(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    dir="ltr"
+                    placeholder="no-reply@surense.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">נושא המייל (Subject)</label>
+                  <input
+                    type="text"
+                    value={gmailSubject}
+                    onChange={e => setGmailSubject(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="דוח מצב ביטוח ופנסיה"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Schedule */}
+            <div className="border-t border-slate-100 pt-5">
+              <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm mb-4">
+                <Clock className="w-4 h-4" /> תזמון קריאה
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">יום בחודש <span className="text-slate-400 font-normal">(1–30)</span></label>
+                  <input
+                    type="number" min={1} max={30}
+                    value={cronDay}
+                    onChange={e => setCronDay(Math.min(30, Math.max(1, Number(e.target.value))))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">כל כמה חודשים <span className="text-slate-400 font-normal">(1–12)</span></label>
+                  <input
+                    type="number" min={1} max={12}
+                    value={cronFreq}
+                    onChange={e => setCronFreq(Math.min(12, Math.max(1, Number(e.target.value))))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">ברירת מחדל: ב-1 לחודש, כל 3 חודשים</p>
+            </div>
+
+            {/* Save button */}
+            <div className="border-t border-slate-100 pt-4 flex items-center justify-between gap-4">
+              {gmailSaveMsg && <span className={`text-xs font-bold ${gmailSaveMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{gmailSaveMsg}</span>}
+              <button
+                onClick={handleSaveGmailSettings}
+                disabled={gmailSaving}
+                className="mr-auto flex items-center gap-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
+              >
+                {gmailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {gmailSaving ? 'שומר...' : 'שמור הגדרות מייל'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+
         {/* PDF Upload Card */}
         {user && <UploadSection user={user} onSuccess={() => {}} />}
 
@@ -143,39 +432,6 @@ export default function Settings() {
           </div>
         </div>
 
-
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-              <Users className="w-5 h-5" />
-            </div>
-            <h2 className="font-bold text-slate-800 text-lg">פרטי המשפחה</h2>
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">שם הבית</p>
-              <p className="text-lg font-bold text-slate-900">{config?.householdName || '—'}</p>
-            </div>
-            {config?.member1 && (
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
-                <UserCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800 text-sm">{config.member1.name}</p>
-                  <p className="text-xs text-slate-500" dir="ltr">{config.member1.email || '—'}</p>
-                </div>
-              </div>
-            )}
-            {config?.member2 && (
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl">
-                <UserCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800 text-sm">{config.member2.name}</p>
-                  <p className="text-xs text-slate-500" dir="ltr">{config.member2.email || '—'}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Authorized Emails */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -223,27 +479,6 @@ export default function Settings() {
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : 'הוסף'}
               </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Account Info */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-9 h-9 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5" />
-            </div>
-            <h2 className="font-bold text-slate-800 text-lg">חשבון Google</h2>
-          </div>
-          <div className="p-6 flex items-center gap-4">
-            <img
-              src={user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.email || 'U')}&background=3b82f6&color=fff`}
-              className="w-12 h-12 rounded-full border border-slate-200"
-              alt="פרופיל"
-            />
-            <div>
-              <p className="font-semibold text-slate-900">{user?.displayName || 'משתמש'}</p>
-              <p className="text-sm text-slate-500" dir="ltr">{user?.email}</p>
             </div>
           </div>
         </div>

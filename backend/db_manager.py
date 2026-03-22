@@ -168,6 +168,45 @@ def get_all_family_uids() -> list:
         print(f"💥 [DB_MANAGER] Error fetching Gmail-enabled family UIDs: {e}")
         return []
 
+def save_gmail_token(uid: str, refresh_token: str) -> bool:
+    """Save (or overwrite) the gmail_refresh_token for a family document."""
+    print(f"\n🔐 [DB_MANAGER] Saving Gmail refresh token for UID: {uid}")
+    if db is None:
+        print("⚠️ [DB_MANAGER] Firestore not initialized.")
+        return False
+    try:
+        db.collection("families").document(uid).update({"gmail_refresh_token": refresh_token})
+        print(f"✅ [DB_MANAGER] Gmail token saved for {uid}.")
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving Gmail token: {e}")
+        return False
+
+def update_family_field(uid: str, field: str, value) -> bool:
+    """Update a single top-level field on a family document."""
+    if db is None:
+        return False
+    try:
+        db.collection("families").document(uid).update({field: value})
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error updating field '{field}' for {uid}: {e}")
+        return False
+
+def has_gmail_token(uid: str) -> bool:
+    """Return True if the family has a non-empty gmail_refresh_token."""
+    if db is None:
+        return False
+    try:
+        doc = db.collection("families").document(uid).get()
+        if doc.exists:
+            token = doc.to_dict().get("gmail_refresh_token", "")
+            return bool(token)
+        return False
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error checking Gmail token for {uid}: {e}")
+        return False
+
 def save_processed_portfolio(uid: str, portfolio_data: dict):
     """
     Save the final processed portfolio JSON to the 'portfolios' collection.
