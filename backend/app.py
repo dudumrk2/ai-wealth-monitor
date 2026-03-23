@@ -110,6 +110,24 @@ async def _collect_market_data_async(portfolios: dict) -> dict:
         return {}
 
 
+def _attach_competitors_to_funds(portfolios: dict, market_data: dict) -> None:
+    """
+    Attach top_competitors list to each fund based on its track_name.
+    This ensures that when the frontend opens a product's details,
+    the competitor benchmarks are already embedded in the fund object.
+    """
+    if not market_data:
+        return
+
+    print("🔗 [APP] Attaching competitor data to individual funds...")
+    for owner_key in ["user", "spouse"]:
+        funds = portfolios.get(owner_key, {}).get("funds", [])
+        for fund in funds:
+            track = fund.get("track_name")
+            if track and track in market_data:
+                fund["top_competitors"] = market_data[track]
+
+
 # Test UID removed - now using dynamic UID from token
 
 app = FastAPI(title="AI Family Pension & Wealth Monitor API")
@@ -527,6 +545,7 @@ CRITICAL:
         print(f"\n🤖 [APP] Orchestrating Action Items generation ({total_funds_extracted} funds found)...")
         # Fetch live competitor benchmarks for every track in the portfolio
         live_market_data = _collect_market_data(MOCK_DATA["portfolios"])
+        _attach_competitors_to_funds(MOCK_DATA["portfolios"], live_market_data)
         action_items = ai_advisor.generate_action_items(
             family_portfolio=MOCK_DATA["portfolios"],
             market_data=live_market_data,
@@ -808,6 +827,7 @@ CRITICAL:
     if total_funds > 0:
         print(f"\n🤖 [APP] Generating action items ({total_funds} funds)…")
         live_market_data = await _collect_market_data_async(accumulated_portfolios)
+        _attach_competitors_to_funds(accumulated_portfolios, live_market_data)
         action_items = ai_advisor.generate_action_items(
             family_portfolio=accumulated_portfolios,
             market_data=live_market_data,
@@ -862,6 +882,7 @@ def test_reprocess_advisory(user: dict = Depends(verify_token)):
     print("📊 [APP] Fetching live market data for reprocess...")
     saved_portfolios = portfolio_doc.get("portfolios", {})
     live_market_data = _collect_market_data(saved_portfolios)
+    _attach_competitors_to_funds(saved_portfolios, live_market_data)
     print("🤖 [APP] Re-generating action items from saved portfolio...")
     action_items = ai_advisor.generate_action_items(
         family_portfolio=saved_portfolios,
