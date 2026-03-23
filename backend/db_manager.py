@@ -46,7 +46,14 @@ def initialize_firebase():
             print(f"💥 Error initializing Firebase with credentials at {key_path}: {e}")
     else:
         print(f"❌ WARNING: Firebase serviceAccountKey.json not found in any of: {search_paths}")
-        print("Firestore features and real Auth verification will be unavailable.")
+        print("💡 Attempting to initialize Firebase using Application Default Credentials (suitable for Cloud Run/Render)...")
+        try:
+            firebase_admin.initialize_app()
+            print("✅ Firebase Admin initialized using Application Default Credentials.")
+            db = firestore.client()
+        except Exception as e:
+            print(f"💥 Error initializing Firebase with ADC: {e}")
+            print("Firestore features and real Auth verification will be unavailable.")
 
 initialize_firebase()
 
