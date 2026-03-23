@@ -15,7 +15,7 @@ __pycache__/
 # CRITICAL SECURITY: Do not bake these into the image.
 # These will be managed via environment variables/secrets in GCP.
 credentials.json
-serviceAccountKey.json
+# serviceAccountKey.json (allowing this to be bundled to Cloud Run for cross-project access!)
 
 # Local Data and Inbox
 data/
