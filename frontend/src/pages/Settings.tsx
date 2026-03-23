@@ -48,6 +48,8 @@ export default function Settings() {
   const [gmailSaving, setGmailSaving] = useState(false);
   const [gmailSaveMsg, setGmailSaveMsg] = useState<string | null>(null);
   const [gmailBannerMsg, setGmailBannerMsg] = useState<string | null>(null);
+  const [gmailScanning, setGmailScanning] = useState(false);
+  const [gmailScanMsg, setGmailScanMsg] = useState<string | null>(null);
 
   // Load Gmail settings from backend on mount + handle OAuth return
   useEffect(() => {
@@ -140,6 +142,32 @@ export default function Settings() {
       setGmailSaveMsg('❌ שגיאה בשמירה');
     } finally {
       setGmailSaving(false);
+    }
+  };
+
+  const handleScanNow = async () => {
+    if (!user) return;
+    setGmailScanning(true);
+    setGmailScanMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/gmail/scan`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'שגיאה בסריקה');
+      
+      const processed = data?.result?.processed || 0;
+      if (processed > 0) {
+        setGmailScanMsg(`✅ הסריקה הסתיימה! נמצאו ועובדו ${processed} דוחות חדשים.`);
+      } else {
+        setGmailScanMsg('✅ הסריקה הסתיימה. לא נמצאו דוחות חדשים במייל זה.');
+      }
+    } catch (err: any) {
+      setGmailScanMsg('❌ שגיאה בסריקה: ' + err.message);
+    } finally {
+      setGmailScanning(false);
     }
   };
 
@@ -382,17 +410,31 @@ export default function Settings() {
               <p className="text-xs text-slate-400 mt-2">ברירת מחדל: ב-1 לחודש, כל 3 חודשים</p>
             </div>
 
-            {/* Save button */}
-            <div className="border-t border-slate-100 pt-4 flex items-center justify-between gap-4">
-              {gmailSaveMsg && <span className={`text-xs font-bold ${gmailSaveMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{gmailSaveMsg}</span>}
-              <button
-                onClick={handleSaveGmailSettings}
-                disabled={gmailSaving}
-                className="mr-auto flex items-center gap-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
-              >
-                {gmailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {gmailSaving ? 'שומר...' : 'שמור הגדרות מייל'}
-              </button>
+            {/* Save and Scan buttons */}
+            <div className="border-t border-slate-100 pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleSaveGmailSettings}
+                  disabled={gmailSaving}
+                  className="flex items-center gap-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
+                >
+                  {gmailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {gmailSaving ? 'שומר...' : 'שמור הגדרות מייל'}
+                </button>
+                {gmailSaveMsg && <span className={`text-xs font-bold ${gmailSaveMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{gmailSaveMsg}</span>}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t sm:border-t-0 sm:border-r border-slate-100 pt-5 sm:pt-0 sm:pr-6 w-full sm:w-auto">
+                {gmailScanMsg && <span className={`text-xs font-bold text-left leading-tight ${gmailScanMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{gmailScanMsg}</span>}
+                <button
+                   onClick={handleScanNow}
+                   disabled={gmailScanning || !gmailConnected}
+                   className="flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 disabled:opacity-50 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 shrink-0"
+                >
+                   {gmailScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                   סרוק דוחות עכשיו
+                </button>
+              </div>
             </div>
 
           </div>

@@ -1064,6 +1064,20 @@ async def disconnect_gmail(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/settings/gmail/scan")
+async def trigger_manual_gmail_scan(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Manually trigger the Gmail scan for the authenticated user and process new reports."""
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    print(f"\n🚀 [APP] Manual Gmail scan triggered by user {uid}")
+    result = await _process_family_emails(uid)
+    return {"status": "success", "result": result}
+
+
 # ── Gmail Fetcher Helpers ─────────────────────────────────────────────────────
 
 
