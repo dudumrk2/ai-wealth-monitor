@@ -1074,7 +1074,7 @@ async def trigger_manual_gmail_scan(credentials: HTTPAuthorizationCredentials = 
         raise HTTPException(status_code=401, detail="Invalid token")
 
     print(f"\n🚀 [APP] Manual Gmail scan triggered by user {uid}")
-    result = await _process_family_emails(uid)
+    result = await _process_family_emails(uid, bypass_schedule=True)
     return {"status": "success", "result": result}
 
 
@@ -1179,7 +1179,7 @@ async def fetch_emails_from_gmail(request: Request, uid: Optional[str] = None):
     }
 
 
-async def _process_family_emails(uid: str) -> dict:
+async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dict:
     """Process all unread Gmail reports for a single family UID."""
     import base64 as _base64
     import re as _re
@@ -1215,19 +1215,20 @@ async def _process_family_emails(uid: str) -> dict:
     last_fetched = family_profile.get("last_fetched_at")  # ISO string or None
     today = _date.today()
 
-    if today.day != cron_day:
-        print(f"⏭️  [CRON] Skipping {uid} — today is day {today.day}, scheduled for day {cron_day}.")
-        return {"processed": 0, "skipped": f"not_scheduled_day (today={today.day}, scheduled={cron_day})"}
+    if not bypass_schedule:
+        if today.day != cron_day:
+            print(f"⏭️  [CRON] Skipping {uid} — today is day {today.day}, scheduled for day {cron_day}.")
+            return {"processed": 0, "skipped": f"not_scheduled_day (today={today.day}, scheduled={cron_day})"}
 
-    if last_fetched:
-        try:
-            last_dt = _date.fromisoformat(str(last_fetched)[:10])
-            months_passed = (today.year - last_dt.year) * 12 + (today.month - last_dt.month)
-            if months_passed < cron_freq:
-                print(f"⏭️  [CRON] Skipping {uid} — only {months_passed}/{cron_freq} months since last run.")
-                return {"processed": 0, "skipped": f"too_soon ({months_passed}/{cron_freq} months)"}
-        except Exception:
-            pass  # bad date format — proceed anyway
+        if last_fetched:
+            try:
+                last_dt = _date.fromisoformat(str(last_fetched)[:10])
+                months_passed = (today.year - last_dt.year) * 12 + (today.month - last_dt.month)
+                if months_passed < cron_freq:
+                    print(f"⏭️  [CRON] Skipping {uid} — only {months_passed}/{cron_freq} months since last run.")
+                    return {"processed": 0, "skipped": f"too_soon ({months_passed}/{cron_freq} months)"}
+            except Exception:
+                pass  # bad date format — proceed anyway
 
     # ── 3. Build Gmail service ────────────────────────────────────────────────
     try:
