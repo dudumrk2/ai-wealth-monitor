@@ -86,11 +86,15 @@ function AppContent() {
   );
 }
 
+import { ThemeProvider } from './context/ThemeContext';
+
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

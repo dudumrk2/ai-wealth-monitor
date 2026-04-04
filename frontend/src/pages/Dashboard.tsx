@@ -67,6 +67,7 @@ export default function Dashboard() {
     try {
       if (!silent) setLoading(true);
       setError(null);
+      const startTime = Date.now();
       const idToken = await user?.getIdToken();
       const response = await fetch(`${API_URL}/api/portfolio`, {
         headers: { 'Authorization': `Bearer ${idToken}` }
@@ -74,6 +75,12 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch portfolio');
       const data = await response.json();
       setPortfolioData(data);
+
+      // Ensure at least 600ms of loading for visual feedback
+      const elapsed = Date.now() - startTime;
+      if (!silent && elapsed < 600) {
+        await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
+      }
     } catch (err: any) {
       console.error('Portfolio fetch error:', err);
       if (!silent) setError('אירעה שגיאה בטעינת הנתונים.');
@@ -281,8 +288,8 @@ export default function Dashboard() {
             {jointStocks.length > 0 && <AssetTable title="תיק מניות משפחתי" funds={jointStocks} />}
             {altInvest.length > 0 && <AlternativeInvestmentsTable items={altInvest} />}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold text-slate-800 mb-4 text-lg">פיזור נכסים</h3>
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">פיזור נכסים</h3>
                 <div className="space-y-4">
                   {[
                     { label: 'מניות', pct: joint.asset_allocation_percentages?.stocks ?? 0, color: 'bg-blue-600' },
@@ -290,19 +297,19 @@ export default function Dashboard() {
                     { label: 'מזומן ושווי מזומן', pct: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: 'bg-amber-400' },
                   ].map(({ label, pct, color }) => (
                     <div key={label}>
-                      <div className="flex justify-between text-sm font-semibold mb-1.5"><span className="text-slate-600">{label}</span><span className="text-slate-900">{pct}%</span></div>
-                      <div className="w-full bg-slate-100 rounded-full h-2.5"><div className={`${color} h-2.5 rounded-full`} style={{ width: `${pct}%` }}></div></div>
+                      <div className="flex justify-between text-sm font-semibold mb-1.5"><span className="text-slate-600 dark:text-slate-400">{label}</span><span className="text-slate-900 dark:text-slate-100">{pct}%</span></div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5"><div className={`${color} h-2.5 rounded-full`} style={{ width: `${pct}%` }}></div></div>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold text-slate-800 mb-4 text-lg">חשיפה לספקים</h3>
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">חשיפה לספקים</h3>
                 <div className="space-y-3">
                   {Object.entries(joint.provider_exposure || {}).map(([provider, value]) => (
-                    <div key={provider} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg text-sm font-semibold">
-                      <span className="text-slate-700">{provider}</span>
-                      <span className="text-slate-900">{value as number}%</span>
+                    <div key={provider} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-sm font-semibold">
+                      <span className="text-slate-700 dark:text-slate-300">{provider}</span>
+                      <span className="text-slate-900 dark:text-slate-100">{value as number}%</span>
                     </div>
                   ))}
                 </div>
@@ -356,13 +363,13 @@ export default function Dashboard() {
       ) : (
         <>
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">סקירת תיק פנסיוני</h1>
-            <p className="text-slate-500 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">סקירת תיק פנסיוני</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
           </div>
 
           <div className="flex flex-col gap-8">
             <div className="min-w-0">
-              <div className="bg-slate-200/50 p-1 rounded-xl inline-flex mb-6 overflow-x-auto max-w-full">
+              <div className="bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl inline-flex mb-6 overflow-x-auto max-w-full">
                 {([
                   { id: 'joint',  label: 'תצוגה משותפת' },
                   { id: 'user',   label: member1Name },
@@ -371,7 +378,9 @@ export default function Dashboard() {
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                     className={clsx(
                       "px-6 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
-                      activeTab === tab.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      activeTab === tab.id 
+                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" 
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                     )}>
                     {tab.label}
                   </button>

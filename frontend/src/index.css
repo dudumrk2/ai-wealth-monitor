@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900;
+    @apply bg-slate-50 text-slate-900 transition-colors duration-200;
+    @apply dark:bg-slate-950 dark:text-slate-50;
   }
 }

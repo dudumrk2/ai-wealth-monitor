@@ -11,6 +11,7 @@ interface Fund {
   yield_1yr: number;
   yield_3yr: number;
   yield_5yr: number;
+  sharpe_ratio?: number;
   management_fee_accumulation: number;
   top_competitors?: any[];
   _owner?: string; // used in joint aggregated view
@@ -28,8 +29,8 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
 
   if (!funds || funds.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-lg text-slate-800 mb-2">{title}</h3>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 mb-2">{title}</h3>
         <p className="text-sm text-slate-400">אין נתונים להצגה</p>
       </div>
     );
@@ -41,74 +42,79 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
   const totalBalance = funds.reduce((s, f) => s + f.balance, 0);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-2">
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-        <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-2">
+      <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{title}</h3>
         {funds.length > 1 && (
-          <span className="text-sm font-semibold text-slate-500">
-            סה״כ: <span className="text-slate-900 tabular-nums" dir="ltr">{formatCurrency(totalBalance)}</span>
+          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+            סה״כ: <span className="text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{formatCurrency(totalBalance)}</span>
           </span>
         )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-right border-collapse">
           <thead>
-            <tr className="bg-slate-50/50 text-slate-500 text-xs uppercase tracking-wider">
-              <th className="p-4 font-semibold border-b border-slate-200">ספק ומסלול</th>
+            <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800">ספק ומסלול</th>
               {ownerColumn && (
-                <th className="p-4 font-semibold border-b border-slate-200">שייך ל</th>
+                <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800">שייך ל</th>
               )}
-              <th className="p-4 font-semibold border-b border-slate-200 text-left">יתרה</th>
-              <th className="p-4 font-semibold border-b border-slate-200 text-left">תשואה 1Y</th>
-              <th className="p-4 font-semibold border-b border-slate-200 text-left">תשואה 3Y</th>
-              <th className="p-4 font-semibold border-b border-slate-200 text-left">תשואה 5Y</th>
-              <th className="p-4 font-semibold border-b border-slate-200 text-left">דמי ניהול</th>
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">יתרה</th>
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">תשואה 1Y</th>
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">תשואה 3Y</th>
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">תשואה 5Y</th>
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">מדד שארפ</th>
+              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">דמי ניהול</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {funds.map((fund) => {
               const hasCompetitors = fund.top_competitors && fund.top_competitors.length > 0;
 
               return (
                 <tr 
                   key={fund.id} 
-                  className="hover:bg-slate-50/80 transition-colors group cursor-pointer hover:shadow-sm"
+                  className="hover:bg-slate-50/80 dark:hover:bg-slate-800 transition-colors group cursor-pointer hover:shadow-sm"
                   onClick={() => setSelectedFund(fund)}
                 >
                   <td className="p-4">
-                    <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2">
+                    <div className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors cursor-pointer flex items-center gap-2">
                       {fund.provider_name}
                       <ArrowUpLeft className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <div className="text-sm text-slate-500">{fund.track_name}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">{fund.track_name}</div>
                   </td>
 
                   {ownerColumn && (
                     <td className="p-4">
                       {fund._owner ? (
-                        <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
+                        <span className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
                           {fund._owner}
                         </span>
                       ) : '—'}
                     </td>
                   )}
 
-                  <td className="p-4 text-left font-medium text-slate-900 tabular-nums" dir="ltr">
+                  <td className="p-4 text-left font-medium text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">
                     {formatCurrency(fund.balance)}
                   </td>
 
                   {[fund.yield_1yr, fund.yield_3yr, fund.yield_5yr].map((y, i) => (
                     <td key={i} className="p-4 text-left">
-                      <div className={clsx("inline-flex items-center gap-1 font-medium tabular-nums", y > 0 ? "text-emerald-600" : "text-slate-500")} dir="ltr">
+                      <div className={clsx("inline-flex items-center gap-1 font-medium tabular-nums", y > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400")} dir="ltr">
                         {y > 0 && <TrendingUp className="w-3 h-3" />}
                         {y}%
                       </div>
                     </td>
                   ))}
 
+                  <td className="p-4 text-left font-medium text-slate-500 dark:text-slate-400 tabular-nums" dir="ltr">
+                    {fund.sharpe_ratio ? fund.sharpe_ratio.toFixed(2) : '—'}
+                  </td>
+
                   <td className="p-4 text-left">
                     <div className="relative inline-flex items-center">
-                      <span className={clsx("font-medium tabular-nums", hasCompetitors ? "text-amber-600" : "text-slate-600")} dir="ltr">
+                      <span className={clsx("font-medium tabular-nums", hasCompetitors ? "text-amber-600 dark:text-amber-400" : "text-slate-600 dark:text-slate-400")} dir="ltr">
                         {fund.management_fee_accumulation}%
                       </span>
                       {hasCompetitors && (
@@ -125,10 +131,10 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
           </tbody>
           {funds.length > 1 && (
             <tfoot>
-              <tr className="bg-slate-50 border-t-2 border-slate-200">
-                <td className="p-4 font-bold text-slate-700" colSpan={ownerColumn ? 2 : 1}>סה״כ</td>
-                <td className="p-4 text-left font-bold text-slate-900 tabular-nums" dir="ltr">{formatCurrency(totalBalance)}</td>
-                <td colSpan={4}></td>
+              <tr className="bg-slate-50 dark:bg-slate-900/50 border-t-2 border-slate-200 dark:border-slate-800">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300" colSpan={ownerColumn ? 2 : 1}>סה״כ</td>
+                <td className="p-4 text-left font-bold text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{formatCurrency(totalBalance)}</td>
+                <td colSpan={5}></td>
               </tr>
             </tfoot>
           )}

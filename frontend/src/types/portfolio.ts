@@ -15,6 +15,7 @@ export interface Fund {
   category: FundCategory;
   provider_name: string;
   track_name: string;
+  track_id?: string;
   balance: number;
   monthly_deposit: number;  // 0 if no regular deposit
   management_fee_deposit: number;
@@ -22,6 +23,7 @@ export interface Fund {
   yield_1yr: number;
   yield_3yr: number;
   yield_5yr: number;
+  sharpe_ratio?: number;
   status?: string;
   top_competitors?: Competitor[];
   /** Used internally when aggregating joint view — not in raw data. */
@@ -36,6 +38,7 @@ export interface Competitor {
   yield_5yr: number;
   management_fee_accumulation_avg: number;
   fund_size_billions: number;
+  sharpe_ratio?: number;
   product_link: string;
 }
 

@@ -78,7 +78,7 @@ function DonutChart({ rows, variant = 'balance' }: { rows: SummaryRow[]; variant
       ))}
       {/* Center label */}
       <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10"
-        fontWeight="700" fill="#1e293b" fontFamily="system-ui">
+        fontWeight="700" fill="currentColor" className="text-slate-800 dark:text-slate-100" fontFamily="system-ui">
         {variant === 'monthly' ? '₪/חו' : '%'}
       </text>
     </svg>
@@ -94,31 +94,31 @@ export default function PortfolioSummaryCard({ title, totalLabel, rows, variant 
   const isMonthly = variant === 'monthly';
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="p-6 flex items-center justify-between gap-4 border-b border-slate-100">
+      <div className="p-6 flex items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800">
         <div>
-          <p className="text-sm font-semibold text-slate-500 mb-0.5">{title}</p>
-          {totalLabel && <p className="text-xs text-slate-400 mb-1">{totalLabel}</p>}
-          <p className="text-3xl font-bold text-slate-900 tabular-nums" dir="ltr">{fmt(total)}</p>
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-0.5">{title}</p>
+          {totalLabel && <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{totalLabel}</p>}
+          <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{fmt(total)}</p>
         </div>
         <DonutChart rows={activeRows} variant={variant} />
       </div>
 
       {/* Table */}
       <div className="p-4">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
           {isMonthly ? 'התפלגות ההפקדה החודשית לפי סוג מוצר' : 'התפלגות החשבון לפי סוג מוצר'}
         </p>
         <table className="w-full text-right text-sm border-collapse">
           <thead>
-            <tr className="text-xs text-slate-400 font-semibold">
+            <tr className="text-xs text-slate-400 dark:text-slate-500 font-semibold">
               <th className="pb-2 font-semibold">סוג מוצר</th>
               <th className="pb-2 text-left font-semibold">{isMonthly ? 'הפקדה' : 'צבירה'}</th>
               <th className="pb-2 text-left font-semibold w-16">חלק יחסי</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
             {activeRows.map((row) => {
               const pct = total > 0 ? Math.round((row.balance / total) * 100) : 0;
               return (
@@ -126,10 +126,10 @@ export default function PortfolioSummaryCard({ title, totalLabel, rows, variant 
                   <td className="py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: row.hex }} />
-                      <span className="font-medium text-slate-700">{row.label}</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{row.label}</span>
                     </div>
                   </td>
-                  <td className="py-2.5 text-left font-semibold text-slate-800 tabular-nums" dir="ltr">
+                  <td className="py-2.5 text-left font-semibold text-slate-800 dark:text-slate-100 tabular-nums" dir="ltr">
                     {fmt(row.balance)}
                   </td>
                   <td className="py-2.5 text-left">
@@ -144,11 +144,11 @@ export default function PortfolioSummaryCard({ title, totalLabel, rows, variant 
           </tbody>
           {activeRows.length > 1 && (
             <tfoot>
-              <tr className="border-t-2 border-slate-200">
-                <td className="pt-2 font-bold text-slate-700">סה״כ</td>
-                <td className="pt-2 text-left font-bold text-slate-900 tabular-nums" dir="ltr">{fmt(total)}</td>
+              <tr className="border-t-2 border-slate-200 dark:border-slate-800">
+                <td className="pt-2 font-bold text-slate-700 dark:text-slate-300">סה״כ</td>
+                <td className="pt-2 text-left font-bold text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{fmt(total)}</td>
                 <td className="pt-2 text-left">
-                  <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-slate-700 text-white">100%</span>
+                  <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-slate-700 dark:bg-slate-800 text-white">100%</span>
                 </td>
               </tr>
             </tfoot>

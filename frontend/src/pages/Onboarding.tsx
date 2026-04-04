@@ -171,8 +171,8 @@ export default function Onboarding() {
   if (!isLoaded) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-12 px-4">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-12 px-4 transition-colors duration-200">
+      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         
         {/* Header */}
         <div className="bg-gradient-to-l from-blue-600 to-blue-800 p-8 text-white relative overflow-hidden">
@@ -205,7 +205,7 @@ export default function Onboarding() {
             )}
 
             <div className="space-y-2">
-              <label htmlFor="family_name" className="block text-sm font-semibold text-slate-700 mb-2">שם הבית / המשפחה (למשל: משפחת לוי)</label>
+              <label htmlFor="family_name" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">שם הבית / המשפחה (למשל: משפחת לוי)</label>
               <input
                 id="family_name"
                 type="text"
@@ -213,98 +213,98 @@ export default function Onboarding() {
                 placeholder='לדוגמה: משפחת לוי'
                 value={householdName}
                 onChange={e => setHouseholdName(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100"
                 autoComplete="family-name"
               />
             </div>
 
-            <div className="flex items-start gap-3 p-4 bg-blue-50 text-blue-800 rounded-2xl border border-blue-100">
+            <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-2xl border border-blue-100 dark:border-blue-800/50">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <p className="text-sm">השמות שתזין כאן יופיעו כשמות הלשוניות בלוח הבקרה. חשבונות ה-Google המורשים יקבעו מי יכול להתחבר.</p>
             </div>
 
-            <div className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50/50">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 bg-slate-50/50 dark:bg-slate-800/30">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <UserCircle2 className="w-5 h-5 text-blue-600" />
+                <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                  <UserCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h3 className="font-bold text-slate-800">בן/בת משפחה ראשון/ה (אתה)</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">בן/בת משפחה ראשון/ה (אתה)</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="fname1" className="block text-xs font-semibold text-slate-500 mb-1.5">שם פרטי</label>
+                  <label htmlFor="fname1" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">שם פרטי</label>
                   <input id="fname1" type="text" name="fname1" placeholder='לדוגמה: דוד' value={member1.name}
                     onChange={e => setMember1({ ...member1, name: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                     autoComplete="given-name"
                   />
                 </div>
                 <div>
-                  <label htmlFor="lname1" className="block text-xs font-semibold text-slate-500 mb-1.5">שם משפחה (אופציונלי)</label>
+                  <label htmlFor="lname1" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">שם משפחה (אופציונלי)</label>
                   <input id="lname1" type="text" name="lname1" placeholder='לדוגמה: ישראלי' value={member1.lastName || ''}
                     onChange={e => setMember1({ ...member1, lastName: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                     autoComplete="family-name"
                   />
                 </div>
                 <div>
-                  <label htmlFor="id1" className="block text-xs font-semibold text-slate-500 mb-1.5">תעודת זהות</label>
+                  <label htmlFor="id1" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">תעודת זהות</label>
                   <input id="id1" type="text" name="id1" placeholder='לדוגמה: 012345678' value={member1.idNumber || ''}
                     onChange={e => setMember1({ ...member1, idNumber: e.target.value })}
                     dir="ltr"
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                   />
                 </div>
                 <div>
-                  <label htmlFor="email1" className="block text-xs font-semibold text-slate-500 mb-1.5">כתובת Google (אימייל)</label>
+                  <label htmlFor="email1" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">כתובת Google (אימייל)</label>
                   <input id="email1" type="email" name="email1" placeholder='david@gmail.com' value={member1.email}
                     onChange={e => setMember1({ ...member1, email: e.target.value })}
                     dir="ltr"
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                     autoComplete="email"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50/50">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 bg-slate-50/50 dark:bg-slate-800/30">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <UserCircle2 className="w-5 h-5 text-emerald-600" />
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                  <UserCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <h3 className="font-bold text-slate-800">בן/בת משפחה שני/ה (בן/בת זוג)</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">בן/בת משפחה שני/ה (בן/בת זוג)</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="fname2" className="block text-xs font-semibold text-slate-500 mb-1.5">שם פרטי</label>
+                  <label htmlFor="fname2" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">שם פרטי</label>
                   <input id="fname2" type="text" name="fname2" placeholder='לדוגמה: מירי' value={member2.name}
                     onChange={e => setMember2({ ...member2, name: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                     autoComplete="given-name"
                   />
                 </div>
                 <div>
-                  <label htmlFor="lname2" className="block text-xs font-semibold text-slate-500 mb-1.5">שם משפחה (אופציונלי)</label>
+                  <label htmlFor="lname2" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">שם משפחה (אופציונלי)</label>
                   <input id="lname2" type="text" name="lname2" placeholder='לדוגמה: ישראלי' value={member2.lastName || ''}
                     onChange={e => setMember2({ ...member2, lastName: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-right placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                     autoComplete="family-name"
                   />
                 </div>
                 <div>
-                  <label htmlFor="id2" className="block text-xs font-semibold text-slate-500 mb-1.5">תעודת זהות</label>
+                  <label htmlFor="id2" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">תעודת זהות</label>
                   <input id="id2" type="text" name="id2" placeholder='לדוגמה: 012345678' value={member2.idNumber || ''}
                     onChange={e => setMember2({ ...member2, idNumber: e.target.value })}
                     dir="ltr"
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                   />
                 </div>
                 <div>
-                  <label htmlFor="email2" className="block text-xs font-semibold text-slate-500 mb-1.5">כתובת Google (אימייל)</label>
+                  <label htmlFor="email2" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">כתובת Google (אימייל)</label>
                   <input id="email2" type="email" name="email2" placeholder='miri@gmail.com' value={member2.email}
                     onChange={e => setMember2({ ...member2, email: e.target.value })}
                     dir="ltr"
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 text-sm"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-left placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                     autoComplete="email"
                   />
                 </div>
@@ -313,8 +313,8 @@ export default function Onboarding() {
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-semibold text-slate-700">גישה נוספת (ילדים / מטפל פיננסי)</label>
-                <span className="text-xs text-slate-400">רשות</span>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">גישה נוספת (ילדים / מטפל פיננסי)</label>
+                <span className="text-xs text-slate-400 dark:text-slate-500">רשות</span>
               </div>
               <div className="space-y-3">
                 {extraEmails.map((email, i) => (
@@ -323,7 +323,7 @@ export default function Onboarding() {
                       <input type="email" placeholder='extra@gmail.com' value={email}
                         onChange={e => handleExtraEmailChange(i, e.target.value)}
                         dir="ltr"
-                        className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-left placeholder:text-slate-400 text-sm"
+                        className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-left placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100 text-sm"
                         autoComplete="email"
                       />
                       {email && <CheckCircle2 className="absolute left-3 top-3 w-4 h-4 text-emerald-500" />}
@@ -339,14 +339,14 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <hr className="border-slate-200" />
+            <hr className="border-slate-200 dark:border-slate-800" />
 
             <div className="flex justify-between items-center">
-              <p className="text-xs text-slate-400">ניתן לשנות הגדרות אלה בכל עת בעמוד ההגדרות</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">ניתן לשנות הגדרות אלה בכל עת בעמוד ההגדרות</p>
               <button
                 onClick={handleNextStep}
                 disabled={!isValidStep1 || saving}
-                className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-8 py-3.5 rounded-xl font-semibold transition-all transform active:scale-95 shadow-lg shadow-slate-900/20"
+                className="flex items-center gap-2 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed text-white dark:text-slate-900 px-8 py-3.5 rounded-xl font-semibold transition-all transform active:scale-95 shadow-lg shadow-slate-900/20 dark:shadow-white/10"
               >
                 המשך לשלב הבא
                 <ChevronLeft className="w-4 h-4" />
@@ -358,7 +358,7 @@ export default function Onboarding() {
              <div className="px-8 pt-4">
                 <button 
                   onClick={handleBackStep}
-                  className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors"
+                  className="flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition-colors"
                 >
                   <ArrowRight className="w-4 h-4" /> חזרה לשלב הקודם
                 </button>
@@ -369,10 +369,10 @@ export default function Onboarding() {
                onDataChange={handleFinancialDataChange}
              />
              {saving && (
-               <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-                 <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mb-4" />
-                 <p className="text-blue-900 font-bold text-lg">שומר נתונים ומקים את לוח הבקרה...</p>
-                 <p className="text-blue-600/70">זה ייקח רק כמה שניות</p>
+               <div className="fixed inset-0 bg-white/60 dark:bg-slate-950/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+                 <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 dark:border-blue-400/30 dark:border-t-blue-400 rounded-full animate-spin mb-4" />
+                 <p className="text-blue-900 dark:text-blue-100 font-bold text-lg">שומר נתונים ומקים את לוח הבקרה...</p>
+                 <p className="text-blue-600/70 dark:text-blue-300/70">זה ייקח רק כמה שניות</p>
                </div>
              )}
           </div>

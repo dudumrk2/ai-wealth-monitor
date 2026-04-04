@@ -3,14 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { deleteFamily, addAuthorizedEmail } from '../lib/familyService';
 import { STORAGE_KEYS } from '../lib/storageKeys';
-import { Trash2, AlertTriangle, Users, UserCircle2, Mail, ChevronRight, X, RefreshCw, Loader2, Link2, Settings2, Clock } from 'lucide-react';
+import { Trash2, AlertTriangle, Users, UserCircle2, Mail, ChevronRight, X, RefreshCw, Loader2, Link2, Settings2, Clock, Moon, Sun } from 'lucide-react';
 import UploadSection from '../components/dashboard/UploadSection';
+import { useTheme } from '../context/ThemeContext';
+import clsx from 'clsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function Settings() {
   const navigate = useNavigate();
   const { user, familyConfig, familyId } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   // Load family config — from context (Firestore-synced) or localStorage cache
   const config = familyConfig ?? (() => {
@@ -229,31 +232,72 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
 
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
         <button
           onClick={() => navigate('/dashboard')}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors"
+          className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium text-sm transition-colors"
         >
           <ChevronRight className="w-4 h-4" /> חזרה ללוח הבקרה
         </button>
-        <h1 className="font-bold text-slate-800 text-lg">הגדרות</h1>
-        <div className="w-24" /> {/* spacer */}
+        <h1 className="font-bold text-slate-800 dark:text-slate-100 text-lg">הגדרות</h1>
+        
+        <div className="flex items-center gap-2">
+        </div>
       </div>
 
       <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
 
+        {/* Theme / Appearance Card */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
+              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">מראה (עיצוב)</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">בחר בין מצב בהיר לכהה</p>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex items-center justify-between p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full max-w-[300px]">
+              <button
+                onClick={() => theme !== 'light' && toggleTheme()}
+                className={clsx(
+                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all",
+                  theme === 'light' 
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <Sun className="w-4 h-4" /> מצב בהיר
+              </button>
+              <button
+                onClick={() => theme !== 'dark' && toggleTheme()}
+                className={clsx(
+                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all",
+                  theme === 'dark' 
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <Moon className="w-4 h-4" /> מצב כהה
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Family Details & Gmail Integration Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 text-lg">פרטי המשפחה וקריאת מיילים</h2>
-              <p className="text-xs text-slate-400 mt-0.5">ניהול בני הזוג וחיבור לקריאה אוטומטית של דוחות</p>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">פרטי המשפחה וקריאת מיילים</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ניהול בני הזוג וחיבור לקריאה אוטומטית של דוחות</p>
             </div>
           </div>
           
@@ -272,8 +316,8 @@ export default function Settings() {
 
             {/* Household Name */}
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">שם הבית</p>
-              <p className="text-lg font-bold text-slate-900">{config?.householdName || '—'}</p>
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">שם הבית</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{config?.householdName || '—'}</p>
             </div>
 
             {/* Members List */}
@@ -287,13 +331,13 @@ export default function Settings() {
                 const disableConnect = gmailConnected && !isConnected;
 
                 return (
-                  <div key={key} className={`p-4 rounded-xl border transition-colors ${isConnected ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <div key={key} className={`p-4 rounded-xl border transition-colors ${isConnected ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'}`}>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-3">
-                         <UserCircle2 className={`w-10 h-10 shrink-0 ${isConnected ? 'text-blue-500' : 'text-slate-400'}`} />
+                         <UserCircle2 className={`w-10 h-10 shrink-0 ${isConnected ? 'text-blue-500' : 'text-slate-400 dark:text-slate-500'}`} />
                          <div>
-                           <p className="font-bold text-slate-800 text-sm">{obj.name}</p>
-                           <p className="text-xs text-slate-500" dir="ltr">{obj.email || '—'}</p>
+                           <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">{obj.name}</p>
+                           <p className="text-xs text-slate-500 dark:text-slate-400" dir="ltr">{obj.email || '—'}</p>
                          </div>
                       </div>
                       
@@ -329,12 +373,12 @@ export default function Settings() {
             </div>
 
             {/* Gmail Settings & Explanation (inline in Family) */}
-            <div className="mt-6 pt-6 border-t border-slate-100 space-y-6">
+            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 space-y-6">
               
-              <div className="text-sm text-slate-600 leading-relaxed bg-slate-50 rounded-xl p-4">
-                <p className="font-semibold text-slate-700 mb-1">למה אנחנו צריכים גישה ל-Gmail?</p>
-                <p>כדי שנייצר המלצות עדכניות אנחנו צריכים את דוחות הפנסיה האחרונים שלכם. האפליקציה בודקת רק את תיבת המייל שחוברה, מחפשת מיילים מהכתובת והנושא שהוגדרו מטה, מחלצת את ה-PDF ולא נוגעת באף מייל אחר. <strong className="text-slate-800">ניתן לחבר רק חשבון אחד למשפחה בכל זמן נתון.</strong></p>
-                {lastFetched && <p className="text-xs text-slate-400 mt-2 font-medium">קריאה אחרונה התבצעה ב: <span dir="ltr">{lastFetched}</span></p>}
+              <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">למה אנחנו צריכים גישה ל-Gmail?</p>
+                <p>כדי שנייצר המלצות עדכניות אנחנו צריכים את דוחות הפנסיה האחרונים שלכם. האפליקציה בודקת רק את תיבת המייל שחוברה, מחפשת מיילים מהכתובת והנושא שהוגדרו מטה, מחלצת את ה-PDF ולא נוגעת באף מייל אחר. <strong className="text-slate-800 dark:text-slate-200">ניתן לחבר רק חשבון אחד למשפחה בכל זמן נתון.</strong></p>
+                {lastFetched && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">קריאה אחרונה התבצעה ב: <span dir="ltr">{lastFetched}</span></p>}
               </div>
 
             </div>
@@ -342,14 +386,14 @@ export default function Settings() {
         </div>
 
         {/* Gmail Search Settings Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-9 h-9 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl flex items-center justify-center">
               <Settings2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 text-lg">הגדרות סריקת דוחות ממייל</h2>
-              <p className="text-xs text-slate-400 mt-0.5">פרטי חיפוש ותזמונים (מתייחס לחשבון ה-Gmail המחובר)</p>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">הגדרות סריקת דוחות ממייל</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">פרטי חיפוש ותזמונים (מתייחס לחשבון ה-Gmail המחובר)</p>
             </div>
           </div>
           
@@ -359,23 +403,23 @@ export default function Settings() {
             <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">כתובת שולח הדוח</label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">כתובת שולח הדוח</label>
                   <input
                     type="email"
                     value={gmailSender}
                     onChange={e => setGmailSender(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-sm text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-slate-100"
                     dir="ltr"
                     placeholder="no-reply@surense.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">נושא המייל (Subject)</label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">נושא המייל (Subject)</label>
                   <input
                     type="text"
                     value={gmailSubject}
                     onChange={e => setGmailSubject(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-slate-100"
                     placeholder="דוח מצב ביטוח ופנסיה"
                   />
                 </div>
@@ -383,40 +427,40 @@ export default function Settings() {
             </div>
 
             {/* Schedule */}
-            <div className="border-t border-slate-100 pt-5">
-              <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm mb-4">
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-semibold text-sm mb-4">
                 <Clock className="w-4 h-4" /> תזמון קריאה
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">יום בחודש <span className="text-slate-400 font-normal">(1–30)</span></label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">יום בחודש <span className="text-slate-400 dark:text-slate-500 font-normal">(1–30)</span></label>
                   <input
                     type="number" min={1} max={30}
                     value={cronDay}
                     onChange={e => setCronDay(Math.min(30, Math.max(1, Number(e.target.value))))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">כל כמה חודשים <span className="text-slate-400 font-normal">(1–12)</span></label>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">כל כמה חודשים <span className="text-slate-400 dark:text-slate-500 font-normal">(1–12)</span></label>
                   <input
                     type="number" min={1} max={12}
                     value={cronFreq}
                     onChange={e => setCronFreq(Math.min(12, Math.max(1, Number(e.target.value))))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
-              <p className="text-xs text-slate-400 mt-2">ברירת מחדל: ב-1 לחודש, כל 3 חודשים</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">ברירת מחדל: ב-1 לחודש, כל 3 חודשים</p>
             </div>
 
             {/* Save and Scan buttons */}
-            <div className="border-t border-slate-100 pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                 <button
                   onClick={handleSaveGmailSettings}
                   disabled={gmailSaving}
-                  className="flex items-center gap-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
+                  className="flex items-center gap-2 bg-slate-900 dark:bg-slate-100 dark:text-slate-900 hover:bg-black dark:hover:bg-white disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
                 >
                   {gmailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   {gmailSaving ? 'שומר...' : 'שמור הגדרות מייל'}
@@ -424,12 +468,12 @@ export default function Settings() {
                 {gmailSaveMsg && <span className={`text-xs font-bold ${gmailSaveMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{gmailSaveMsg}</span>}
               </div>
 
-              <div className="flex items-center justify-end gap-3 border-t sm:border-t-0 sm:border-r border-slate-100 pt-5 sm:pt-0 sm:pr-6 w-full sm:w-auto">
+              <div className="flex items-center justify-end gap-3 border-t sm:border-t-0 sm:border-r border-slate-100 dark:border-slate-800 pt-5 sm:pt-0 sm:pr-6 w-full sm:w-auto">
                 {gmailScanMsg && <span className={`text-xs font-bold text-left leading-tight ${gmailScanMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>{gmailScanMsg}</span>}
                 <button
                    onClick={handleScanNow}
                    disabled={gmailScanning || !gmailConnected}
-                   className="flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 disabled:opacity-50 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 shrink-0"
+                   className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 shrink-0"
                 >
                    {gmailScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                    סרוק דוחות עכשיו
@@ -444,18 +488,18 @@ export default function Settings() {
         {user && <UploadSection user={user} onSuccess={() => {}} />}
 
         {/* Reprocess Advisory Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
               <RefreshCw className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 text-lg">רענן המלצות AI</h2>
-              <p className="text-xs text-slate-400 mt-0.5">מחשב מחדש המלצות על בסיס הנתונים השמורים — ללא העלאת קבצים</p>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">רענן המלצות AI</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">מחשב מחדש המלצות על בסיס הנתונים השמורים — ללא העלאת קבצים</p>
             </div>
           </div>
           <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <p className="text-sm text-slate-500">מושך נתוני שוק עדכניים ומריץ את יועץ ה-AI על הפורטפוליו הנוכחי.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">מושך נתוני שוק עדכניים ומריץ את יועץ ה-AI על הפורטפוליו הנוכחי.</p>
             <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
               <button
                 onClick={handleReprocessAdvisory}
@@ -476,25 +520,25 @@ export default function Settings() {
 
 
         {/* Authorized Emails */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
+              <div className="w-9 h-9 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl flex items-center justify-center">
                 <Mail className="w-5 h-5" />
               </div>
-              <h2 className="font-bold text-slate-800 text-lg">גישה נוספת מורשית</h2>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">גישה נוספת מורשית</h2>
             </div>
           </div>
           <div className="p-6">
             <div className="space-y-2 mb-6">
               {(config?.extraAuthorizedEmails?.length ?? 0) === 0 ? (
-                <p className="text-sm text-slate-400">אין משתמשים נוספים בעלי הרשאת גישה לתיק.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">אין משתמשים נוספים בעלי הרשאת גישה לתיק.</p>
               ) : (
                 config?.extraAuthorizedEmails.map((email: string, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg text-sm" dir="ltr">
+                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-sm" dir="ltr">
                     <div className="flex items-center gap-3">
-                      <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span className="text-slate-700 font-medium">{email}</span>
+                      <Mail className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">{email}</span>
                     </div>
                   </div>
                 ))
@@ -502,20 +546,20 @@ export default function Settings() {
             </div>
 
             {/* Add new email form */}
-            <div className="pt-5 border-t border-slate-100 flex gap-3">
+            <div className="pt-5 border-t border-slate-100 dark:border-slate-800 flex gap-3">
               <input
                 type="email"
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
                 placeholder="הכנס כתובת Google..."
-                className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm placeholder:text-slate-400"
+                className="flex-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600 text-slate-900 dark:text-slate-100"
                 dir="ltr"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddEmail(); }}
               />
               <button
                 onClick={handleAddEmail}
                 disabled={!newEmail.includes('@') || addingEmail}
-                className="bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
+                className="bg-slate-900 dark:bg-slate-100 dark:text-slate-900 hover:bg-black dark:hover:bg-white text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
               >
                 {addingEmail ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -526,18 +570,18 @@ export default function Settings() {
         </div>
 
         {/* Danger Zone */}
-        <div className="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-red-100 bg-red-50/50 flex items-center gap-3">
-            <div className="w-9 h-9 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
+            <div className="w-9 h-9 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-xl flex items-center justify-center">
               <AlertTriangle className="w-5 h-5" />
             </div>
-            <h2 className="font-bold text-red-800 text-lg">אזור מסוכן</h2>
+            <h2 className="font-bold text-red-800 dark:text-red-400 text-lg">אזור מסוכן</h2>
           </div>
           <div className="p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-slate-900">מחיקת המשפחה</p>
-                <p className="text-sm text-slate-500 mt-0.5">מחיקה בלתי הפיכה של כל נתוני המשפחה ומשתמשיה</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">מחיקת המשפחה</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">מחיקה בלתי הפיכה של כל נתוני המשפחה ומשתמשיה</p>
               </div>
               <button
                 onClick={() => setShowDeleteModal(true)}
@@ -552,17 +596,17 @@ export default function Settings() {
 
       {/* ─── Delete Confirmation Modal ─── */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-red-50 p-6 border-b border-red-100">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-red-50 dark:bg-red-900/20 p-6 border-b border-red-100 dark:border-red-900/30">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                  <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-xl flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-red-900">מחיקת המשפחה</h3>
-                    <p className="text-sm text-red-700 mt-0.5">פעולה זו אינה ניתנת לביטול</p>
+                    <h3 className="text-lg font-bold text-red-900 dark:text-red-100">מחיקת המשפחה</h3>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-0.5">פעולה זו אינה ניתנת לביטול</p>
                   </div>
                 </div>
                 <button onClick={() => { setShowDeleteModal(false); setConfirmText(''); setDeleteError(null); }}
@@ -573,21 +617,21 @@ export default function Settings() {
             </div>
 
             <div className="p-6 space-y-5">
-              <p className="text-slate-700 text-sm leading-relaxed">
+              <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
                 פעולה זו תמחק לצמיתות את <strong>{householdName}</strong> ותנתק את כל המשתמשים המורשים.
                 לא ניתן לשחזר את הנתונים.
               </p>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  הקלד <span className="text-red-600 font-bold">"{confirmNeeded}"</span> לאישור
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  הקלד <span className="text-red-600 dark:text-red-400 font-bold">"{confirmNeeded}"</span> לאישור
                 </label>
                 <input
                   type="text"
                   value={confirmText}
                   onChange={e => setConfirmText(e.target.value)}
                   placeholder={confirmNeeded}
-                  className="w-full border border-slate-300 rounded-xl px-4 py-3 text-right focus:ring-2 focus:ring-red-400 focus:border-red-400 outline-none transition-shadow placeholder:text-slate-300"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-right focus:ring-2 focus:ring-red-400 focus:border-red-400 outline-none transition-shadow placeholder:text-slate-300 dark:placeholder:text-slate-600 text-slate-900 dark:text-slate-100"
                   autoFocus
                 />
               </div>
@@ -599,7 +643,7 @@ export default function Settings() {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => { setShowDeleteModal(false); setConfirmText(''); setDeleteError(null); }}
-                  className="flex-1 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-3 rounded-xl font-semibold text-sm transition-colors"
+                  className="flex-1 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-3 rounded-xl font-semibold text-sm transition-colors"
                 >
                   ביטול
                 </button>

@@ -68,18 +68,18 @@ function AddAssetModal({ onSave, onClose }: ModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-indigo-600" />
+            <div className="w-9 h-9 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <h3 className="font-bold text-slate-900 text-lg">הוספת נכס חדש</h3>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">הוספת נכס חדש</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
+          <button onClick={onClose} className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -88,37 +88,37 @@ function AddAssetModal({ onSave, onClose }: ModalProps) {
         <div className="p-5 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">שם הנכס *</label>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">שם הנכס *</label>
             <input type="text" value={form.name} onChange={set('name')}
               placeholder='לדוגמה: דירה להשכרה, קרן כספית...'
-              className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-right focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-shadow placeholder:text-slate-300"
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-right focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-shadow placeholder:text-slate-300 dark:placeholder:text-slate-600 text-slate-900 dark:text-slate-100"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">תיאור</label>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">תיאור</label>
             <input type="text" value={form.description} onChange={set('description')}
               placeholder='פרטים נוספים על הנכס'
-              className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-right focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-shadow placeholder:text-slate-300"
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-right focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm transition-shadow placeholder:text-slate-300 dark:placeholder:text-slate-600 text-slate-900 dark:text-slate-100"
             />
           </div>
 
           {/* Balance + yield side by side */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">שווי נכס (₪) *</label>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">שווי נכס (₪) *</label>
               <input type="number" value={form.balance} onChange={set('balance')}
                 placeholder="0"
-                className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm text-slate-900 dark:text-slate-100"
                 dir="ltr"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">תשואה שנתית (%)</label>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">תשואה שנתית (%)</label>
               <input type="number" step="0.1" value={form.expected_yearly_yield} onChange={set('expected_yearly_yield')}
                 placeholder="0.0"
-                className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm text-slate-900 dark:text-slate-100"
                 dir="ltr"
               />
             </div>
@@ -126,10 +126,10 @@ function AddAssetModal({ onSave, onClose }: ModalProps) {
 
           {/* Monthly deposit */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">הפקדה / הכנסה חודשית (₪)</label>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">הפקדה / הכנסה חודשית (₪)</label>
             <input type="number" value={form.monthly_deposit} onChange={set('monthly_deposit')}
               placeholder="0"
-              className="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm text-slate-900 dark:text-slate-100"
               dir="ltr"
             />
           </div>
@@ -137,32 +137,32 @@ function AddAssetModal({ onSave, onClose }: ModalProps) {
           {/* Date range */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                 <Calendar className="w-3 h-3" /> תאריך התחלה
               </label>
               <input type="date" value={form.start_date} onChange={set('start_date')}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm text-slate-900 dark:text-slate-100"
                 dir="ltr"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                 <Calendar className="w-3 h-3" /> תאריך סיום
               </label>
               <input type="date" value={form.end_date} onChange={set('end_date')}
                 placeholder="ריק = ללא הגבלה"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm placeholder:text-slate-300"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm placeholder:text-slate-300 dark:placeholder:text-slate-600 text-slate-900 dark:text-slate-100"
                 dir="ltr"
               />
-              <p className="text-xs text-slate-400 mt-0.5">ריק = ללא הגבלה</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ריק = ללא הגבלה</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-5 border-t border-slate-100">
+        <div className="flex gap-3 p-5 border-t border-slate-100 dark:border-slate-800">
           <button onClick={onClose}
-            className="flex-1 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-3 rounded-xl font-semibold text-sm transition-colors">
+            className="flex-1 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-3 rounded-xl font-semibold text-sm transition-colors">
             ביטול
           </button>
           <button onClick={handleSave} disabled={!isValid}
@@ -199,11 +199,11 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
 
         {/* Table Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-bold text-lg text-slate-800">השקעות אלטרנטיביות</h3>
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">השקעות אלטרנטיביות</h3>
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95 shadow-sm shadow-indigo-200"
@@ -215,10 +215,10 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
         {/* Empty state */}
         {items.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-14 h-14 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
-              <TrendingUp className="w-7 h-7 text-slate-400" />
+            <div className="w-14 h-14 mx-auto bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+              <TrendingUp className="w-7 h-7 text-slate-400 dark:text-slate-600" />
             </div>
-            <p className="text-slate-500 font-semibold mb-1">אין נכסים אלטרנטיביים</p>
+            <p className="text-slate-500 dark:text-slate-400 font-semibold mb-1">אין נכסים אלטרנטיביים</p>
             <p className="text-slate-400 text-sm mb-5">הוסף נכסים כגון נדל״ן, קרנות כספיות, פיקדונות ועוד</p>
             <button onClick={() => setShowModal(true)}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all">
@@ -229,7 +229,7 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
           <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
                   <th className="px-5 py-3">שם הנכס</th>
                   <th className="px-4 py-3 text-left">שווי</th>
                   <th className="px-4 py-3 text-left">הכנסה חודשית</th>
@@ -239,44 +239,44 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                 {items.map((item) => (
                   <tr key={item.id}
-                    className={clsx('group hover:bg-slate-50/50 transition-colors')}>
+                    className={clsx('group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors')}>
                     <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-900">{item.name}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{item.name}</p>
                       {item.description && (
                         <p className="text-xs text-slate-400 mt-0.5 max-w-xs">{item.description}</p>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-left tabular-nums font-bold text-slate-800" dir="ltr">
+                    <td className="px-4 py-4 text-left tabular-nums font-bold text-slate-800 dark:text-slate-100" dir="ltr">
                       {fmt(item.balance)}
                     </td>
                     <td className="px-4 py-4 text-left tabular-nums" dir="ltr">
                       {item.monthly_deposit > 0 ? (
-                        <span className="text-emerald-700 font-semibold">{fmt(item.monthly_deposit)}</span>
+                        <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{fmt(item.monthly_deposit)}</span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-slate-400 dark:text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-4 py-4 text-left">
                       <span className={clsx(
                         'font-bold text-sm',
-                        item.expected_yearly_yield >= 5 ? 'text-emerald-600' : 'text-slate-600'
+                        item.expected_yearly_yield >= 5 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'
                       )}>
                         {item.expected_yearly_yield > 0 ? `${item.expected_yearly_yield}%` : '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-left text-slate-600 text-xs font-medium" dir="ltr">
+                    <td className="px-4 py-4 text-left text-slate-600 dark:text-slate-400 text-xs font-medium" dir="ltr">
                       {fmtDate(item.start_date)}
                     </td>
-                    <td className="px-4 py-4 text-left text-slate-600 text-xs font-medium" dir="ltr">
+                    <td className="px-4 py-4 text-left text-slate-600 dark:text-slate-400 text-xs font-medium" dir="ltr">
                       {fmtDate(item.end_date)}
                     </td>
                     <td className="px-4 py-4">
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                         title="מחק נכס"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -289,10 +289,10 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
               {/* Totals row */}
               {items.length > 1 && (
                 <tfoot>
-                  <tr className="border-t-2 border-slate-200 bg-slate-50/80 font-bold">
-                    <td className="px-5 py-3 text-slate-700">סה״כ</td>
-                    <td className="px-4 py-3 text-left tabular-nums text-slate-900" dir="ltr">{fmt(totalBalance)}</td>
-                    <td className="px-4 py-3 text-left tabular-nums text-emerald-700" dir="ltr">
+                  <tr className="border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 font-bold">
+                    <td className="px-5 py-3 text-slate-700 dark:text-slate-300">סה״כ</td>
+                    <td className="px-4 py-3 text-left tabular-nums text-slate-900 dark:text-slate-100" dir="ltr">{fmt(totalBalance)}</td>
+                    <td className="px-4 py-3 text-left tabular-nums text-emerald-700 dark:text-emerald-400" dir="ltr">
                       {totalMonthly > 0 ? fmt(totalMonthly) : '—'}
                     </td>
                     <td colSpan={4}></td>

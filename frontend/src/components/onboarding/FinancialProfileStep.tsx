@@ -78,7 +78,7 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-sm mt-8 border border-gray-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-2xl mx-auto p-6 bg-white dark:bg-slate-900 rounded-lg shadow-sm mt-8 border border-gray-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="bg-blue-600 text-white p-6 rounded-t-lg -mt-6 -mx-6 mb-6">
         <h2 className="text-2xl font-bold text-center">פרופיל פיננסי ומשפחתי</h2>
         <p className="text-center text-blue-100 mt-2">שלב 2 מתוך 2 — התאמה אישית של מנוע ה-AI</p>
@@ -86,7 +86,7 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="spouse1BirthYear" className="block text-sm font-medium text-gray-700 mb-1">שנת לידה בן/בת זוג 1</label>
+            <label htmlFor="spouse1BirthYear" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">שנת לידה בן/בת זוג 1</label>
             <input 
               id="spouse1BirthYear"
               type="number" 
@@ -95,13 +95,13 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
               max={currentYear} 
               value={birthYears.spouse1} 
               onChange={(e) => setBirthYears({...birthYears, spouse1: e.target.value})} 
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
+              className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-slate-100" 
               required 
               autoComplete="bday-year"
             />
           </div>
           <div>
-            <label htmlFor="spouse2BirthYear" className="block text-sm font-medium text-gray-700 mb-1">שנת לידה בן/בת זוג 2</label>
+            <label htmlFor="spouse2BirthYear" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">שנת לידה בן/בת זוג 2</label>
             <input 
               id="spouse2BirthYear"
               type="number" 
@@ -110,13 +110,13 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
               max={currentYear} 
               value={birthYears.spouse2} 
               onChange={(e) => setBirthYears({...birthYears, spouse2: e.target.value})} 
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
+              className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-slate-100" 
               autoComplete="bday-year"
             />
           </div>
         </div>
-        <div className="border-t border-gray-100 pt-6">
-          <label htmlFor="kidsCount" className="block text-sm font-medium text-gray-700 mb-1">מספר ילדים</label>
+        <div className="border-t border-gray-100 dark:border-slate-800 pt-6">
+          <label htmlFor="kidsCount" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">מספר ילדים</label>
           <input 
             id="kidsCount"
             type="number" 
@@ -124,13 +124,13 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
             min="0" 
             value={kidsCount} 
             onChange={handleKidsCountChange} 
-            className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 mb-4" 
+            className="w-full md:w-1/3 p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-md focus:ring-blue-500 focus:border-blue-500 mb-4 text-gray-900 dark:text-slate-100" 
           />
           {kidsCount > 0 && (
-            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-md">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 bg-gray-50 dark:bg-slate-800/50 p-4 rounded-md">
               {childrenBirthYears.map((year, index) => (
                 <div key={index}>
-                  <label htmlFor={`childYear${index}`} className="block text-xs text-gray-500 mb-1">שנת לידה ילד {index + 1}</label>
+                  <label htmlFor={`childYear${index}`} className="block text-xs text-gray-500 dark:text-slate-400 mb-1">שנת לידה ילד {index + 1}</label>
                   <input 
                     id={`childYear${index}`}
                     type="number" 
@@ -139,7 +139,7 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
                     max={currentYear} 
                     value={year} 
                     onChange={(e) => handleChildYearChange(index, e.target.value)} 
-                    className="w-full p-2 border border-gray-300 rounded-md text-sm" 
+                    className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-md text-sm" 
                     required 
                   />
                 </div>
@@ -147,18 +147,18 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
             </div>
           )}
         </div>
-        <div className="border-t border-gray-100 pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="border-t border-gray-100 dark:border-slate-800 pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label htmlFor="investmentGoal" className="block text-sm font-medium text-gray-700 mb-1">העדפת השקעה</label>
-            <select id="investmentGoal" name="investmentGoal" value={preferences.investmentGoal} onChange={(e) => setPreferences({...preferences, investmentGoal: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+            <label htmlFor="investmentGoal" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">העדפת השקעה</label>
+            <select id="investmentGoal" name="investmentGoal" value={preferences.investmentGoal} onChange={(e) => setPreferences({...preferences, investmentGoal: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-md focus:ring-blue-500 focus:border-blue-500">
               <option value="solid">שמירה על הקיים (סולידי)</option>
               <option value="balanced">צמיחה מתונה (מאוזן)</option>
               <option value="growth">מיקסום תשואה (צמיחה)</option>
             </select>
           </div>
           <div>
-            <label htmlFor="riskTolerance" className="block text-sm font-medium text-gray-700 mb-1">רמת סיכון מבוקשת</label>
-            <select id="riskTolerance" name="riskTolerance" value={preferences.riskTolerance} onChange={(e) => setPreferences({...preferences, riskTolerance: e.target.value})} className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+            <label htmlFor="riskTolerance" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">רמת סיכון מבוקשת</label>
+            <select id="riskTolerance" name="riskTolerance" value={preferences.riskTolerance} onChange={(e) => setPreferences({...preferences, riskTolerance: e.target.value})} className="w-full p-2 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-md focus:ring-blue-500 focus:border-blue-500">
               <option value="low">נמוכה</option>
               <option value="medium">בינונית</option>
               <option value="high">גבוהה</option>
