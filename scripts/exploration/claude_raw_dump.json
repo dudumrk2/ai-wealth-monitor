@@ -1,0 +1,1473 @@
+{
+  "uid": "414PiKcFOWRO0PNRAfuVsD3fqoV2",
+  "last_updated": "2026-03-25T18:42:16.273001",
+  "action_items": [
+    {
+      "type": "fee_negotiation",
+      "problem_explanation": "לבן/בת הזוג קיימות שלוש פוליסות ביטוח מנהלים בהפניקס (פוליסות 2037712011, 1868756014, 922430012) עם יתרה כוללת של כ-425,827 ₪, הנושאות דמי ניהול מצבירה של 1% – גבוהים פי 4 מהממוצע המוביל בשוק (0.25% אצל אלטשולר שחם). בנוסף, פוליסות 1868756014 ו-922430012 גובות 6% מההפקדה. תשואת השנה האחרונה עמדה על 1.98% בלבד לעומת 15.8% אצל המתחרה המוביל. עלויות ניהול גבוהות אלו, לצד תשואה חסרה, פוגעות משמעותית בצבירה לאורך זמן. גם פוליסת ביטוח המנהלים של הפניקס (1435644016) של בן/בת הזוג הראשון/ה גובה 0.9% מצבירה ו-3% מהפקדה על יתרה של 778,074 ₪.",
+      "id": "fee_1",
+      "title": "דמי ניהול גבוהים מאוד בביטוחי מנהלים של הפניקס – נדרשת פעולה מיידית",
+      "severity": "high",
+      "action_required": "יש לפנות מיידית לסוכן ביטוח או ישירות להפניקס לנהל משא ומתן על הורדת דמי הניהול מצבירה ל-0.25% ומהפקדה ל-0% עבור כל הפוליסות. בהתחשב בסכומים הגדולים (מעל מיליון ₪ בביטוחי מנהלים), יש כוח מיקוח משמעותי. אם ההפניקס לא תסכים לתנאים מסחריים תחרותיים, יש לשקול העברת הצבירה הסבילה (ללא פגיעה בכיסויים ביטוחיים אם קיימים) לקופת גמל מסלול מניות כגון אלטשולר שחם עם דמי ניהול של 0.25% בלבד.",
+      "is_completed": false
+    },
+    {
+      "type": "investment_strategy",
+      "problem_explanation": "פנסיית בן/בת הזוג הראשון/ה (מור גמל, יתרה 1,521,392 ₪) הניבה בשנה האחרונה תשואה של 3.03% בלבד, לעומת 13.99% של מנורה מבטחים (המתחרה המוביל). פנסיית בן/בת הזוג השני/ה (אלטשולר שחם, יתרה 801,715 ₪) הניבה 1.88% בלבד לעומת אותה רמת תשואה של המתחרים. שני בני הזוג הם בני 49-48, עם אופק השקעה של כ-15-17 שנה עד גיל פרישה, ופרופיל סיכון גבוה עם מטרת צמיחה. המסלולים הנוכחיים 'לבני 50 ומטה' ו'כללי' הם מסלולים סולידיים-מעורבים שאינם מנצלים את אופק ההשקעה הארוך. הפער בתשואה שנתית של כ-10-12% על יתרה של 2.3 מיליון ₪ מהווה אובדן פוטנציאלי של מאות אלפי שקלים בתשואה מצטברת.",
+      "id": "risk_1",
+      "title": "תשואות חסרות קיצוניות בפנסיה – מסלול 'כללי' אינו תואם פרופיל סיכון גבוה",
+      "severity": "high",
+      "action_required": "לפנות לקרנות הפנסיה (מור ואלטשולר שחם) ולדרוש מעבר מסלול פנימי למסלול מניות מקסימלי (100% מניות / עוקב S&P500) ללא עלות מעבר וללא פגיעה בוותק. בנוסף, יש לשקול העברת הפנסיה הגדולה (1.52 מיליון ₪) ממור גמל למנורה מבטחים (תשואה 5 שנים: 64.96%, דמי ניהול 0.15% מצבירה) או מגדל מקפת (שארפ 1.9 – הגבוה ביותר, דמי ניהול 0.14%). המעבר בין קרנות פנסיה הוא ללא אירוע מס.",
+      "is_completed": false
+    },
+    {
+      "type": "investment_strategy",
+      "problem_explanation": "למשפחה קיימות 7 קרנות השתלמות פעילות בפיזור רב: שלוש קרנות אנליסט השתלמות מניות (יתרות: 424,043, 208,522, 111,519 ₪), שתי קרנות מור השתלמות מניות (274,450 ו-89,447 ₪), קרן מור השתלמות מניות נוספת (88,568 ₪) וקרן מור השתלמות כללי (193,246 ₪). קרן מור השתלמות כללי גובה 0.7% על צבירה, כאשר הביצועים בשנה האחרונה היו 2.11% בלבד, לעומת תשואה ממוצעת של 13-15% במסלולי מניות. בנוסף, קרנות ההשתלמות אצל מור (776774, 776758, 776051) אינן מקבלות הפקדות שוטפות ויתרותיהן קטנות יחסית, עם דמי ניהול של 0.7% – גבוה מהממוצע. קרן 'כלל חיסכון פיננסי' של בן/בת הזוג השני/ה (739,055 ₪) מציגה תשואה 0% בכל האופקים – מצב חריג הדורש בדיקה דחופה.",
+      "id": "consolidation_1",
+      "title": "איחוד וייעול קרנות ההשתלמות – 7 קרנות פעילות עם חפיפה ודמי ניהול גבוהים",
+      "severity": "high",
+      "action_required": "1) לבדוק מיידית את 'כלל חיסכון פיננסי' (739,055 ₪, תשואה 0%) – ייתכן שמדובר בכסף עצור/מוקפא או בבעיית דיווח. יש לפנות לכלל לקבל הבהרה ולהעביר לאפיק השקעה פעיל. 2) לאחד את 3 קרנות מור השתלמות מניות (הקבלה: 274,450+89,447+88,568 ₪ = 452,465 ₪) לקרן אחת, ולנהל משא ומתן להפחתת דמי ניהול מ-0.7% ל-0.4% לפחות. 3) לשקול העברת קרן מור השתלמות כללי למסלול מניות כדי למקסם תשואה בהתאם לפרופיל הסיכון הגבוה. 4) לאחד את 3 קרנות אנליסט מניות לקרן אחת לצורך כוח מיקוח לדמי ניהול.",
+      "is_completed": false
+    }
+  ],
+  "portfolios": {
+    "user": {
+      "funds": [
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_d792",
+          "yield_5yr": 110.31,
+          "category": "pension",
+          "management_fee_deposit": 1,
+          "top_competitors": [
+            {
+              "provider_name": "מנורה מבטחים פנסיה וגמל בע\"מ",
+              "fund_name": "מנורה מבטחים פנסיה - כללי",
+              "_horizon_label": "1Y",
+              "total_assets": 111662.4,
+              "yield_5yr": 64.96,
+              "sharpe_ratio": 1.75,
+              "yield_3yr": 48.13,
+              "fund_id": "2009",
+              "yield_1yr": 13.99,
+              "management_fee_accumulation": 0.15,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "כלל פנסיה וגמל בע\"מ",
+              "fund_name": "כלל פנסיה כללי",
+              "_horizon_label": "3Y",
+              "total_assets": 57094.28,
+              "yield_5yr": 61.66,
+              "sharpe_ratio": 1.69,
+              "yield_3yr": 47.15,
+              "fund_id": "2002",
+              "yield_1yr": 13.74,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "מגדל מקפת קרנות פנסיה וקופות גמל בע\"מ",
+              "fund_name": "מגדל מקפת אישית כללי",
+              "_horizon_label": "5Y",
+              "total_assets": 70102.21,
+              "yield_5yr": 63.39,
+              "sharpe_ratio": 1.9,
+              "yield_3yr": 46.32,
+              "fund_id": "2102",
+              "yield_1yr": 13.53,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            }
+          ],
+          "track_name": "לבני 50 ומטה",
+          "monthly_deposit": 5460,
+          "sharpe_ratio": 0,
+          "policy_number": "13908",
+          "balance": 1521392,
+          "yield_3yr": 56.22,
+          "yield_1yr": 3.03,
+          "management_fee_accumulation": 0.22,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_751e",
+          "yield_5yr": 106.97,
+          "category": "pension",
+          "management_fee_deposit": 1,
+          "top_competitors": [
+            {
+              "provider_name": "מנורה מבטחים פנסיה וגמל בע\"מ",
+              "fund_name": "מנורה מבטחים פנסיה - כללי",
+              "_horizon_label": "1Y",
+              "total_assets": 111662.4,
+              "yield_5yr": 64.96,
+              "sharpe_ratio": 1.75,
+              "yield_3yr": 48.13,
+              "fund_id": "2009",
+              "yield_1yr": 13.99,
+              "management_fee_accumulation": 0.15,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "כלל פנסיה וגמל בע\"מ",
+              "fund_name": "כלל פנסיה כללי",
+              "_horizon_label": "3Y",
+              "total_assets": 57094.28,
+              "yield_5yr": 61.66,
+              "sharpe_ratio": 1.69,
+              "yield_3yr": 47.15,
+              "fund_id": "2002",
+              "yield_1yr": 13.74,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "מגדל מקפת קרנות פנסיה וקופות גמל בע\"מ",
+              "fund_name": "מגדל מקפת אישית כללי",
+              "_horizon_label": "5Y",
+              "total_assets": 70102.21,
+              "yield_5yr": 63.39,
+              "sharpe_ratio": 1.9,
+              "yield_3yr": 46.32,
+              "fund_id": "2102",
+              "yield_1yr": 13.53,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            }
+          ],
+          "track_name": "לבני 50 ומטה",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "13918",
+          "balance": 2960,
+          "yield_3yr": 54.74,
+          "yield_1yr": 2.82,
+          "management_fee_accumulation": 0.22,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_20ca",
+          "yield_5yr": 53.65,
+          "category": "pension",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "מנורה מבטחים פנסיה וגמל בע\"מ",
+              "fund_name": "מנורה מבטחים פנסיה - כללי",
+              "_horizon_label": "1Y",
+              "total_assets": 111662.4,
+              "yield_5yr": 64.96,
+              "sharpe_ratio": 1.75,
+              "yield_3yr": 48.13,
+              "fund_id": "2009",
+              "yield_1yr": 13.99,
+              "management_fee_accumulation": 0.15,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "כלל פנסיה וגמל בע\"מ",
+              "fund_name": "כלל פנסיה כללי",
+              "_horizon_label": "3Y",
+              "total_assets": 57094.28,
+              "yield_5yr": 61.66,
+              "sharpe_ratio": 1.69,
+              "yield_3yr": 47.15,
+              "fund_id": "2002",
+              "yield_1yr": 13.74,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "מגדל מקפת קרנות פנסיה וקופות גמל בע\"מ",
+              "fund_name": "מגדל מקפת אישית כללי",
+              "_horizon_label": "5Y",
+              "total_assets": 70102.21,
+              "yield_5yr": 63.39,
+              "sharpe_ratio": 1.9,
+              "yield_3yr": 46.32,
+              "fund_id": "2102",
+              "yield_1yr": 13.53,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            }
+          ],
+          "track_name": "כלל פנסיה משלימה לבני 50 ומטה",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.24,
+          "policy_number": "667",
+          "balance": 28,
+          "yield_3yr": 53.64,
+          "yield_1yr": 2.91,
+          "management_fee_accumulation": 0.068,
+          "provider_name": "כלל פנסיה וגמל",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_4f4d",
+          "yield_5yr": 66.99,
+          "category": "managers",
+          "management_fee_deposit": 3,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "הפניקס לבני 50 ומטה",
+          "monthly_deposit": 4240,
+          "sharpe_ratio": 0,
+          "policy_number": "1435644016",
+          "balance": 778074,
+          "yield_3yr": 67.03,
+          "yield_1yr": 2.7,
+          "management_fee_accumulation": 0.9,
+          "provider_name": "הפניקס ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_c8e8",
+          "yield_5yr": 54.29,
+          "category": "managers",
+          "management_fee_deposit": 3,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "הפניקס כללי",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "1435644016",
+          "balance": 80198,
+          "yield_3yr": 54.29,
+          "yield_1yr": 1.98,
+          "management_fee_accumulation": 0.9,
+          "provider_name": "הפניקס ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_1cae",
+          "yield_5yr": 53.58,
+          "category": "managers",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "עד גיל 05 - מנוהל",
+          "monthly_deposit": 236,
+          "sharpe_ratio": 0,
+          "policy_number": "44927099",
+          "balance": 7456,
+          "yield_3yr": 53.6,
+          "yield_1yr": 2.28,
+          "management_fee_accumulation": 0.49,
+          "provider_name": "מגדל ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_c44a",
+          "yield_5yr": 93.56,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "אנליסט השתלמות מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.17,
+          "policy_number": "9547378",
+          "balance": 424043,
+          "yield_3yr": 93.57,
+          "yield_1yr": 3.31,
+          "management_fee_accumulation": 0.6,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_e7a4",
+          "yield_5yr": 93.05,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "מור השתלמות - מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.43,
+          "policy_number": "776774",
+          "balance": 274450,
+          "yield_3yr": 93.03,
+          "yield_1yr": 4.71,
+          "management_fee_accumulation": 0.7,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_9469",
+          "yield_5yr": 93.56,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "אנליסט השתלמות מניות",
+          "monthly_deposit": 47700,
+          "sharpe_ratio": 1.17,
+          "policy_number": "10234397",
+          "balance": 208522,
+          "yield_3yr": 93.57,
+          "yield_1yr": 3.31,
+          "management_fee_accumulation": 0.55,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_e7e6",
+          "yield_5yr": 93.56,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "אנליסט השתלמות מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.17,
+          "policy_number": "11214890",
+          "balance": 111519,
+          "yield_3yr": 93.57,
+          "yield_1yr": 3.31,
+          "management_fee_accumulation": 0.5,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_e023",
+          "yield_5yr": 93.05,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "מור השתלמות - מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.43,
+          "policy_number": "776758",
+          "balance": 89447,
+          "yield_3yr": 93.03,
+          "yield_1yr": 4.71,
+          "management_fee_accumulation": 0.7,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_9f8c",
+          "yield_5yr": 93.05,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "מור השתלמות - מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.43,
+          "policy_number": "776051",
+          "balance": 88568,
+          "yield_3yr": 93.03,
+          "yield_1yr": 4.71,
+          "management_fee_accumulation": 0.7,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_8ed6",
+          "yield_5yr": 64.89,
+          "category": "provident",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "אנליסט מסלולית קופת גמל - מסלול לבני 50 ומטה",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "11214786",
+          "balance": 44991,
+          "yield_3yr": 64.92,
+          "yield_1yr": 2.19,
+          "management_fee_accumulation": 0.5,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_cf34",
+          "yield_5yr": 92.29,
+          "category": "provident",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 11.2,
+              "yield_1yr": 22.4,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 14.8
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 10.8,
+              "yield_1yr": 20.1,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 14.2
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 10.3,
+              "yield_1yr": 19.6,
+              "management_fee_accumulation": 0.28,
+              "provider_name": "ילין לפידות ניהול קופות גמל בע\"מ",
+              "yield_5yr": 13.7
+            }
+          ],
+          "track_name": "אנליסט גמל מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "11214786",
+          "balance": 20556,
+          "yield_3yr": 92.33,
+          "yield_1yr": 3.28,
+          "management_fee_accumulation": 0.5,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_2c7c",
+          "yield_5yr": 92.29,
+          "category": "provident",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 11.2,
+              "yield_1yr": 22.4,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 14.8
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 10.8,
+              "yield_1yr": 20.1,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 14.2
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 10.3,
+              "yield_1yr": 19.6,
+              "management_fee_accumulation": 0.28,
+              "provider_name": "ילין לפידות ניהול קופות גמל בע\"מ",
+              "yield_5yr": 13.7
+            }
+          ],
+          "track_name": "אנליסט גמל מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "11214817",
+          "balance": 23724,
+          "yield_3yr": 92.33,
+          "yield_1yr": 3.28,
+          "management_fee_accumulation": 0.5,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_9e33",
+          "yield_5yr": 54.92,
+          "category": "provident",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "כלל תמר עד 50",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "8586369",
+          "balance": 14520,
+          "yield_3yr": 54.9,
+          "yield_1yr": 3.05,
+          "management_fee_accumulation": 0.6,
+          "provider_name": "כלל פנסיה וגמל",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai__דודודוח תקופתי 01-2026.pdf_09dc",
+          "yield_5yr": 92.54,
+          "category": "investment_provident",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "אנליסט מסלולית - קופת גמל להשקעה",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "10128669",
+          "balance": 132945,
+          "yield_3yr": 92.56,
+          "yield_1yr": 3.32,
+          "management_fee_accumulation": 0.65,
+          "provider_name": "אנליסט",
+          "status": "active"
+        }
+      ]
+    },
+    "spouse": {
+      "funds": [
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_6f9f",
+          "yield_5yr": 53.92,
+          "category": "pension",
+          "management_fee_deposit": 1.88,
+          "top_competitors": [
+            {
+              "provider_name": "מנורה מבטחים פנסיה וגמל בע\"מ",
+              "fund_name": "מנורה מבטחים פנסיה - כללי",
+              "_horizon_label": "1Y",
+              "total_assets": 111662.4,
+              "yield_5yr": 64.96,
+              "sharpe_ratio": 1.75,
+              "yield_3yr": 48.13,
+              "fund_id": "2009",
+              "yield_1yr": 13.99,
+              "management_fee_accumulation": 0.15,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "כלל פנסיה וגמל בע\"מ",
+              "fund_name": "כלל פנסיה כללי",
+              "_horizon_label": "3Y",
+              "total_assets": 57094.28,
+              "yield_5yr": 61.66,
+              "sharpe_ratio": 1.69,
+              "yield_3yr": 47.15,
+              "fund_id": "2002",
+              "yield_1yr": 13.74,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "מגדל מקפת קרנות פנסיה וקופות גמל בע\"מ",
+              "fund_name": "מגדל מקפת אישית כללי",
+              "_horizon_label": "5Y",
+              "total_assets": 70102.21,
+              "yield_5yr": 63.39,
+              "sharpe_ratio": 1.9,
+              "yield_3yr": 46.32,
+              "fund_id": "2102",
+              "yield_1yr": 13.53,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            }
+          ],
+          "track_name": "לבני 05 ומטה",
+          "monthly_deposit": 5016,
+          "sharpe_ratio": 0,
+          "policy_number": "1328",
+          "balance": 801715,
+          "yield_3yr": 49.43,
+          "yield_1yr": 1.88,
+          "management_fee_accumulation": 0.22,
+          "provider_name": "אלטשולר שחם",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_2004",
+          "yield_5yr": 458.69,
+          "category": "pension",
+          "management_fee_deposit": 1,
+          "top_competitors": [
+            {
+              "provider_name": "מנורה מבטחים פנסיה וגמל בע\"מ",
+              "fund_name": "מנורה מבטחים פנסיה - כללי",
+              "_horizon_label": "1Y",
+              "total_assets": 111662.4,
+              "yield_5yr": 64.96,
+              "sharpe_ratio": 1.75,
+              "yield_3yr": 48.13,
+              "fund_id": "2009",
+              "yield_1yr": 13.99,
+              "management_fee_accumulation": 0.15,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "כלל פנסיה וגמל בע\"מ",
+              "fund_name": "כלל פנסיה כללי",
+              "_horizon_label": "3Y",
+              "total_assets": 57094.28,
+              "yield_5yr": 61.66,
+              "sharpe_ratio": 1.69,
+              "yield_3yr": 47.15,
+              "fund_id": "2002",
+              "yield_1yr": 13.74,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            },
+            {
+              "provider_name": "מגדל מקפת קרנות פנסיה וקופות גמל בע\"מ",
+              "fund_name": "מגדל מקפת אישית כללי",
+              "_horizon_label": "5Y",
+              "total_assets": 70102.21,
+              "yield_5yr": 63.39,
+              "sharpe_ratio": 1.9,
+              "yield_3yr": 46.32,
+              "fund_id": "2102",
+              "yield_1yr": 13.53,
+              "management_fee_accumulation": 0.14,
+              "target_population": "",
+              "fund_classification": "קרנות חדשות"
+            }
+          ],
+          "track_name": "כללית- לבני 05 ומטה",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "1329",
+          "balance": 828,
+          "yield_3yr": 46.09,
+          "yield_1yr": 2.01,
+          "management_fee_accumulation": 1.044,
+          "provider_name": "אלטשולר שחם",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_06ab",
+          "yield_5yr": 56.15,
+          "category": "managers",
+          "management_fee_deposit": 1,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "מסלול לבני 50 ומטה",
+          "monthly_deposit": 83,
+          "sharpe_ratio": 0,
+          "policy_number": "3330295",
+          "balance": 129,
+          "yield_3yr": 45.79,
+          "yield_1yr": 2.87,
+          "management_fee_accumulation": 0.5,
+          "provider_name": "כלל ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_2c14",
+          "yield_5yr": 54.29,
+          "category": "managers",
+          "management_fee_deposit": 3,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "הפניקס כללי",
+          "monthly_deposit": 2068,
+          "sharpe_ratio": 0,
+          "policy_number": "2037712011",
+          "balance": 363657,
+          "yield_3yr": 42.1,
+          "yield_1yr": 1.98,
+          "management_fee_accumulation": 1,
+          "provider_name": "הפניקס ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_26b4",
+          "yield_5yr": 54.29,
+          "category": "managers",
+          "management_fee_deposit": 6,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "הפניקס כללי",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "1868756014",
+          "balance": 55479,
+          "yield_3yr": 42.1,
+          "yield_1yr": 1.98,
+          "management_fee_accumulation": 1,
+          "provider_name": "הפניקס ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_8d48",
+          "yield_5yr": 54.29,
+          "category": "managers",
+          "management_fee_deposit": 6,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 8.4,
+              "yield_1yr": 15.8,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 11.2
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 8.1,
+              "yield_1yr": 14.7,
+              "management_fee_accumulation": 0.27,
+              "provider_name": "הראל פנסיה וגמל בע\"מ",
+              "yield_5yr": 10.8
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 7.9,
+              "yield_1yr": 14.2,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 10.5
+            }
+          ],
+          "track_name": "הפניקס כללי",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "922430012",
+          "balance": 6691,
+          "yield_3yr": 42.1,
+          "yield_1yr": 1.98,
+          "management_fee_accumulation": 1,
+          "provider_name": "הפניקס ביטוח",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_c63a",
+          "yield_5yr": 93.57,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "1200 - אנליסט השתלמות מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.17,
+          "policy_number": "10312443",
+          "balance": 255247,
+          "yield_3yr": 80.87,
+          "yield_1yr": 3.31,
+          "management_fee_accumulation": 0.55,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_16a8",
+          "yield_5yr": 93.57,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "החברה המנהלת של רום קרן ההשתלמות לעובדי הרשויות המקומיות בע\"מ",
+              "fund_name": "רום קרן השתלמות לעובדי הרשויות המקומיות מסלול רום ספיר מניות",
+              "_horizon_label": "1Y",
+              "total_assets": 111.47,
+              "yield_5yr": 100.28,
+              "sharpe_ratio": 1.45,
+              "yield_3yr": 97.91,
+              "fund_id": "1258",
+              "yield_1yr": 25.55,
+              "management_fee_accumulation": 0.3,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "רעות חברה לניהול קופות גמל בע\"מ",
+              "fund_name": "רעות קרן השתלמות - מניות",
+              "_horizon_label": "3Y",
+              "total_assets": 68.89,
+              "yield_5yr": 105.13,
+              "sharpe_ratio": 1.4,
+              "yield_3yr": 94.07,
+              "fund_id": "1317",
+              "yield_1yr": 24.73,
+              "management_fee_accumulation": 0.45,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "אינפיניטי השתלמות, גמל ופנסיה בע\"מ",
+              "fund_name": "אינפיניטי השתלמות מניות",
+              "_horizon_label": "5Y",
+              "total_assets": 884.8,
+              "yield_5yr": 106.46,
+              "sharpe_ratio": 1.63,
+              "yield_3yr": 88.21,
+              "fund_id": "1537",
+              "yield_1yr": 23.47,
+              "management_fee_accumulation": 0.59,
+              "target_population": "כלל האוכלוסיה",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "1200 - אנליסט השתלמות מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 1.17,
+          "policy_number": "10312450",
+          "balance": 62906,
+          "yield_3yr": 80.87,
+          "yield_1yr": 3.31,
+          "management_fee_accumulation": 0.55,
+          "provider_name": "אנליסט",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_e44d",
+          "yield_5yr": 54.87,
+          "category": "study",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "provider_name": "ק.ה.ר - קרן השתלמות לרוקחים בע\"מ",
+              "fund_name": "ק.ה.ר. קרן השתלמות לרוקחים בע\"מ",
+              "_horizon_label": "1Y",
+              "total_assets": 125.41,
+              "yield_5yr": 58.15,
+              "sharpe_ratio": 1.39,
+              "yield_3yr": 59.34,
+              "fund_id": "295",
+              "yield_1yr": 16.8,
+              "management_fee_accumulation": 1.02,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "החברה לניהול קרן השתלמות למשפטנים בע\"מ",
+              "fund_name": "קרן השתלמות למשפטנים בע\"מ",
+              "_horizon_label": "3Y",
+              "total_assets": 496.83,
+              "yield_5yr": 62.27,
+              "sharpe_ratio": 1.55,
+              "yield_3yr": 56.83,
+              "fund_id": "292",
+              "yield_1yr": 16.18,
+              "management_fee_accumulation": 0.42,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            },
+            {
+              "provider_name": "החברה לניהול קרן השתלמות לשופטים בע\"מ",
+              "fund_name": "קרן השתלמות לשופטים",
+              "_horizon_label": "5Y",
+              "total_assets": 474.04,
+              "yield_5yr": 58.82,
+              "sharpe_ratio": 1.43,
+              "yield_3yr": 53.49,
+              "fund_id": "294",
+              "yield_1yr": 15.35,
+              "management_fee_accumulation": 0.33,
+              "target_population": "עובדי סקטור מסויים",
+              "fund_classification": "קרנות השתלמות"
+            }
+          ],
+          "track_name": "מור השתלמות - כללי",
+          "monthly_deposit": 1571,
+          "sharpe_ratio": 1.51,
+          "policy_number": "1230557",
+          "balance": 193246,
+          "yield_3yr": 42.66,
+          "yield_1yr": 2.11,
+          "management_fee_accumulation": 0.7,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_c4d9",
+          "yield_5yr": 87.99,
+          "category": "investment_provident",
+          "management_fee_deposit": 0,
+          "top_competitors": [
+            {
+              "_horizon_label": "1Y",
+              "yield_3yr": 11.2,
+              "yield_1yr": 22.4,
+              "management_fee_accumulation": 0.25,
+              "provider_name": "אלטשולר שחם גמל ופנסיה בע\"מ",
+              "yield_5yr": 14.8
+            },
+            {
+              "_horizon_label": "3Y",
+              "yield_3yr": 10.8,
+              "yield_1yr": 20.1,
+              "management_fee_accumulation": 0.3,
+              "provider_name": "מיטב גמל ופנסיה בע\"מ",
+              "yield_5yr": 14.2
+            },
+            {
+              "_horizon_label": "5Y",
+              "yield_3yr": 10.3,
+              "yield_1yr": 19.6,
+              "management_fee_accumulation": 0.28,
+              "provider_name": "ילין לפידות ניהול קופות גמל בע\"מ",
+              "yield_5yr": 13.7
+            }
+          ],
+          "track_name": "מור גמל להשקעה - מניות",
+          "monthly_deposit": 0,
+          "sharpe_ratio": 0,
+          "policy_number": "1231731",
+          "balance": 72863,
+          "yield_3yr": 77.36,
+          "yield_1yr": 4.61,
+          "management_fee_accumulation": 0.7,
+          "provider_name": "מור גמל ופנסיה",
+          "status": "active"
+        },
+        {
+          "track_id": "",
+          "id": "ai_דוח תקופתי 01-2026_ענבר.pdf_c9e5",
+          "yield_5yr": 0.0,
+          "category": "provident",
+          "sharpe_ratio": 0,
+          "management_fee_deposit": 0,
+          "track_name": "",
+          "monthly_deposit": 0,
+          "policy_number": "11111",
+          "balance": 739055,
+          "yield_3yr": 0.0,
+          "status": "active",
+          "management_fee_accumulation": 0.7,
+          "provider_name": "כלל חיסכון פיננסי",
+          "yield_1yr": 0.0
+        }
+      ]
+    }
+  }
+}

@@ -272,6 +272,8 @@ def save_market_cache(track_name: str, data: list) -> bool:
         return False
 
 
+import datetime
+
 def get_market_cache(track_name: str):
     """
     Retrieve the cached competitor list from Firestore for a given track.
@@ -288,7 +290,19 @@ def get_market_cache(track_name: str):
         doc_ref = db.collection("market_cache").document(track_name)
         doc = doc_ref.get()
         if doc.exists:
-            cached = doc.to_dict().get("competitors")
+            data = doc.to_dict()
+            last_updated = data.get("last_updated")
+            if last_updated:
+                # Firestore timestamp comes back as an aware datetime object
+                now = datetime.datetime.now(datetime.timezone.utc)
+                try:
+                    if (now - last_updated).days > 30:
+                        print(f"ℹ️ [DB_MANAGER] Market cache STALE (>30 days) for '{track_name}'.")
+                        return None
+                except Exception as ex:
+                    print(f"⚠️ [DB_MANAGER] Error comparing dates: {ex}")
+                    
+            cached = data.get("competitors")
             print(f"✅ [DB_MANAGER] Market cache HIT for '{track_name}' ({len(cached or [])} competitors).")
             return cached
         print(f"ℹ️ [DB_MANAGER] Market cache MISS for '{track_name}' – no document found.")

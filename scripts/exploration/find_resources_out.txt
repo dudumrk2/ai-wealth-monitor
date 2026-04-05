@@ -1,0 +1,13 @@
+=== Step 1: Fetching Gemel Net package resources ===
+Status: 200
+
+Found 4 resources:
+
+Traceback (most recent call last):
+  File "D:\AICode\ai-wealth-monitor\find_resources.py", line 24, in <module>
+    print(f"  NAME: {r.get('name','?'):<50}  ID: {r.get('id')}  Created: {r.get('created','?')[:10]}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Dudu\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 8-12: character maps to <undefined>

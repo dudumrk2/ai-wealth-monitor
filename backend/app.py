@@ -17,6 +17,30 @@ from firebase_admin import auth
 import sys
 import time
 
+# --- LOG REDIRECTION TO FILE ---
+# This ensures that all 'print' statements and errors are written to app.log
+# which I can read here, while still showing in your terminal.
+class Logger(object):
+    def __init__(self, file_path, original_stream):
+        self.terminal = original_stream
+        self.log = open(file_path, "w", encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+        self.terminal.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+# Define the log path in the backend directory
+log_file_path = os.path.join(os.path.dirname(__file__), "app.log")
+sys.stdout = Logger(log_file_path, sys.stdout)
+sys.stderr = Logger(log_file_path, sys.stderr)
+# -------------------------------
+
 # Try loading from current dir, then from parent dir (project root)
 if not load_dotenv():
     load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
@@ -25,12 +49,73 @@ print(f"ANTHROPIC_API_KEY loaded: {'Yes (starts with ' + os.environ.get('ANTHROP
 sys.stdout.flush()
 
 import asyncio
+import difflib
 
 from mock_data import MOCK_DATA
 import db_manager
 import ai_advisor
 import market_data as market_data_module
 
+def _get_similarity(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+def _is_index_mismatch(pdf_name: str, api_name: str) -> bool:
+    """Returns True if the API fund is an index tracker but the PDF fund is not."""
+    is_api_index = any(word in api_name for word in ["עוקב", "מדד", "S&P", "500", "s&p"])
+    is_pdf_index = any(word in pdf_name for word in ["עוקב", "מדד", "S&P", "500", "s&p"])
+    return is_api_index and not is_pdf_index
+
+def _parse_float(val) -> float:
+    """Convert a value to float, stripping %, commas, and whitespace."""
+    try:
+        return float(str(val).replace('%', '').replace(',', '').strip())
+    except (TypeError, ValueError):
+        return 0.0
+
+
+EXTRACTION_SYSTEM_PROMPT = """
+אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
+חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
+שים לב: דוח יחיד יכול להכיל מס' מוצרים שונים. למשל, ב"ביטוח מנהלים" תחת אותה פוליסה יכולים להיות מספר מסלולים, או ב"קרן השתלמות" מספר חשבונות נפרדים. חלץ אותם כמוצרים נפרדים במערך "products".
+
+המבנה חייב להיות:
+{
+  "products": [
+    {
+      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
+      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
+      "track_name": "string (שם המסלול)",
+      "track_id": "string (קוד מסלול / מספר אישור משרד האוצר - חלץ במידה וקיים בדוח, אחרת השאר מחרוזת ריקה)",
+      "policy_number": "string",
+      "balance": number, # סך צבירה (Total Balance)
+      "monthly_deposit": number, # הפקדה חודשית (Monthly Deposit)
+      "management_fee_deposit": number,
+      "management_fee_accumulation": number,
+      "yield_1yr": number, # תשואה ל-12 חודשים האחרונים
+      "yield_3yr_cumulative": number, # תשואה מצטברת (Cumulative) ל-3 שנים
+      "yield_3yr_annualized": number, # תשואה שנתית ממוצעת (Average Annual) ל-3 שנים
+      "yield_5yr_cumulative": number, # תשואה מצטברת (Cumulative) ל-5 שנים
+      "yield_5yr_annualized": number, # תשואה שנתית ממוצעת (Average Annual) ל-5 שנים
+      "sharpe_ratio": number # מדד שארפ (Sharpe Ratio)
+    }
+  ]
+}
+
+הנחיות קריטיות - קרא בעיון:
+1. הפקדות (monthly_deposit):
+   - חלץ אך ורק *הפקדה חודשית ממוצעת או אחרונה* (למשל 1,500 ₪). 
+   - סכנה: דוחות רבים מציגים "סך הפקדות בשנת הדיווח" או "הפקדות שוטפות" שהם בסכומים גבוהים מאוד (למשל 47,000 ₪). לעולם אל תחלץ סכומים שנתיים מצטברים אלו לתוך monthly_deposit! אם לא כתוב במפורש מה ההפקדה החודשית, השאר את field זה כ-0.
+2. תשואות (Yields):
+   - קיימים שני מונחים: "תשואה מצטברת" (Cumulative, לרוב מספר גבוה כמו 50%+) ו"תשואה שנתית ממוצעת" (Annualized, לרוב מספר נמוך כמו 10%).
+   - הקפד לשים כל נתון בשדה המתאים (cumulative מול annualized).
+   - חלץ בדיוק את המספר שמופיע בדוח בעמודה המתאימה ל-3 ול-5 שנים. אין להמציא ערכים.
+3. מדד שארפ: חלץ את הערך המופיע בדוח. אם לא מופיע, החזר 0.
+
+CRITICAL FORMATTING:
+- החזר JSON תקני בלבד ללא בלוקים של markdown (ללא ```json) וללא כל טקסט חופשי.
+- אל תכניס פסיקים או פסיק עליון במספרים (החזר 1234.56 במקום 1,234.56).
+- אם שדה כלשהו לא מופיע בדוח, יש להחזיר 0 עבור מספרים ו-"" עבור מחרוזות. אל תשמיט שדות ממבנה ה-JSON הנדרש.
+"""
 
 def _collect_market_data(portfolios: dict) -> dict:
     """
@@ -125,7 +210,55 @@ def _attach_competitors_to_funds(portfolios: dict, market_data: dict) -> None:
         for fund in funds:
             track = fund.get("track_name")
             if track and track in market_data:
-                fund["top_competitors"] = market_data[track]
+                track_data = market_data[track]
+                fund["top_competitors"] = track_data.get("top_competitors", [])
+                
+                user_provider = fund.get("provider_name", "").strip()
+                track_id = str(fund.get("track_id", "") or "").strip()
+                track_name_for_match = track or user_provider
+                match = None
+                best_score = 0
+                
+                for comp in track_data.get("all_competitors", []):
+                    comp_provider = comp.get("provider_name", "")
+                    comp_name = comp.get("fund_name", "")
+                    comp_id = str(comp.get("fund_id", "") or "").strip()
+                    
+                    # 0. EXACT TRACK ID MATCH (Ultimate Safety)
+                    if track_id and comp_id and track_id == comp_id:
+                        match = comp
+                        break
+                    
+                    # 1. Broadest check: Must share at least the first significant word of provider_name
+                    if user_provider and comp_provider:
+                        p1 = user_provider.split(" ")[0].replace('"', '')
+                        p2 = comp_provider.split(" ")[0].replace('"', '')
+                        p_match = p1 == p2 or user_provider in comp_provider or comp_provider in user_provider
+                        if not p_match:
+                            continue
+                            
+                    # 2. Strong filter: Prevent matching active funds with index trackers
+                    if _is_index_mismatch(track_name_for_match, comp_name):
+                        continue
+                        
+                    # 3. Calculate sequence similarity between PDF track_name and API fund_name
+                    score = _get_similarity(track_name_for_match, comp_name)
+                    if score > best_score:
+                        best_score = score
+                        match = comp
+                
+                # Minimum acceptable similarity boundary (only applies if we didn't do an exact Track ID match)
+                is_exact_match = (match and track_id and str(match.get("fund_id", "")) == track_id)
+                if match and not is_exact_match and best_score < 0.3:
+                    print(f"⚠️ [APP] Best match for '{user_provider} - {track}' Score {best_score} too low. Discarding.")
+                    match = None
+
+                        
+                if match:
+                    match_method = 'Track ID' if is_exact_match else f'Fuzzy String (Score {best_score:.2f})'
+                    print(f"🔄 [APP] Matched '{user_provider} - {track}' via {match_method}. Injecting missing Sharpe Ratio.")
+                    # TRUST THE PDF YIELDS: By user request, we DO NOT override the 1Y/3Y/5Y metrics.
+                    fund["sharpe_ratio"] = match.get("sharpe_ratio", fund.get("sharpe_ratio"))
 
 
 # Test UID removed - now using dynamic UID from token
@@ -210,16 +343,23 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 @app.get("/api/portfolio")
-def get_portfolio(user: dict = Depends(verify_token)):
+async def get_portfolio(user: dict = Depends(verify_token)):
     uid = user.get("uid")
     print(f"🔍 [APP] GET /api/portfolio - Fetching for {uid}")
     portfolio_doc = db_manager.get_processed_portfolio(uid)
     
     if portfolio_doc:
-        print(f"✅ [APP] Returning Firestore portfolio for {uid}")
+        print(f"✅ [APP] Found Firestore portfolio for {uid}. Re-attaching latest market benchmarks...")
+        
+        # Dynamically refresh competitor data from the (now updated/resilient) cache
+        # This ensures the 2026 yields and Sharpe ratios appear without a re-scan.
+        portfolios = portfolio_doc.get("portfolios", {})
+        live_market_data = await _collect_market_data_async(portfolios)
+        _attach_competitors_to_funds(portfolios, live_market_data)
+        
         return {
             "last_updated": portfolio_doc.get("last_updated"),
-            "portfolios": portfolio_doc.get("portfolios"),
+            "portfolios": portfolios,
             "action_items": portfolio_doc.get("action_items")
         }
     
@@ -430,35 +570,8 @@ def process_inbox(pii_request: PIIDataRequest, user: dict = Depends(verify_token
             anthropic_client = Anthropic(api_key=api_key)
             
             # System prompt for PDF data extraction
-            extraction_system_prompt = """
-אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
-חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
-המבנה חייב להיות:
-{
-  "products": [
-    {
-      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
-      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
-      "track_name": "string (שם המסלול)",
-      "policy_number": "string",
-      "balance": number,
-      "monthly_deposit": number,
-      "management_fee_deposit": number,
-      "management_fee_accumulation": number,
-      "yield_1yr": number,
-      "yield_3yr": number,
-      "yield_5yr": number
-    }
-  ]
-}
+            # extraction_system_prompt is now globally defined at the top of app.py
 
-CRITICAL: 
-- החזר JSON תקני בלבד ללא markdown, ללא הסברים
-- השתמש במרכאות כפולות לכל מחרוזות
-- אל תכניס מרכאות לתוך ערכי מחרוזות (השתמש ב-slash או הסר)
-- כל הערכים המספריים ללא פסיקים (1234567 ולא 1,234,567)
-- אם שדה לא קיים, השתמש ב-0 עבור מספרים ו-"" עבור מחרוזות
-"""
             
             content_blocks = []
             for b64 in redacted_images_base64[:10]:
@@ -468,7 +581,7 @@ CRITICAL:
             response = anthropic_client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=4096,
-                system=extraction_system_prompt,
+                system=EXTRACTION_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": content_blocks}]
             )
             
@@ -499,7 +612,9 @@ CRITICAL:
                 pension_data = json.loads(response_text[start:end_idx])
             
             print(f"✅ [APP] AI Extraction for {filename} SUCCESS. Found {len(pension_data.get('products', []))} products.")
-            # print(f"DEBUG: Raw extracted: {json.dumps(pension_data, indent=2, ensure_ascii=False)}")
+            print("\n---------- CLAUDE RAW JSON EXTRACTION ----------")
+            print(json.dumps(pension_data, indent=2, ensure_ascii=False))
+            print("------------------------------------------------\n")
 
             # Update MOCK_DATA in memory
             owner_key = "user" if detected_owner == "member_1" else "spouse" if detected_owner == "member_2" else "user"
@@ -513,21 +628,45 @@ CRITICAL:
                 elif "גמל להשקעה" in raw_type: category = "investment_provident"
                 elif "גמל" in raw_type: category = "provident"
                 
-                MOCK_DATA["portfolios"][owner_key]["funds"].append({
+                fund_data = {
                     "id": f"ai_{filename}_{os.urandom(2).hex()}",
                     "category": category,
                     "provider_name": p.get("provider_name", "Unknown"),
                     "track_name": p.get("track_name", "Unknown"),
+                    "track_id": p.get("track_id", ""),
                     "status": "active",
                     "balance": p.get("balance", 0),
                     "monthly_deposit": p.get("monthly_deposit", 0),
                     "management_fee_deposit": p.get("management_fee_deposit", 0),
                     "management_fee_accumulation": p.get("management_fee_accumulation", 0),
                     "yield_1yr": p.get("yield_1yr", 0),
-                    "yield_3yr": p.get("yield_3yr", 0),
-                    "yield_5yr": p.get("yield_5yr", 0),
+                    "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
+                    "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
+                    "sharpe_ratio": p.get("sharpe_ratio", 0),
                     "policy_number": p.get("policy_number", ""),
-                })
+                }
+                
+                # Clean float values and apply anti-hallucination correction
+                fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
+                fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
+                fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
+                
+                # If Claude returned annualized values, use those to compute cumulative
+                y3 = fund_data["yield_3yr"]
+                y5 = fund_data["yield_5yr"]
+                y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
+                
+                # Case 1: cumulative is 0 but annualized exists → convert
+                if y5 == 0 and y5_ann > 0:
+                    fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
+                    print(f"🤖 [APP] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
+                # Case 2: 5Y is suspiciously low vs 3Y — likely annualized was put in cumulative field
+                elif y3 > 0 and 0 < y5 < y3 * 0.4:
+                    y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
+                    print(f"🤖 [APP] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), likely annualized. Converting → {y5_cumulative}% for {fund_data['track_name']}")
+                    fund_data["yield_5yr"] = y5_cumulative
+
+                MOCK_DATA["portfolios"][owner_key]["funds"].append(fund_data)
             
             shutil.move(filepath, os.path.join(ARCHIVE_DIR, filename))
 
@@ -718,36 +857,6 @@ async def process_reports(
             print(f"🧠 [APP] Sending redacted images to Claude for {filename}…")
             anthropic_client = Anthropic(api_key=api_key)
 
-            extraction_system_prompt = """
-אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
-חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
-המבנה חייב להיות:
-{
-  "products": [
-    {
-      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
-      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
-      "track_name": "string (שם המסלול)",
-      "policy_number": "string",
-      "balance": number,
-      "monthly_deposit": number,
-      "management_fee_deposit": number,
-      "management_fee_accumulation": number,
-      "yield_1yr": number,
-      "yield_3yr": number,
-      "yield_5yr": number
-    }
-  ]
-}
-
-CRITICAL:
-- החזר JSON תקני בלבד ללא markdown, ללא הסברים
-- השתמש במרכאות כפולות לכל מחרוזות
-- אל תכניס מרכאות לתוך ערכי מחרוזות (השתמש ב-slash או הסר)
-- כל הערכים המספריים ללא פסיקים (1234567 ולא 1,234,567)
-- אם שדה לא קיים, השתמש ב-0 עבור מספרים ו-"" עבור מחרוזות
-"""
-
             content_blocks: list[dict] = []
             for b64 in redacted_images_b64[:10]:
                 content_blocks.append({
@@ -759,7 +868,7 @@ CRITICAL:
             response = anthropic_client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=4096,
-                system=extraction_system_prompt,
+                system=EXTRACTION_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": content_blocks}],
             )
 
@@ -787,6 +896,9 @@ CRITICAL:
                 pension_data = json.loads(response_text[start_idx:end_idx])
 
             print(f"✅ [APP] Extracted {len(pension_data.get('products', []))} products from {filename}")
+            print("\n---------- CLAUDE RAW JSON EXTRACTION ----------")
+            print(json.dumps(pension_data, indent=2, ensure_ascii=False))
+            print("------------------------------------------------\n")
 
             # ── Map products → fund schema ────────────────────────────────────
             owner_key = "user" if detected_owner == "member_1" else "spouse"
@@ -799,21 +911,44 @@ CRITICAL:
                 elif "גמל" in raw_type:            category = "provident"
                 else:                              category = "provident"
 
-                accumulated_portfolios[owner_key]["funds"].append({
+                fund_data = {
                     "id": f"ai_{filename}_{os.urandom(2).hex()}",
                     "category": category,
                     "provider_name": p.get("provider_name", "Unknown"),
                     "track_name": p.get("track_name", "Unknown"),
+                    "track_id": p.get("track_id", ""),
                     "status": "active",
                     "balance": p.get("balance", 0),
                     "monthly_deposit": p.get("monthly_deposit", 0),
                     "management_fee_deposit": p.get("management_fee_deposit", 0),
                     "management_fee_accumulation": p.get("management_fee_accumulation", 0),
                     "yield_1yr": p.get("yield_1yr", 0),
-                    "yield_3yr": p.get("yield_3yr", 0),
-                    "yield_5yr": p.get("yield_5yr", 0),
+                    "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
+                    "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
+                    "sharpe_ratio": p.get("sharpe_ratio", 0),
                     "policy_number": p.get("policy_number", ""),
-                })
+                }
+                
+                # Clean float values and apply anti-hallucination correction
+                fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
+                fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
+                fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
+                
+                y3 = fund_data["yield_3yr"]
+                y5 = fund_data["yield_5yr"]
+                y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
+                
+                # Case 1: cumulative is 0 but annualized exists → convert
+                if y5 == 0 and y5_ann > 0:
+                    fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
+                    print(f"🤖 [APP] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
+                # Case 2: 5Y suspiciously low vs 3Y — likely annualized in cumulative field
+                elif y3 > 0 and 0 < y5 < y3 * 0.4:
+                    y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
+                    print(f"🤖 [APP] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), likely annualized. Converting → {y5_cumulative}% for {fund_data['track_name']}")
+                    fund_data["yield_5yr"] = y5_cumulative
+
+                accumulated_portfolios[owner_key]["funds"].append(fund_data)
 
             results.append({"filename": filename, "status": "success", "products_found": len(pension_data.get("products", []))})
 
@@ -1376,33 +1511,7 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             # ── Anthropic Vision extraction ───────────────────────────────────
             print(f"🧠 [CRON] Sending to Claude Vision...")
             anthropic_client = Anthropic(api_key=api_key)
-            extraction_system_prompt = """
-אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
-חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
-המבנה חייב להיות:
-{
-  "products": [
-    {
-      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
-      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
-      "track_name": "string (שם המסלול)",
-      "policy_number": "string",
-      "balance": number,
-      "monthly_deposit": number,
-      "management_fee_deposit": number,
-      "management_fee_accumulation": number,
-      "yield_1yr": number,
-      "yield_3yr": number,
-      "yield_5yr": number
-    }
-  ]
-}
-
-CRITICAL:
-- החזר JSON תקני בלבד ללא markdown, ללא הסברים
-- כל הערכים המספריים ללא פסיקים
-- אם שדה לא קיים, השתמש ב-0 עבור מספרים ו-"" עבור מחרוזות
-"""
+            
             content_blocks: list[dict] = [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}}
                 for b64 in redacted_images_b64[:10]
@@ -1410,9 +1519,9 @@ CRITICAL:
             content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
 
             ai_response = anthropic_client.messages.create(
-                model="claude-sonnet-4-6",
+                model="claude-3-7-sonnet-20250219",
                 max_tokens=4096,
-                system=extraction_system_prompt,
+                system=EXTRACTION_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": content_blocks}],
             )
             response_text = ai_response.content[0].text.strip()
@@ -1448,21 +1557,42 @@ CRITICAL:
                 elif "גמל" in raw_type:              category = "provident"
                 else:                                category = "provident"
 
-                accumulated_portfolios[detected_owner]["funds"].append({
+                fund_data = {
                     "id": f"gmail_{msg_id}_{os.urandom(2).hex()}",
                     "category": category,
                     "provider_name": p.get("provider_name", "Unknown"),
                     "track_name": p.get("track_name", "Unknown"),
+                    "track_id": p.get("track_id", ""),
                     "status": "active",
                     "balance": p.get("balance", 0),
                     "monthly_deposit": p.get("monthly_deposit", 0),
                     "management_fee_deposit": p.get("management_fee_deposit", 0),
                     "management_fee_accumulation": p.get("management_fee_accumulation", 0),
                     "yield_1yr": p.get("yield_1yr", 0),
-                    "yield_3yr": p.get("yield_3yr", 0),
-                    "yield_5yr": p.get("yield_5yr", 0),
+                    "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
+                    "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
+                    "sharpe_ratio": p.get("sharpe_ratio", 0),
                     "policy_number": p.get("policy_number", ""),
-                })
+                }
+                
+                # Clean float values and apply anti-hallucination correction
+                fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
+                fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
+                fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
+                
+                y3 = fund_data["yield_3yr"]
+                y5 = fund_data["yield_5yr"]
+                y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
+                
+                if y5 == 0 and y5_ann > 0:
+                    fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
+                    print(f"🤖 [CRON] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
+                elif y3 > 0 and 0 < y5 < y3 * 0.4:
+                    y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
+                    print(f"🤖 [CRON] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), converting → {y5_cumulative}% for {fund_data['track_name']}")
+                    fund_data["yield_5yr"] = y5_cumulative
+
+                accumulated_portfolios[detected_owner]["funds"].append(fund_data)
 
             # ── Apply AI_PROCESSED label ──────────────────────────────────────
             label_id = _get_or_create_label(service, "AI_PROCESSED")

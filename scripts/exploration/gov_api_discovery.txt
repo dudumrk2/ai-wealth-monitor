@@ -1,0 +1,24 @@
+--- BROAD SEARCH ---
+[גמל נט] Package Title: גמל-נט | Name: gemelnet
+[פנסיה נט] Package Title: פנסיה-נט | Name: pensia-net
+[גמל-נט] Package Title: ביטוח-נט | Name: insurance
+[גמל-נט] Package Title: פנסיה-נט | Name: pensia-net
+[גמל-נט] Package Title: גמל-נט | Name: gemelnet
+[גמל-נט] Package Title: רשימות נכסים - קופות גמל | Name: nechasimg
+[פנסיה-נט] Package Title: ביטוח-נט | Name: insurance
+[פנסיה-נט] Package Title: פנסיה-נט | Name: pensia-net
+[פנסיה-נט] Package Title: גמל-נט | Name: gemelnet
+[פנסיה-נט] Package Title: רשימות נכסים - גופים מוסדיים | Name: mishtatef
+[פנסיה-נט] Package Title: רשימות נכסים - קרנות הפנסיה | Name: nechasimp
+
+--- FOCUSED SHOW ---
+Package: גמל-נט (gemelnet)
+  ID: 91c849ed-ddc4-472b-bd09-0f5486cea35c | Name: נתוני הגמל נט לשנת 1999-2022 | Format: CSV | Created: 2023-04-03T08:11:22.908661
+  ID: 2016d770-f094-4a2e-983e-797c26479720 | Name: נתוני הגמל נט לשנת 2023 | Format: CSV | Created: 2024-03-14T09:59:48.839172
+  ID: a30dcbea-a1d2-482c-ae29-8f781f5025fb | Name: נתוני הגמל נט לשנים 2024-היום | Format: CSV | Created: 2018-09-03T10:32:24.815183
+  ID: 76ad9eed-d076-46d6-96e2-a4eb8e045444 | Name: פירוט שינויים פורמט חדש גמל | Format: XLSX | Created: 2018-08-08T09:34:28.670815
+Package: פנסיה-נט (pensia-net)
+  ID: a66926f3-e396-4984-a4db-75486751c2f7 | Name: נתוני הפנסיה נט לשנת 1999-2022 | Format: CSV | Created: 2023-04-03T08:16:27.233551
+  ID: 4694d5a7-5284-4f3d-a2cb-5887f43fb55e | Name: נתוני הפנסיה נט לשנת 2023 | Format: CSV | Created: 2024-03-14T08:38:27.592976
+  ID: 6d47d6b5-cb08-488b-b333-f1e717b1e1bd | Name: נתוני הפנסיה נט לשנים 2024-היום | Format: CSV | Created: 2018-09-03T11:21:50.159961
+  ID: b58b5a80-84b7-490d-ab02-bff12f1941b2 | Name: פירוט שינויים פורמט חדש פנסיה | Format: XLSX | Created: 2018-08-08T09:14:33.037506
