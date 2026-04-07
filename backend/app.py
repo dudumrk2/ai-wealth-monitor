@@ -73,6 +73,140 @@ def _parse_float(val) -> float:
         return 0.0
 
 
+PDF_SKIP_PAGES = 1
+
+def _redact_and_render_pdf(doc, target_strings: list[str]) -> list[str]:
+    """
+    Redact PII (target_strings) from a PDF document and render remaining pages as Base64 PNGs.
+    Skips the first PDF_SKIP_PAGES pages if the document is long enough.
+    Closes the document before returning.
+    """
+    import base64 as _base64
+    import fitz as _fitz
+    
+    redacted_images_b64 = []
+    start_page = PDF_SKIP_PAGES if len(doc) > PDF_SKIP_PAGES else 0
+
+    for page_num in range(start_page, len(doc)):
+        page = doc[page_num]
+        if target_strings:
+            for text in target_strings:
+                if not text or len(text.strip()) < 2:
+                    continue
+                for inst in page.search_for(text):
+                    page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
+        
+        mat = _fitz.Matrix(2, 2)
+        pix = page.get_pixmap(matrix=mat)
+        img_data = pix.tobytes("png")
+        redacted_images_b64.append(_base64.b64encode(img_data).decode("utf-8"))
+
+    doc.close()
+    return redacted_images_b64
+
+
+def _extract_funds_via_ai(redacted_images_b64: list[str], api_key: str, source_id_prefix: str) -> list[dict]:
+    """
+    Sends redacted images to Claude Vision, parses the JSON response,
+    and maps the products to the expected fund_data schema.
+    """
+    import json
+    import os
+    import re
+
+    print("🧠 [APP] Sending redacted images to Claude for extraction...")
+    anthropic_client = Anthropic(api_key=api_key)
+    
+    content_blocks = []
+    for b64 in redacted_images_b64[:10]:
+        content_blocks.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": b64},
+        })
+    content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
+
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        system=EXTRACTION_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": content_blocks}],
+    )
+
+    response_text = response.content[0].text.strip()
+
+    # Robust JSON parsing
+    response_text = re.sub(r'^```(?:json)?\s*', '', response_text, flags=re.MULTILINE)
+    response_text = re.sub(r'```\s*$', '', response_text, flags=re.MULTILINE).strip()
+
+    start_idx = response_text.find('{')
+    if start_idx == -1:
+        raise ValueError(f"No JSON in Anthropic response: {response_text[:200]}")
+    try:
+        pension_data, _ = json.JSONDecoder().raw_decode(response_text, start_idx)
+    except json.JSONDecodeError:
+        brace_count = 0
+        end_idx = start_idx
+        for i, ch in enumerate(response_text[start_idx:], start_idx):
+            if ch == '{': brace_count += 1
+            elif ch == '}': brace_count -= 1
+            if brace_count == 0:
+                end_idx = i + 1
+                break
+        pension_data = json.loads(response_text[start_idx:end_idx])
+
+    products = pension_data.get("products", [])
+    print(f"✅ [APP] AI Extraction SUCCESS. Found {len(products)} products.")
+    
+    extracted_funds = []
+    
+    for p in products:
+        raw_type = p.get("product_type", "")
+        if "פנסיה" in raw_type:            category = "pension"
+        elif "מנהלים" in raw_type:         category = "managers"
+        elif "השתלמות" in raw_type:        category = "study"
+        elif "גמל להשקעה" in raw_type:     category = "investment_provident"
+        elif "גמל" in raw_type:            category = "provident"
+        else:                              category = "provident"
+
+        fund_data = {
+            "id": f"{source_id_prefix}_{os.urandom(2).hex()}",
+            "category": category,
+            "provider_name": p.get("provider_name", "Unknown"),
+            "track_name": p.get("track_name", "Unknown"),
+            "track_id": p.get("track_id", ""),
+            "status": "active",
+            "balance": p.get("balance", 0),
+            "monthly_deposit": p.get("monthly_deposit", 0),
+            "management_fee_deposit": p.get("management_fee_deposit", 0),
+            "management_fee_accumulation": p.get("management_fee_accumulation", 0),
+            "yield_1yr": p.get("yield_1yr", 0),
+            "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
+            "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
+            "sharpe_ratio": p.get("sharpe_ratio", 0),
+            "policy_number": p.get("policy_number", ""),
+        }
+        
+        # Clean float values and apply anti-hallucination correction
+        fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
+        fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
+        fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
+        
+        y3 = fund_data["yield_3yr"]
+        y5 = fund_data["yield_5yr"]
+        y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
+        
+        if y5 == 0 and y5_ann > 0:
+            fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
+            print(f"🤖 [APP] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
+        elif y3 > 0 and 0 < y5 < y3 * 0.4:
+            y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
+            print(f"🤖 [APP] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), likely annualized. Converting → {y5_cumulative}% for {fund_data['track_name']}")
+            fund_data["yield_5yr"] = y5_cumulative
+
+        extracted_funds.append(fund_data)
+
+    return extracted_funds
+
 EXTRACTION_SYSTEM_PROMPT = """
 אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
 חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
@@ -539,23 +673,8 @@ def process_inbox(pii_request: PIIDataRequest, user: dict = Depends(verify_token
                 print(f"DEBUG: Identified Owner: {detected_owner} (Matches: {match_counts})")
 
             print(f"DEBUG: Rendering and redacting {len(doc)} pages...")
-            
-            start_page = 3 if len(doc) > 3 else 0
-            
-            for page_num in range(start_page, len(doc)):
-                page = doc[page_num]
-                if all_target_strings:
-                    for text in all_target_strings:
-                        for inst in page.search_for(text):
-                            page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
-                
-                mat = fitz.Matrix(2, 2)
-                pix = page.get_pixmap(matrix=mat)
-                img_data = pix.tobytes("png")
-                b64_str = base64.b64encode(img_data).decode("utf-8")
-                redacted_images_base64.append(b64_str)
+            redacted_images_base64 = _redact_and_render_pdf(doc, all_target_strings)
 
-            doc.close()
             print(f"✅ Redacted {len(redacted_images_base64)} pages for {filename}")
 
             if not api_key or not pii_request.analyze:
@@ -566,93 +685,6 @@ def process_inbox(pii_request: PIIDataRequest, user: dict = Depends(verify_token
                 continue
 
             # Step C: Extract portfolio data via Anthropic Vision
-            print(f"🧠 [APP] Sending redacted images to Claude for extraction...")
-            anthropic_client = Anthropic(api_key=api_key)
-            
-            # System prompt for PDF data extraction
-            # extraction_system_prompt is now globally defined at the top of app.py
-
-            
-            content_blocks = []
-            for b64 in redacted_images_base64[:10]:
-                content_blocks.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}})
-            content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
-
-            response = anthropic_client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4096,
-                system=EXTRACTION_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": content_blocks}]
-            )
-            
-            response_text = response.content[0].text.strip()
-            
-            # Robust JSON extraction - handle Hebrew text with quotes
-            import re
-            # Strip markdown code blocks if present
-            response_text = re.sub(r'^```(?:json)?\s*', '', response_text, flags=re.MULTILINE)
-            response_text = re.sub(r'```\s*$', '', response_text, flags=re.MULTILINE)
-            response_text = response_text.strip()
-            
-            start = response_text.find('{')
-            if start == -1: raise ValueError(f"No JSON found in response: {response_text[:200]}")
-            try:
-                decoder = json.JSONDecoder()
-                pension_data, _ = decoder.raw_decode(response_text, start)
-            except json.JSONDecodeError:
-                # Fallback: try to find the outermost JSON object
-                brace_count = 0
-                end_idx = start
-                for i, ch in enumerate(response_text[start:], start):
-                    if ch == '{': brace_count += 1
-                    elif ch == '}': brace_count -= 1
-                    if brace_count == 0:
-                        end_idx = i + 1
-                        break
-                pension_data = json.loads(response_text[start:end_idx])
-            
-            print(f"✅ [APP] AI Extraction for {filename} SUCCESS. Found {len(pension_data.get('products', []))} products.")
-            print("\n---------- CLAUDE RAW JSON EXTRACTION ----------")
-            print(json.dumps(pension_data, indent=2, ensure_ascii=False))
-            print("------------------------------------------------\n")
-
-            # Update MOCK_DATA in memory
-            owner_key = "user" if detected_owner == "member_1" else "spouse" if detected_owner == "member_2" else "user"
-            for p in pension_data.get("products", []):
-                # ... mapping logic ...
-                category = "provident"
-                raw_type = p.get("product_type", "")
-                if "פנסיה" in raw_type: category = "pension"
-                elif "מנהלים" in raw_type: category = "managers"
-                elif "השתלמות" in raw_type: category = "study"
-                elif "גמל להשקעה" in raw_type: category = "investment_provident"
-                elif "גמל" in raw_type: category = "provident"
-                
-                fund_data = {
-                    "id": f"ai_{filename}_{os.urandom(2).hex()}",
-                    "category": category,
-                    "provider_name": p.get("provider_name", "Unknown"),
-                    "track_name": p.get("track_name", "Unknown"),
-                    "track_id": p.get("track_id", ""),
-                    "status": "active",
-                    "balance": p.get("balance", 0),
-                    "monthly_deposit": p.get("monthly_deposit", 0),
-                    "management_fee_deposit": p.get("management_fee_deposit", 0),
-                    "management_fee_accumulation": p.get("management_fee_accumulation", 0),
-                    "yield_1yr": p.get("yield_1yr", 0),
-                    "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
-                    "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
-                    "sharpe_ratio": p.get("sharpe_ratio", 0),
-                    "policy_number": p.get("policy_number", ""),
-                }
-                
-                # Clean float values and apply anti-hallucination correction
-                fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
-                fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
-                fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
-                
-                # If Claude returned annualized values, use those to compute cumulative
-                y3 = fund_data["yield_3yr"]
                 y5 = fund_data["yield_5yr"]
                 y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
                 
@@ -832,21 +864,9 @@ async def process_reports(
                 print(f"DEBUG: Detected owner={detected_owner} (matches={match_counts})")
 
             # ── Redact & render pages to base64 PNG ──────────────────────────
-            redacted_images_b64: list[str] = []
-            start_page = 3 if len(doc) > 3 else 0
-
-            for page_num in range(start_page, len(doc)):
-                page = doc[page_num]
-                for text in all_target_strings:
-                    for inst in page.search_for(text):
-                        page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
-                mat = fitz.Matrix(2, 2)
-                pix = page.get_pixmap(matrix=mat)
-                img_data = pix.tobytes("png")
-                redacted_images_b64.append(base64.b64encode(img_data).decode("utf-8"))
-
-            doc.close()
+            redacted_images_b64 = _redact_and_render_pdf(doc, all_target_strings)
             print(f"✅ Redacted {len(redacted_images_b64)} pages for {filename}")
+
 
             if not api_key:
                 print("DEBUG: No API key — skipping AI extraction.")
@@ -854,103 +874,12 @@ async def process_reports(
                 continue
 
             # ── Anthropic Vision extraction ───────────────────────────────────
-            print(f"🧠 [APP] Sending redacted images to Claude for {filename}…")
-            anthropic_client = Anthropic(api_key=api_key)
+            extracted_funds = _extract_funds_via_ai(redacted_images_b64, api_key, f"ai_{filename}")
 
-            content_blocks: list[dict] = []
-            for b64 in redacted_images_b64[:10]:
-                content_blocks.append({
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": "image/png", "data": b64},
-                })
-            content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
-
-            response = anthropic_client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4096,
-                system=EXTRACTION_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": content_blocks}],
-            )
-
-            response_text = response.content[0].text.strip()
-
-            # Robust JSON parsing
-            import re as _re
-            response_text = _re.sub(r'^```(?:json)?\s*', '', response_text, flags=_re.MULTILINE)
-            response_text = _re.sub(r'```\s*$', '', response_text, flags=_re.MULTILINE).strip()
-
-            start_idx = response_text.find('{')
-            if start_idx == -1:
-                raise ValueError(f"No JSON in Anthropic response: {response_text[:200]}")
-            try:
-                pension_data, _ = json.JSONDecoder().raw_decode(response_text, start_idx)
-            except json.JSONDecodeError:
-                brace_count = 0
-                end_idx = start_idx
-                for i, ch in enumerate(response_text[start_idx:], start_idx):
-                    if ch == '{': brace_count += 1
-                    elif ch == '}': brace_count -= 1
-                    if brace_count == 0:
-                        end_idx = i + 1
-                        break
-                pension_data = json.loads(response_text[start_idx:end_idx])
-
-            print(f"✅ [APP] Extracted {len(pension_data.get('products', []))} products from {filename}")
-            print("\n---------- CLAUDE RAW JSON EXTRACTION ----------")
-            print(json.dumps(pension_data, indent=2, ensure_ascii=False))
-            print("------------------------------------------------\n")
-
-            # ── Map products → fund schema ────────────────────────────────────
             owner_key = "user" if detected_owner == "member_1" else "spouse"
-            for p in pension_data.get("products", []):
-                raw_type = p.get("product_type", "")
-                if "פנסיה" in raw_type:            category = "pension"
-                elif "מנהלים" in raw_type:         category = "managers"
-                elif "השתלמות" in raw_type:        category = "study"
-                elif "גמל להשקעה" in raw_type:     category = "investment_provident"
-                elif "גמל" in raw_type:            category = "provident"
-                else:                              category = "provident"
+            accumulated_portfolios[owner_key]["funds"].extend(extracted_funds)
 
-                fund_data = {
-                    "id": f"ai_{filename}_{os.urandom(2).hex()}",
-                    "category": category,
-                    "provider_name": p.get("provider_name", "Unknown"),
-                    "track_name": p.get("track_name", "Unknown"),
-                    "track_id": p.get("track_id", ""),
-                    "status": "active",
-                    "balance": p.get("balance", 0),
-                    "monthly_deposit": p.get("monthly_deposit", 0),
-                    "management_fee_deposit": p.get("management_fee_deposit", 0),
-                    "management_fee_accumulation": p.get("management_fee_accumulation", 0),
-                    "yield_1yr": p.get("yield_1yr", 0),
-                    "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
-                    "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
-                    "sharpe_ratio": p.get("sharpe_ratio", 0),
-                    "policy_number": p.get("policy_number", ""),
-                }
-                
-                # Clean float values and apply anti-hallucination correction
-                fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
-                fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
-                fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
-                
-                y3 = fund_data["yield_3yr"]
-                y5 = fund_data["yield_5yr"]
-                y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
-                
-                # Case 1: cumulative is 0 but annualized exists → convert
-                if y5 == 0 and y5_ann > 0:
-                    fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
-                    print(f"🤖 [APP] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
-                # Case 2: 5Y suspiciously low vs 3Y — likely annualized in cumulative field
-                elif y3 > 0 and 0 < y5 < y3 * 0.4:
-                    y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
-                    print(f"🤖 [APP] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), likely annualized. Converting → {y5_cumulative}% for {fund_data['track_name']}")
-                    fund_data["yield_5yr"] = y5_cumulative
-
-                accumulated_portfolios[owner_key]["funds"].append(fund_data)
-
-            results.append({"filename": filename, "status": "success", "products_found": len(pension_data.get("products", []))})
+            results.append({"filename": filename, "status": "success", "products_found": len(extracted_funds)})
 
         except Exception as e:
             print(f"💥 [APP] Error processing {filename}: {e}")
@@ -1336,7 +1265,13 @@ async def fetch_emails_from_gmail(request: Request, uid: Optional[str] = None):
 
 
 async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dict:
-    """Process all unread Gmail reports for a single family UID."""
+    """Process all unread Gmail reports for a single family UID.
+    
+    Key behaviours:
+    - Only the *latest* (newest) email per owner (user/spouse) is processed.
+    - Older emails for the same owner are skipped but still labelled AI_PROCESSED.
+    - If no new funds are extracted, existing Firestore data is NOT overwritten.
+    """
     import base64 as _base64
     import re as _re
     import httpx as _httpx
@@ -1398,6 +1333,7 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     subject = family_profile.get("gmail_subject") or "דוח מצב ביטוח ופנסיה"
     query = f'from:{sender} subject:"{subject}" -label:AI_PROCESSED'
     print(f"🔍 [CRON] Gmail query: {query}")
+    print(f"📧 [CRON] Sender filter: {sender} | Subject filter: {subject}")
     try:
         search_result = service.users().messages().list(userId="me", q=query).execute()
     except Exception as e:
@@ -1408,6 +1344,9 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     if not messages:
         return {"status": "success", "processed": 0, "results": [], "message": "No new emails found"}
 
+    # Get or create the AI_PROCESSED label once (used for all messages)
+    label_id = _get_or_create_label(service, "AI_PROCESSED")
+
     api_key = os.environ.get("ANTHROPIC_API_KEY")
 
     accumulated_portfolios: dict = {
@@ -1416,9 +1355,16 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     }
     results = []
 
-    # ── 5. Process each email ─────────────────────────────────────────────────
+    # Track which owners already have a report processed (newest-first).
+    # Gmail returns messages newest-first by default.
+    owners_processed: set = set()
+    # Collect message IDs to label as AI_PROCESSED at the end (even skipped ones)
+    all_msg_ids_to_label: list[str] = []
+
+    # ── 5. Process each email (newest first) ──────────────────────────────────
     for msg_stub in messages:
         msg_id = msg_stub["id"]
+        all_msg_ids_to_label.append(msg_id)
         print(f"\n📄 [CRON] Processing message id={msg_id}")
         try:
             # Fetch full message
@@ -1482,7 +1428,7 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
                         # Guess owner (first ID → user, second → spouse)
                         idx = member_id_numbers.index(id_num)
                         detected_owner = "user" if idx == 0 else "spouse"
-                        print(f"✅ [CRON] PDF decrypted using member ID index {idx}")
+                        print(f"✅ [CRON] PDF decrypted using member ID index {idx} → owner='{detected_owner}'")
                         break
                 if not authenticated:
                     print(f"❌ [CRON] Could not decrypt PDF for message {msg_id}")
@@ -1490,18 +1436,16 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
                     doc.close()
                     continue
 
+            # ── Check if we already processed a newer email for this owner ────
+            if detected_owner in owners_processed:
+                print(f"⏭️ [CRON] Skipping message {msg_id} — already processed a newer email for owner '{detected_owner}'")
+                results.append({"msg_id": msg_id, "status": "skipped_older", "reason": f"newer_email_already_processed_for_{detected_owner}"})
+                doc.close()
+                continue
+
             # Redact PII and render pages to base64 PNG
-            redacted_images_b64: list[str] = []
-            start_page = 3 if len(doc) > 3 else 0
-            for page_num in range(start_page, len(doc)):
-                page = doc[page_num]
-                for txt in all_target_strings:
-                    for inst in page.search_for(txt):
-                        page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
-                mat = fitz.Matrix(2, 2)
-                pix = page.get_pixmap(matrix=mat)
-                redacted_images_b64.append(base64.b64encode(pix.tobytes("png")).decode("utf-8"))
-            doc.close()
+            redacted_images_b64 = _redact_and_render_pdf(doc, all_target_strings)
+
             print(f"✅ [CRON] Redacted {len(redacted_images_b64)} page(s)")
 
             if not api_key:
@@ -1509,104 +1453,29 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
                 continue
 
             # ── Anthropic Vision extraction ───────────────────────────────────
-            print(f"🧠 [CRON] Sending to Claude Vision...")
-            anthropic_client = Anthropic(api_key=api_key)
-            
-            content_blocks: list[dict] = [
-                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}}
-                for b64 in redacted_images_b64[:10]
-            ]
-            content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
+            extracted_funds = _extract_funds_via_ai(redacted_images_b64, api_key, f"gmail_{msg_id}")
+            accumulated_portfolios[detected_owner]["funds"].extend(extracted_funds)
 
-            ai_response = anthropic_client.messages.create(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=4096,
-                system=EXTRACTION_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": content_blocks}],
-            )
-            response_text = ai_response.content[0].text.strip()
-            response_text = _re.sub(r'^```(?:json)?\s*', '', response_text, flags=_re.MULTILINE)
-            response_text = _re.sub(r'```\s*$', '', response_text, flags=_re.MULTILINE).strip()
 
-            start_idx = response_text.find('{')
-            if start_idx == -1:
-                raise ValueError(f"No JSON in response: {response_text[:200]}")
-            try:
-                pension_data, _ = json.JSONDecoder().raw_decode(response_text, start_idx)
-            except json.JSONDecodeError:
-                brace_count = 0
-                end_idx = start_idx
-                for i, ch in enumerate(response_text[start_idx:], start_idx):
-                    if ch == '{': brace_count += 1
-                    elif ch == '}': brace_count -= 1
-                    if brace_count == 0:
-                        end_idx = i + 1
-                        break
-                pension_data = json.loads(response_text[start_idx:end_idx])
-
-            products = pension_data.get("products", [])
-            print(f"✅ [CRON] Extracted {len(products)} product(s)")
-
-            # Map products → fund schema
-            for p in products:
-                raw_type = p.get("product_type", "")
-                if "פנסיה" in raw_type:              category = "pension"
-                elif "מנהלים" in raw_type:           category = "managers"
-                elif "השתלמות" in raw_type:          category = "study"
-                elif "גמל להשקעה" in raw_type:       category = "investment_provident"
-                elif "גמל" in raw_type:              category = "provident"
-                else:                                category = "provident"
-
-                fund_data = {
-                    "id": f"gmail_{msg_id}_{os.urandom(2).hex()}",
-                    "category": category,
-                    "provider_name": p.get("provider_name", "Unknown"),
-                    "track_name": p.get("track_name", "Unknown"),
-                    "track_id": p.get("track_id", ""),
-                    "status": "active",
-                    "balance": p.get("balance", 0),
-                    "monthly_deposit": p.get("monthly_deposit", 0),
-                    "management_fee_deposit": p.get("management_fee_deposit", 0),
-                    "management_fee_accumulation": p.get("management_fee_accumulation", 0),
-                    "yield_1yr": p.get("yield_1yr", 0),
-                    "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
-                    "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
-                    "sharpe_ratio": p.get("sharpe_ratio", 0),
-                    "policy_number": p.get("policy_number", ""),
-                }
-                
-                # Clean float values and apply anti-hallucination correction
-                fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
-                fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
-                fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
-                
-                y3 = fund_data["yield_3yr"]
-                y5 = fund_data["yield_5yr"]
-                y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
-                
-                if y5 == 0 and y5_ann > 0:
-                    fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
-                    print(f"🤖 [CRON] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
-                elif y3 > 0 and 0 < y5 < y3 * 0.4:
-                    y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
-                    print(f"🤖 [CRON] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), converting → {y5_cumulative}% for {fund_data['track_name']}")
-                    fund_data["yield_5yr"] = y5_cumulative
-
-                accumulated_portfolios[detected_owner]["funds"].append(fund_data)
-
-            # ── Apply AI_PROCESSED label ──────────────────────────────────────
-            label_id = _get_or_create_label(service, "AI_PROCESSED")
-            service.users().messages().modify(
-                userId="me",
-                id=msg_id,
-                body={"addLabelIds": [label_id]},
-            ).execute()
-            print(f"🏷️ [CRON] Labeled message {msg_id} as AI_PROCESSED")
-            results.append({"msg_id": msg_id, "status": "success", "products_found": len(products)})
+            # Mark this owner as processed (only newest email per owner)
+            owners_processed.add(detected_owner)
+            results.append({"msg_id": msg_id, "status": "success", "products_found": len(products), "owner": detected_owner})
 
         except Exception as e:
             print(f"💥 [CRON] Error processing message {msg_id}: {e}")
             results.append({"msg_id": msg_id, "status": "error", "reason": str(e)})
+
+    # ── 5b. Label ALL found messages as AI_PROCESSED (including skipped) ──────
+    for mid in all_msg_ids_to_label:
+        try:
+            service.users().messages().modify(
+                userId="me",
+                id=mid,
+                body={"addLabelIds": [label_id]},
+            ).execute()
+            print(f"🏷️ [CRON] Labeled message {mid} as AI_PROCESSED")
+        except Exception as e:
+            print(f"⚠️ [CRON] Failed to label message {mid}: {e}")
 
     # ── 6. Generate action items & persist ────────────────────────────────────
     total_funds = sum(len(accumulated_portfolios[k]["funds"]) for k in ["user", "spouse"])
@@ -1614,25 +1483,28 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     if total_funds > 0:
         print(f"\n🤖 [CRON] Generating action items ({total_funds} funds)…")
         live_market_data = await _collect_market_data_async(accumulated_portfolios)
+        _attach_competitors_to_funds(accumulated_portfolios, live_market_data)
         action_items = ai_advisor.generate_action_items(
             family_portfolio=accumulated_portfolios,
             market_data=live_market_data,
             financial_profile=f_profile,
         )
+
+        now = datetime.datetime.now().isoformat()
+        final_json = {
+            "uid": uid,
+            "last_updated": now,
+            "portfolios": accumulated_portfolios,
+            "action_items": action_items,
+        }
+
+        print("\n☁️ [CRON] Saving to Firestore…")
+        db_manager.save_processed_portfolio(uid, final_json)
+
+        # Update last_fetched_at timestamp
+        db_manager.update_family_field(uid, "last_fetched_at", now)
     else:
-        print("\n⚠️ [CRON] No funds extracted — skipping action items.")
-        action_items = []
-
-    now = datetime.datetime.now().isoformat()
-    final_json = {
-        "uid": uid,
-        "last_updated": now,
-        "portfolios": accumulated_portfolios,
-        "action_items": action_items,
-    }
-
-    print("\n☁️ [CRON] Saving to Firestore…")
-    db_manager.save_processed_portfolio(uid, final_json)
+        print("\n⚠️ [CRON] No new funds extracted — preserving existing Firestore data (no overwrite).")
 
     processed_count = len([r for r in results if r.get("status") == "success"])
     print(f"\n🏁 [CRON] fetch-emails COMPLETE — {processed_count}/{len(messages)} processed.")

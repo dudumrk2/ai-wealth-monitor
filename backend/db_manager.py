@@ -124,6 +124,12 @@ def get_family_profile(uid: str):
             "financial_profile": data.get("financial_profile", {}),
             "gmail_refresh_token": data.get("gmail_refresh_token"),
             "member_id_numbers": list(dict.fromkeys(member_id_numbers)),  # deduplicate, preserve order
+            # Gmail search & schedule settings
+            "gmail_sender_email": data.get("gmail_sender_email"),
+            "gmail_subject": data.get("gmail_subject"),
+            "cron_day": data.get("cron_day"),
+            "cron_frequency_months": data.get("cron_frequency_months"),
+            "last_fetched_at": data.get("last_fetched_at"),
         }
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error fetching family profile: {e}")
