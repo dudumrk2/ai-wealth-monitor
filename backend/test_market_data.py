@@ -56,9 +56,11 @@ async def test_live_fetch():
         product_type="קרן גמל",
         track_name="כללי",
     )
-    print(f"\nReturned {len(competitors)} competitor(s):")
-    print(json.dumps(competitors, indent=2, ensure_ascii=False))
-    if competitors and competitors[0].get("provider_name"):
+    print(f"\nReturned competitor structure keys: {list(competitors.keys())}")
+    top = competitors.get("top_competitors", [])
+    print(f"\nReturned {len(top)} top competitor(s):")
+    print(json.dumps(top, indent=2, ensure_ascii=False))
+    if top and top[0].get("provider_name"):
         print("✅ Live fetch parsed correctly.")
     else:
         print("⚠️  Competitors list is empty or malformed — may have fallen back to hardcoded data.")
@@ -71,10 +73,11 @@ async def test_hardcoded_fallback():
         product_type="קרן גמל",
         track_name="__NONEXISTENT_TRACK_XYZ__",
     )
-    print(f"\nFallback returned {len(competitors)} competitor(s):")
-    print(json.dumps(competitors, indent=2, ensure_ascii=False))
+    top = competitors.get("top_competitors", [])
+    print(f"\nFallback returned {len(top)} top competitor(s):")
+    print(json.dumps(top, indent=2, ensure_ascii=False))
     # Hardcoded data always has exactly 3 entries
-    if len(competitors) == 3:
+    if len(top) == 3:
         print("✅ Hardcoded safety-net fallback triggered correctly.")
     else:
         print("⚠️  Unexpected number of fallback entries.")

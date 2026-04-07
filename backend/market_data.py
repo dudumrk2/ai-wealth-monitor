@@ -18,6 +18,7 @@ Key design decisions
                           then executes the fetch + cache + fallback flow.
 """
 
+import asyncio
 import json
 import logging
 from typing import Optional
@@ -144,14 +145,16 @@ def _get_curated_competitors(product_type: str, track_name: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 _GEMEL_QUERY = "גמל נט"
 _PENSION_QUERY = "פנסיה נט"
-
+_BITUACH_QUERY = "ביטוח נט"
 
 def _select_dataset_query(product_type: str) -> str:
     """Return the appropriate package_search query for the given product_type."""
-    pt = product_type or ""
-    if "פנסיה" in pt or "pension" in pt.lower():
+    pt = (product_type or "").lower()
+    if "פנסיה" in pt or "pension" in pt:
         return _PENSION_QUERY
-    # Default covers גמל, קרן השתלמות, ביטוח מנהלים, etc.
+    elif "מנהלים" in pt or "policy" in pt or "ביטוח" in pt or "managers" in pt:
+        return _BITUACH_QUERY
+    # Default covers גמל, קרן השתלמות, etc.
     return _GEMEL_QUERY
 
 
@@ -382,7 +385,7 @@ def _map_to_myfunds_params(product_type: str, track_name: str) -> tuple[str, str
         fund_type = "gemel"
         
     t = track_name or ""
-    spec = "כללי"
+    spec = "מניות"
     t_lower = t.lower()
     
     if "s&p" in t_lower:
@@ -406,7 +409,11 @@ def _map_to_myfunds_params(product_type: str, track_name: str) -> tuple[str, str
     return fund_type, spec
 
 async def _inject_management_fees(competitors: list[dict], product_type: str):
-    """Hits CKAN exactly for the specific FUND_IDs to get AVG_ANNUAL_MANAGEMENT_FEE."""
+    """Hits CKAN exactly for the specific FUND_IDs individually to get AVG_ANNUAL_MANAGEMENT_FEE.
+    
+    NOTE: Fires one HTTP request per fund_id in parallel. Designed for top 3
+    competitors only — do not call with large lists.
+    """
     if not competitors: return
     
     dataset_query = _select_dataset_query(product_type)
@@ -416,45 +423,43 @@ async def _inject_management_fees(competitors: list[dict], product_type: str):
     fund_ids = [c["fund_id"] for c in competitors if c["fund_id"]]
     if not fund_ids: return
     
-    q_term = " OR ".join([f'"{fid}"' for fid in fund_ids])
-    
-    params = {
-        "resource_id": resource_id,
-        "q": q_term,
-        "limit": 100
-    }
-    
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0"
     }
     
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, headers=headers) as client:
+    async def fetch_fee(client, fid):
+        params = {"resource_id": resource_id, "q": f'"{fid}"', "limit": 20}
         try:
-            response = await client.get(_DATASTORE_SEARCH_URL, params=params)
-            if response.status_code != 200: return
-            
-            data = response.json()
+            resp = await client.get(_DATASTORE_SEARCH_URL, params=params)
+            if resp.status_code != 200: return fid, 0.0
+            data = resp.json()
             records = data.get("result", {}).get("records", [])
-            
-            fee_map = {}
-            period_map = {}
+            best_fee = 0.0
+            best_period = ""
             for r in records:
-                fid = str(r.get("FUND_ID", "")).strip()
-                period = str(r.get("REPORT_PERIOD", "000000")).strip()
-                fee = _safe_float(r.get("AVG_ANNUAL_MANAGEMENT_FEE"))
-                
-                if fee > 0:
-                    if fid not in period_map or period > period_map[fid]:
-                        period_map[fid] = period
-                        fee_map[fid] = fee
-                        
-            for c in competitors:
-                fid = c.get("fund_id")
-                if fid in fee_map:
-                    c["management_fee_accumulation"] = fee_map[fid]
-                    print(f"   [FEES] Injected {fee_map[fid]}% fee for fund {fid}")
+                r_fid = str(r.get("FUND_ID", "")).strip()
+                if r_fid == fid:
+                    fee = _safe_float(r.get("AVG_ANNUAL_MANAGEMENT_FEE"))
+                    period = str(r.get("REPORT_PERIOD", "000000")).strip()
+                    if fee > 0 and period > best_period:
+                        best_period = period
+                        best_fee = fee
+            return fid, best_fee
         except Exception as e:
-            print(f"⚠️ Could not inject fee: {e}")
+            print(f"⚠️  [FEES] Failed to fetch fee for {fid}: {e}")
+            return fid, 0.0
+
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, headers=headers) as client:
+        tasks = [fetch_fee(client, fid) for fid in fund_ids]
+        results = await asyncio.gather(*tasks)
+        
+        fee_map = {fid: fee for fid, fee in results if fee > 0}
+        
+        for c in competitors:
+            fid = c.get("fund_id")
+            if fid in fee_map:
+                c["management_fee_accumulation"] = fee_map[fid]
+                print(f"   [FEES] Injected {fee_map[fid]}% fee for fund {fid}")
 
 
 async def _get_top_competitors_myfunds(product_type: str, track_name: str) -> dict:

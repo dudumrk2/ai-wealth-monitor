@@ -3,6 +3,7 @@ import clsx from 'clsx';
 
 interface Competitor {
   provider_name?: string;
+  fund_name?: string;
   management_fee_accumulation?: number;
   yield_1yr?: number;
   yield_3yr?: number;
@@ -111,8 +112,15 @@ export default function CompetitorModal({ isOpen, onClose, product, productType 
                 {competitors.length > 0 ? (
                   competitors.map((comp, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">
-                        {comp.provider_name || 'לא ידוע'}
+                      <td className="p-4">
+                        <div className="font-semibold text-slate-700 dark:text-slate-300">
+                          {comp.provider_name || 'לא ידוע'}
+                        </div>
+                        {comp.fund_name && (
+                          <div className="text-xs text-slate-400 font-normal mt-0.5 max-w-xs truncate" title={comp.fund_name}>
+                            {comp.fund_name}
+                          </div>
+                        )}
                       </td>
                       <td className="p-4 text-slate-400 dark:text-slate-500 text-sm">
                         —
