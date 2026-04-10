@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, AlertTriangle, Info, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import type { ActionItem } from '../../types/portfolio';
+import { Card, CardHeader, CardTitle, CardFooter } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 
 interface ActionItemsProps {
   items: ActionItem[];
   onRefreshAI?: () => void;
+  title?: string;
+  className?: string;
 }
 
-export default function ActionItems({ items: initialItems = [], onRefreshAI }: ActionItemsProps) {
+export default function ActionItems({ items: initialItems = [], onRefreshAI, title = "פעולות נדרשות לשיפור התיק", className }: ActionItemsProps) {
   const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [selectedItem, setSelectedItem] = useState<ActionItem | null>(null);
 
@@ -27,16 +31,16 @@ export default function ActionItems({ items: initialItems = [], onRefreshAI }: A
 
   return (
     <>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
-            <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              פעולות נדרשות לשיפור התיק
+      <Card className={className}>
+        <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>
+              {title}
               {pending > 0 && (
-                <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs py-0.5 px-2.5 rounded-full font-bold">
+                <Badge variant="default" className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ml-2">
                   {pending} ממתינות
-                </span>
+                </Badge>
               )}
-            </h2>
+            </CardTitle>
             {onRefreshAI && (
               <button 
                 onClick={onRefreshAI}
@@ -46,7 +50,7 @@ export default function ActionItems({ items: initialItems = [], onRefreshAI }: A
                 רענן המלצות (AI)
               </button>
             )}
-        </div>
+        </CardHeader>
 
         <div className="p-0 max-h-[600px] overflow-y-auto custom-scrollbar">
           {items.length === 0 ? (
@@ -86,7 +90,7 @@ export default function ActionItems({ items: initialItems = [], onRefreshAI }: A
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"

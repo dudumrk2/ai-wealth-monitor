@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { ArrowUpLeft, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import CompetitorModal from './CompetitorModal';
+import { Card, CardHeader, CardTitle } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 
 interface Fund {
   id: string;
@@ -29,10 +31,10 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
 
   if (!funds || funds.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+      <Card className="p-6 mb-6">
         <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 mb-2">{title}</h3>
-        <p className="text-sm text-slate-400">אין נתונים להצגה</p>
-      </div>
+        <p className="text-sm text-slate-500 dark:text-slate-500">אין נתונים להצגה</p>
+      </Card>
     );
   }
 
@@ -42,29 +44,29 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
   const totalBalance = funds.reduce((s, f) => s + f.balance, 0);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-2">
-      <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{title}</h3>
+    <Card className="mb-4 md:mb-6">
+      <CardHeader className="flex flex-row items-center justify-between p-4 md:p-5">
+        <CardTitle>{title}</CardTitle>
         {funds.length > 1 && (
-          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-500">
             סה״כ: <span className="text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{formatCurrency(totalBalance)}</span>
           </span>
         )}
-      </div>
+      </CardHeader>
       <div className="overflow-x-auto">
         <table className="w-full text-right border-collapse">
           <thead>
-            <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800">ספק ומסלול</th>
+            <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-normal">
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800">ספק ומסלול</th>
               {ownerColumn && (
-                <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800">שייך ל</th>
+                <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800">שייך ל</th>
               )}
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">יתרה</th>
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">תשואה 1Y</th>
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">תשואה 3Y</th>
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">תשואה 5Y</th>
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">מדד שארפ</th>
-              <th className="p-4 font-semibold border-b border-slate-200 dark:border-slate-800 text-left">דמי ניהול</th>
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800 text-left">יתרה</th>
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800 text-left">תשואה 1Y</th>
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800 text-left">תשואה 3Y</th>
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800 text-left">תשואה 5Y</th>
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800 text-left">מדד שארפ</th>
+              <th className="p-2 md:p-4 border-b border-slate-200 dark:border-slate-800 text-left">דמי ניהול</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -88,9 +90,9 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
                   {ownerColumn && (
                     <td className="p-4">
                       {fund._owner ? (
-                        <span className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                        <Badge variant="secondary">
                           {fund._owner}
-                        </span>
+                        </Badge>
                       ) : '—'}
                     </td>
                   )}
@@ -146,6 +148,6 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
         product={selectedFund}
         productType={title}
       />
-    </div>
+    </Card>
   );
 }

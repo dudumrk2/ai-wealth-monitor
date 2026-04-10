@@ -4,7 +4,16 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 transition-colors duration-200;
+    @apply bg-slate-50 text-slate-900 transition-colors duration-200 antialiased;
     @apply dark:bg-slate-950 dark:text-slate-50;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-slate-900 dark:text-white tracking-tight;
+  }
+
+  p {
+    @apply leading-relaxed;
   }
 }

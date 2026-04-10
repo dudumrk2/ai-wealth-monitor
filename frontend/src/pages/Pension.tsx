@@ -44,7 +44,7 @@ function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit'): Summary
     }));
 }
 
-export default function Dashboard() {
+export default function Pension() {
   const { user, familyConfig } = useAuth();
   const [activeTab, setActiveTab] = useState<TabView>('joint');
   const [loading, setLoading] = useState(true);
@@ -376,14 +376,14 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">סקירת תיק פנסיוני</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">עקוב, נתח ומטב את עתיד משפחתך.</p>
+          <div className="mb-4 md:mb-8 animate-fade-in-up">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">סקירת תיק פנסיוני</h1>
+            <p className="text-slate-500 dark:text-slate-500 text-sm md:text-base mt-1 italic">עקוב, נתח ומטב את עתיד משפחתך.</p>
           </div>
 
-          <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-4 md:gap-8">
             <div className="min-w-0">
-              <div className="bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl inline-flex mb-6 overflow-x-auto max-w-full">
+              <div className="bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl inline-flex mb-4 md:mb-6 overflow-x-auto max-w-full">
                 {([
                   { id: 'joint',  label: 'תצוגה משותפת' },
                   { id: 'user',   label: member1Name },
@@ -391,10 +391,10 @@ export default function Dashboard() {
                 ] as const).map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                     className={clsx(
-                      "px-6 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
+                      "px-4 md:px-6 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap",
                       activeTab === tab.id 
                         ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" 
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        : "text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     )}>
                     {tab.label}
                   </button>

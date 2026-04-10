@@ -4,7 +4,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { STORAGE_KEYS } from './lib/storageKeys';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
-import Dashboard from './pages/Dashboard';
+import DashboardPage from './pages/DashboardPage';
+import Pension from './pages/Pension';
 import Settings from './pages/Settings';
 
 /**
@@ -63,7 +64,17 @@ function AppContent() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected: Pension (requires auth + onboarding) */}
+        <Route
+          path="/pension"
+          element={
+            <ProtectedRoute>
+              <Pension />
             </ProtectedRoute>
           }
         />

@@ -1,8 +1,6 @@
-/**
- * PortfolioSummaryCard
- * Shows either total accumulated balance or total monthly deposits
- * with a donut chart and a category breakdown table.
- */
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 
 const fmt = (val: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
@@ -10,103 +8,93 @@ const fmt = (val: number) =>
 export interface SummaryRow {
   label: string;
   balance: number;
-  color: string; // tailwind (unused visually, kept for API compat)
-  hex: string;   // hex color for SVG and badge
+  color: string;
+  hex: string;
 }
 
 interface Props {
   title: string;
-  /** Main number label, e.g. "סר החשבון" or "סה"כ הפקדות חודשיות" */
   totalLabel?: string;
   rows: SummaryRow[];
-  /** When true renders a dashed-ring style donut (for monthly view) */
   variant?: 'balance' | 'monthly';
 }
 
-// ─── SVG Donut Chart ─────────────────────────────────────────────────────────
-
 function DonutChart({ rows, variant = 'balance' }: { rows: SummaryRow[]; variant?: 'balance' | 'monthly' }) {
-  const size = 120;
-  const cx = size / 2;
-  const cy = size / 2;
-  const R = 47;
-  const r = 30;
-
   const total = rows.reduce((s, row) => s + row.balance, 0);
   if (total === 0) return null;
 
-  let startAngle = -Math.PI / 2;
-
-  const segments = rows
-    .filter(row => row.balance > 0)
-    .map(row => {
-      const fraction = row.balance / total;
-      const sweep = fraction * 2 * Math.PI;
-      const endAngle = startAngle + sweep;
-      const largeArc = sweep > Math.PI ? 1 : 0;
-
-      const x1  = cx + R * Math.cos(startAngle);
-      const y1  = cy + R * Math.sin(startAngle);
-      const x2  = cx + R * Math.cos(endAngle);
-      const y2  = cy + R * Math.sin(endAngle);
-      const xi1 = cx + r * Math.cos(endAngle);
-      const yi1 = cy + r * Math.sin(endAngle);
-      const xi2 = cx + r * Math.cos(startAngle);
-      const yi2 = cy + r * Math.sin(startAngle);
-
-      const d = [
-        `M ${x1} ${y1}`,
-        `A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2}`,
-        `L ${xi1} ${yi1}`,
-        `A ${r} ${r} 0 ${largeArc} 0 ${xi2} ${yi2}`,
-        'Z',
-      ].join(' ');
-
-      startAngle = endAngle;
-      return { d, hex: row.hex };
-    });
+  const isMonthly = variant === 'monthly';
+  const chartData = rows.filter(r => r.balance > 0);
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-      {/* Background ring for monthly variant */}
-      {variant === 'monthly' && (
-        <circle cx={cx} cy={cy} r={(R + r) / 2} fill="none" stroke="#e2e8f0"
-          strokeWidth={R - r + 2} strokeDasharray="4 2" opacity={0.5} />
-      )}
-      {segments.map((seg, i) => (
-        <path key={i} d={seg.d} fill={seg.hex} stroke="white" strokeWidth="1.5" />
-      ))}
-      {/* Center label */}
-      <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10"
-        fontWeight="700" fill="currentColor" className="text-slate-800 dark:text-slate-100" fontFamily="system-ui">
-        {variant === 'monthly' ? '₪/חו' : '%'}
-      </text>
-    </svg>
+    <div className="w-[100px] h-[100px] md:w-[120px] md:h-[120px] shrink-0 relative">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          {isMonthly && (
+            <Pie
+              data={[{ value: 1 }]}
+              cx="50%"
+              cy="50%"
+              innerRadius="75%"
+              outerRadius="95%"
+              fill="transparent"
+              stroke="#e2e8f0"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+              dataKey="value"
+              isAnimationActive={false}
+              opacity={0.5}
+            />
+          )}
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            innerRadius="65%"
+            outerRadius="95%"
+            paddingAngle={chartData.length > 1 ? 2 : 0}
+            dataKey="balance"
+            stroke="none"
+            animationBegin={0}
+            animationDuration={1200}
+            animationEasing="ease-out"
+          >
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.hex} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      
+      {/* Center Label */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-1">
+        <span className="text-[10px] md:text-xs font-bold text-slate-800 dark:text-slate-100 font-sans">
+          {isMonthly ? '₪/חו' : '%'}
+        </span>
+      </div>
+    </div>
   );
 }
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PortfolioSummaryCard({ title, totalLabel, rows, variant = 'balance' }: Props) {
   const total = rows.reduce((s, r) => s + r.balance, 0);
   const activeRows = rows.filter(r => r.balance > 0);
-
   const isMonthly = variant === 'monthly';
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <Card className="mb-0">
       {/* Header */}
-      <div className="p-6 flex items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800">
-        <div>
-          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-0.5">{title}</p>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 p-4 md:p-6 border-b border-slate-100 dark:border-slate-800">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-500 mb-0.5 truncate">{title}</p>
           {totalLabel && <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{totalLabel}</p>}
-          <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{fmt(total)}</p>
+          <p className="text-xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums truncate" dir="ltr">{fmt(total)}</p>
         </div>
         <DonutChart rows={activeRows} variant={variant} />
-      </div>
+      </CardHeader>
 
       {/* Table */}
-      <div className="p-4">
+      <CardContent className="p-4">
         <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
           {isMonthly ? 'התפלגות ההפקדה החודשית לפי סוג מוצר' : 'התפלגות החשבון לפי סוג מוצר'}
         </p>
@@ -133,10 +121,12 @@ export default function PortfolioSummaryCard({ title, totalLabel, rows, variant 
                     {fmt(row.balance)}
                   </td>
                   <td className="py-2.5 text-left">
-                    <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full text-white"
-                      style={{ backgroundColor: row.hex }}>
+                    <Badge 
+                      variant="default"
+                      style={{ backgroundColor: row.hex }}
+                    >
                       {pct}%
-                    </span>
+                    </Badge>
                   </td>
                 </tr>
               );
@@ -148,13 +138,13 @@ export default function PortfolioSummaryCard({ title, totalLabel, rows, variant 
                 <td className="pt-2 font-bold text-slate-700 dark:text-slate-300">סה״כ</td>
                 <td className="pt-2 text-left font-bold text-slate-900 dark:text-slate-100 tabular-nums" dir="ltr">{fmt(total)}</td>
                 <td className="pt-2 text-left">
-                  <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-slate-700 dark:bg-slate-800 text-white">100%</span>
+                  <Badge variant="secondary" className="bg-slate-700 dark:bg-slate-800 text-white">100%</Badge>
                 </td>
               </tr>
             </tfoot>
           )}
         </table>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

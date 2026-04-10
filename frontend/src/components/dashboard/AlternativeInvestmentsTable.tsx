@@ -9,6 +9,8 @@ import { useState } from 'react';
 import type { AlternativeInvestment } from '../../types/portfolio';
 import { Plus, X, Trash2, TrendingUp, Calendar } from 'lucide-react';
 import clsx from 'clsx';
+import { Card, CardHeader, CardTitle } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 
 const fmt = (val: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
@@ -199,18 +201,17 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
 
   return (
     <>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-
-        {/* Table Header */}
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">השקעות אלטרנטיביות</h3>
-          <button
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between p-4 md:p-5">
+          <CardTitle>השקעות אלטרנטיביות</CardTitle>
+          <button 
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95 shadow-sm shadow-indigo-200"
+            className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 md:px-3 md:py-1.5 rounded-lg flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
           >
-            <Plus className="w-4 h-4" /> הוסף נכס
+            <Plus className="w-4 h-4 md:w-5 md:h-5" />
+            <span className="hidden md:inline font-bold text-sm">הוסף נכס</span>
           </button>
-        </div>
+        </CardHeader>
 
         {/* Empty state */}
         {items.length === 0 ? (
@@ -229,7 +230,7 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
           <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-500 text-xs font-bold uppercase tracking-wider">
                   <th className="px-5 py-3">שם הנכס</th>
                   <th className="px-4 py-3 text-left">שווי</th>
                   <th className="px-4 py-3 text-left">הכנסה חודשית</th>
@@ -302,7 +303,7 @@ export default function AlternativeInvestmentsTable({ items: initialItems }: Pro
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {showModal && (
         <AddAssetModal onSave={handleAdd} onClose={() => setShowModal(false)} />
