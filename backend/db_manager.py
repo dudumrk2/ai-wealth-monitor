@@ -58,6 +58,17 @@ def initialize_firebase():
 initialize_firebase()
 
 import json
+import time
+
+# --- IN-MEMORY CACHE FOR FIREBASE READS ---
+CACHE_TTL_SECONDS = 300  # 5 minutes TTL
+_family_profile_cache = {}  # uid -> (data, timestamp)
+_processed_portfolio_cache = {}  # uid -> (data, timestamp)
+
+def clear_cache_for_uid(uid: str):
+    _family_profile_cache.pop(uid, None)
+    _processed_portfolio_cache.pop(uid, None)
+# ------------------------------------------
 
 def get_family_profile(uid: str):
     """
@@ -70,6 +81,13 @@ def get_family_profile(uid: str):
       - gmail_refresh_token : str | None
       - member_id_numbers   : list[str]  — all idNumbers across all family members
     """
+    now = time.time()
+    if uid in _family_profile_cache:
+        cached_data, ts = _family_profile_cache[uid]
+        if now - ts < CACHE_TTL_SECONDS:
+            print(f"⚡ [DB_MANAGER] Family profile cache HIT for {uid}")
+            return cached_data
+
     print(f"\n🔍 [DB_MANAGER] Fetching family profile for UID: {uid}...")
     if db is None:
         print("⚠️ [DB_MANAGER] Firestore not initialized (missing key). Skipping fetch.")
@@ -119,7 +137,7 @@ def get_family_profile(uid: str):
                 print(f"✅ [DB_MANAGER] Found {len(member_id_numbers)} ID(s) from pii_data map (fallback).")
 
         print(f"✅ [DB_MANAGER] Profile found for {uid}.")
-        return {
+        result = {
             "pii_data": data.get("pii_data", {}),
             "financial_profile": data.get("financial_profile", {}),
             "gmail_refresh_token": data.get("gmail_refresh_token"),
@@ -131,6 +149,8 @@ def get_family_profile(uid: str):
             "cron_frequency_months": data.get("cron_frequency_months"),
             "last_fetched_at": data.get("last_fetched_at"),
         }
+        _family_profile_cache[uid] = (result, time.time())
+        return result
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error fetching family profile: {e}")
         return None
@@ -139,6 +159,13 @@ def get_processed_portfolio(uid: str):
     """
     Fetch the final processed portfolio from the 'portfolios' collection.
     """
+    now = time.time()
+    if uid in _processed_portfolio_cache:
+        cached_data, ts = _processed_portfolio_cache[uid]
+        if now - ts < CACHE_TTL_SECONDS:
+            print(f"⚡ [DB_MANAGER] Processed portfolio cache HIT for {uid}")
+            return cached_data
+
     print(f"\n📂 [DB_MANAGER] Fetching processed portfolio for UID: {uid}...")
     if db is None:
         print("⚠️ [DB_MANAGER] Firestore not initialized (missing key). Skipping fetch.")
@@ -149,6 +176,7 @@ def get_processed_portfolio(uid: str):
         if doc.exists:
             data = doc.to_dict()
             print(f"✅ [DB_MANAGER] Processed portfolio found for {uid}")
+            _processed_portfolio_cache[uid] = (data, time.time())
             return data
         else:
             print(f"❌ [DB_MANAGER] Processed portfolio for UID {uid} NOT FOUND.")
@@ -190,6 +218,7 @@ def save_gmail_token(uid: str, refresh_token: str) -> bool:
     try:
         db.collection("families").document(uid).update({"gmail_refresh_token": refresh_token})
         print(f"✅ [DB_MANAGER] Gmail token saved for {uid}.")
+        _family_profile_cache.pop(uid, None) # invalidate explicitly
         return True
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error saving Gmail token: {e}")
@@ -201,6 +230,7 @@ def update_family_field(uid: str, field: str, value) -> bool:
         return False
     try:
         db.collection("families").document(uid).update({field: value})
+        _family_profile_cache.pop(uid, None) # invalidate explicitly
         return True
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error updating field '{field}' for {uid}: {e}")
@@ -232,6 +262,7 @@ def save_processed_portfolio(uid: str, portfolio_data: dict):
     try:
         doc_ref = db.collection("portfolios").document(uid)
         doc_ref.set(portfolio_data)
+        _processed_portfolio_cache[uid] = (portfolio_data, time.time()) # update cache explicitly
         print(f"✅ [DB_MANAGER] Successfully saved portfolio for {uid}")
         print("--- SAVED DATA PREVIEW ---")
         # Print a summary or first few items to avoid giant logs in terminal but still show it's working

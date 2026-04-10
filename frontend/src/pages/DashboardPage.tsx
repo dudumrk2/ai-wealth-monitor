@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 import ActionItems from '../components/dashboard/ActionItems';
 import type { ActionItem } from '../types/portfolio';
+import { CopilotChat } from '../components/CopilotChat';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -161,47 +162,11 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Top Section - 3 Columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-          
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 min-h-[500px] lg:min-h-[620px]">
           {/* Right Column: AI Chat */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full transition-all hover:border-slate-300 dark:hover:border-slate-700 group">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 rounded-t-2xl">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center text-blue-400 shadow-inner border border-blue-500/20">
-                <Bot className="w-5 h-5" />
-              </div>
-              <h2 className="font-semibold text-lg text-slate-900 dark:text-slate-100">צ'אט קופיילוט</h2>
-              <span className="mr-auto flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-              </span>
-            </div>
-            
-            <div className="flex-1 p-3 md:p-5 overflow-y-auto space-y-4 md:space-y-5 custom-scrollbar">
-              <div className="flex justify-end animate-fade-in-right">
-                <div className="bg-blue-600 shadow-md shadow-blue-900/20 rounded-2xl rounded-tr-sm px-4 py-3 text-sm max-w-[85%] text-white leading-relaxed">
-                  האם התיק שלי מאוזן?
-                </div>
-              </div>
-              <div className="flex justify-start animate-fade-in-left">
-                <div className="bg-slate-800 dark:bg-slate-800 shadow-md rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[85%] text-slate-200 leading-relaxed border border-slate-700/50">
-                  {totals.total > 0 
-                    ? `יש לך נכסים בשווי כולל של ${formatCurrency(totals.total)}. פיזור הנכסים שלך נראה יציב, כשיש לך ${Math.round(totals.pension / totals.total * 100)}% בפנסיה.`
-                    : "העלה את הדוחות שלך כדי שאוכל לנתח את התיק הפיננסי שלך."}
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
-              <div className="relative group/input">
-                <input 
-                  type="text" 
-                  placeholder="שאלו את הקופיילוט..." 
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-full py-3 pr-5 pl-14 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-slate-200 placeholder-slate-500 shadow-inner"
-                />
-                <button className="absolute left-1.5 top-1.5 w-9 h-9 flex items-center justify-center bg-blue-500 hover:bg-blue-400 hover:scale-105 active:scale-95 transition-all rounded-full text-white shadow-lg shadow-blue-500/20 cursor-pointer">
-                  <Send className="w-4 h-4 mr-0.5" />
-                </button>
-              </div>
+          <div className="relative min-h-[450px] lg:min-h-0 h-full w-full">
+            <div className="absolute inset-0">
+              <CopilotChat />
             </div>
           </div>
 
@@ -262,7 +227,7 @@ const DashboardPage: React.FC = () => {
 
           {/* Left Column: Summary Cards */}
           <div className="flex flex-col gap-3 md:gap-4 h-full">
-             <Link to="/pension" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-blue-500/30 group cursor-pointer">
+             <Link to="/pension" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-blue-500/30 group cursor-pointer flex-1">
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center text-blue-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
                 <Landmark className="w-6 h-6 md:w-7 md:h-7" />
               </div>
@@ -272,7 +237,7 @@ const DashboardPage: React.FC = () => {
               </div>
             </Link>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-emerald-500/30 group">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-emerald-500/30 group flex-1">
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center text-emerald-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
                 <LineChart className="w-6 h-6 md:w-7 md:h-7" />
               </div>
@@ -282,7 +247,7 @@ const DashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <Link to="/alternative" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-indigo-500/30 group cursor-pointer">
+            <Link to="/alternative" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-indigo-500/30 group cursor-pointer flex-1">
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center text-indigo-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
                 <HandCoins className="w-6 h-6 md:w-7 md:h-7" />
               </div>
@@ -292,7 +257,7 @@ const DashboardPage: React.FC = () => {
               </div>
             </Link>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-violet-500/30 group">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-violet-500/30 group flex-1">
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center text-violet-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
                 <Shield className="w-6 h-6 md:w-7 md:h-7" />
               </div>
