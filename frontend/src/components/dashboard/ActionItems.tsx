@@ -5,9 +5,10 @@ import type { ActionItem } from '../../types/portfolio';
 
 interface ActionItemsProps {
   items: ActionItem[];
+  onRefreshAI?: () => void;
 }
 
-export default function ActionItems({ items: initialItems = [] }: ActionItemsProps) {
+export default function ActionItems({ items: initialItems = [], onRefreshAI }: ActionItemsProps) {
   const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [selectedItem, setSelectedItem] = useState<ActionItem | null>(null);
 
@@ -28,14 +29,23 @@ export default function ActionItems({ items: initialItems = [] }: ActionItemsPro
     <>
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
-           <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
               פעולות נדרשות לשיפור התיק
               {pending > 0 && (
                 <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs py-0.5 px-2.5 rounded-full font-bold">
                   {pending} ממתינות
                 </span>
               )}
-           </h2>
+            </h2>
+            {onRefreshAI && (
+              <button 
+                onClick={onRefreshAI}
+                className="flex items-center gap-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800"
+              >
+                <Zap className="w-4 h-4" />
+                רענן המלצות (AI)
+              </button>
+            )}
         </div>
 
         <div className="p-0 max-h-[600px] overflow-y-auto custom-scrollbar">

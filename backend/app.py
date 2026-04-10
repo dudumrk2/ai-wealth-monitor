@@ -477,24 +477,57 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 @app.get("/api/portfolio")
-async def get_portfolio(user: dict = Depends(verify_token)):
+async def get_portfolio(
+    refresh_market: bool = False,
+    refresh_ai: bool = False,
+    user: dict = Depends(verify_token)
+):
     uid = user.get("uid")
-    print(f"🔍 [APP] GET /api/portfolio - Fetching for {uid}")
+    print(f"🔍 [APP] GET /api/portfolio - Fetching for {uid} (refresh_market={refresh_market}, refresh_ai={refresh_ai})")
     portfolio_doc = db_manager.get_processed_portfolio(uid)
     
     if portfolio_doc:
-        print(f"✅ [APP] Found Firestore portfolio for {uid}. Re-attaching latest market benchmarks...")
-        
-        # Dynamically refresh competitor data from the (now updated/resilient) cache
-        # This ensures the 2026 yields and Sharpe ratios appear without a re-scan.
         portfolios = portfolio_doc.get("portfolios", {})
-        live_market_data = await _collect_market_data_async(portfolios)
-        _attach_competitors_to_funds(portfolios, live_market_data)
+        action_items = portfolio_doc.get("action_items", [])
+        last_updated = portfolio_doc.get("last_updated")
         
+        needs_save = False
+        
+        # 1. Explicit AI Refresh
+        if refresh_ai:
+            print(f"🤖 [APP] Explicit AI refresh requested for {uid}")
+            family_profile = db_manager.get_family_profile(uid)
+            f_profile = family_profile.get("financial_profile", {}) if family_profile else {}
+            
+            # AI always needs fresh market context to be accurate
+            live_market_data = await _collect_market_data_async(portfolios)
+            _attach_competitors_to_funds(portfolios, live_market_data)
+            
+            action_items = ai_advisor.generate_action_items(
+                family_portfolio=portfolios,
+                market_data=live_market_data,
+                financial_profile=f_profile
+            )
+            portfolio_doc["action_items"] = action_items
+            last_updated = datetime.datetime.now().isoformat()
+            portfolio_doc["last_updated"] = last_updated
+            needs_save = True
+
+        # 2. Explicit Market Refresh (if AI refresh wasn't already doing it)
+        elif refresh_market:
+            print(f"📊 [APP] Explicit market data refresh requested for {uid}")
+            live_market_data = await _collect_market_data_async(portfolios)
+            _attach_competitors_to_funds(portfolios, live_market_data)
+            needs_save = True
+
+        if needs_save:
+            print(f"☁️ [APP] Saving updated portfolio after refresh...")
+            db_manager.save_processed_portfolio(uid, portfolio_doc)
+
         return {
-            "last_updated": portfolio_doc.get("last_updated"),
+            "last_updated": last_updated,
             "portfolios": portfolios,
-            "action_items": portfolio_doc.get("action_items")
+            "action_items": action_items
         }
     
     print(f"⚠️ [APP] Portfolio not found in Firestore for {uid}. Falling back to mock data.")

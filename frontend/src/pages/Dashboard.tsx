@@ -63,13 +63,24 @@ export default function Dashboard() {
   // Guard to prevent auto-scan from firing more than once per session
   const autoScanFiredRef = useRef(false);
 
-  const fetchPortfolio = useCallback(async (silent = false) => {
+  const fetchPortfolio = useCallback(async (options?: { silent?: boolean, refreshMarket?: boolean, refreshAi?: boolean } | boolean) => {
+    // Support both the old boolean signature and the new options object
+    const silent = typeof options === 'boolean' ? options : options?.silent ?? false;
+    const refreshMarket = typeof options === 'object' ? options.refreshMarket ?? false : false;
+    const refreshAi = typeof options === 'object' ? options.refreshAi ?? false : false;
+
     try {
       if (!silent) setLoading(true);
       setError(null);
       const startTime = Date.now();
       const idToken = await user?.getIdToken();
-      const response = await fetch(`${API_URL}/api/portfolio`, {
+
+      const params = new URLSearchParams();
+      if (refreshMarket) params.append('refresh_market', 'true');
+      if (refreshAi) params.append('refresh_ai', 'true');
+      const query = params.toString() ? `?${params.toString()}` : '';
+
+      const response = await fetch(`${API_URL}/api/portfolio${query}`, {
         headers: { 'Authorization': `Bearer ${idToken}` }
       });
       if (!response.ok) throw new Error('Failed to fetch portfolio');
@@ -279,7 +290,10 @@ export default function Dashboard() {
               <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
               <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
             </div>
-            <ActionItems items={portfolioData.action_items as ActionItem[]} />
+            <ActionItems 
+              items={portfolioData.action_items as ActionItem[]} 
+              onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
+            />
             {categories.map(cat => {
               const catFunds = [...jointUserFunds.filter(f => f.category === cat), ...jointSpouseFunds.filter(f => f.category === cat)];
               if (catFunds.length === 0) return null;
@@ -322,7 +336,7 @@ export default function Dashboard() {
   };
 
   return (
-    <DashboardLayout onRefresh={() => fetchPortfolio()} isRefreshing={loading}>
+    <DashboardLayout onRefresh={() => fetchPortfolio({ refreshMarket: true })} isRefreshing={loading}>
       {/* Analysis Modals - Rendered here so they stay in DOM during content swaps */}
       <RedactionPreviewModal 
         isOpen={isPreviewOpen}
