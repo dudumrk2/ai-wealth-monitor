@@ -99,7 +99,7 @@ const DashboardPage: React.FC = () => {
     
     // Monthly insurance/pension deposits
     const insuranceMonthly = allFunds
-      .filter((f: any) => ['pension', 'managers', 'insurance'].includes(f.category))
+      .filter((f: any) => f.category === 'insurance')
       .reduce((s: number, f: any) => s + (f.monthly_deposit || 0), 0);
 
     // Use backend total if available, otherwise sum locally

@@ -249,47 +249,10 @@ export default function Settings() {
       </div>
 
       <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
+        {/* 1. PDF Upload Card */}
+        {user && <UploadSection user={user} onSuccess={() => {}} />}
 
-        {/* Theme / Appearance Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-            <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
-              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            </div>
-            <div>
-              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">מראה (עיצוב)</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">בחר בין מצב בהיר לכהה</p>
-            </div>
-          </div>
-          <div className="p-6">
-            <div className="flex items-center justify-between p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full max-w-[300px]">
-              <button
-                onClick={() => theme !== 'light' && toggleTheme()}
-                className={clsx(
-                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all",
-                  theme === 'light' 
-                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                )}
-              >
-                <Sun className="w-4 h-4" /> מצב בהיר
-              </button>
-              <button
-                onClick={() => theme !== 'dark' && toggleTheme()}
-                className={clsx(
-                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all",
-                  theme === 'dark' 
-                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                )}
-              >
-                <Moon className="w-4 h-4" /> מצב כהה
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Family Details & Gmail Integration Card */}
+        {/* 2. Family Details & Gmail Integration Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
@@ -385,7 +348,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Gmail Search Settings Card */}
+        {/* 3. Gmail Search Settings Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl flex items-center justify-center">
@@ -484,10 +447,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* PDF Upload Card */}
-        {user && <UploadSection user={user} onSuccess={() => {}} />}
-
-        {/* Reprocess Advisory Card */}
+        {/* 4. Reprocess Advisory Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
@@ -518,8 +478,7 @@ export default function Settings() {
           </div>
         </div>
 
-
-        {/* Authorized Emails */}
+        {/* 5. Authorized Emails */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -569,7 +528,46 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Danger Zone */}
+        {/* 6. Theme / Appearance Card */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
+              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">מראה (עיצוב)</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">בחר בין מצב בהיר לכהה</p>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex items-center justify-between p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full max-w-[300px]">
+              <button
+                onClick={() => theme !== 'light' && toggleTheme()}
+                className={clsx(
+                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all",
+                  theme === 'light' 
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <Sun className="w-4 h-4" /> מצב בהיר
+              </button>
+              <button
+                onClick={() => theme !== 'dark' && toggleTheme()}
+                className={clsx(
+                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all",
+                  theme === 'dark' 
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <Moon className="w-4 h-4" /> מצב כהה
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 7. Danger Zone */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
             <div className="w-9 h-9 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-xl flex items-center justify-center">

@@ -122,7 +122,7 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
         "relevant_funds": filtered_funds
     }
     
-    async def read_full_policy(policy_id: str) -> str:
+    def read_full_policy(policy_id: str) -> str:
         """Call this tool to read the full text of a specific policy PDF document to answer deep contractual questions.
         Args:
             policy_id: The ID or policy number of the policy to read.
@@ -138,10 +138,10 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
              return f"Error: No source document URL found for policy {policy_id}. Cannot read document."
              
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(url, timeout=30.0)
-                resp.raise_for_status()
-                pdf_bytes = resp.content
+            # Use synchronous httpx for tool calling (SDK requirement)
+            resp = httpx.get(url, timeout=30.0)
+            resp.raise_for_status()
+            pdf_bytes = resp.content
             
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             text_content = ""
