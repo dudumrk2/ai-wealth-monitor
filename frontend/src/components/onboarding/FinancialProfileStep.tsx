@@ -67,10 +67,10 @@ const FinancialProfileStep: React.FC<FinancialProfileStepProps> = ({ onComplete,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const profileData = {
-      spouse_1_birth_year: parseInt(birthYears.spouse1),
-      spouse_2_birth_year: parseInt(birthYears.spouse2),
+      spouse_1_birth_year: birthYears.spouse1 ? parseInt(birthYears.spouse1) : null,
+      spouse_2_birth_year: birthYears.spouse2 ? parseInt(birthYears.spouse2) : null,
       number_of_children: kidsCount,
-      children_birth_years: childrenBirthYears.map(year => parseInt(year) || 0),
+      children_birth_years: childrenBirthYears.map(year => year ? parseInt(year) : null).filter(y => y !== null),
       investment_preference: preferences.investmentGoal,
       risk_tolerance: preferences.riskTolerance
     };

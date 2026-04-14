@@ -363,6 +363,12 @@ export default function Onboarding() {
                   <ArrowRight className="w-4 h-4" /> חזרה לשלב הקודם
                 </button>
              </div>
+             {error && (
+               <div className="mx-8 mt-4 flex items-start gap-3 p-4 bg-red-50 text-red-800 rounded-2xl border border-red-100">
+                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                 <p className="text-sm font-medium">{error}</p>
+               </div>
+             )}
              <FinancialProfileStep 
                onComplete={handleCompleteFinancialProfile}
                initialData={financialData}

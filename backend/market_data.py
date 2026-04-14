@@ -363,9 +363,16 @@ USE_MYFUNDS_API = True
 
 async def get_top_competitors(product_type: str, track_name: str) -> dict:
     """
-    Main entry point for market data. Routed dynamically between MyFunds API (fast)
-    and the CKAN Government dataset (slower/backup).
+    Main entry point for market data. Checks Firestore cache first (30-day TTL),
+    then routes to MyFunds API (fast) or CKAN Government dataset (slower/backup).
     """
+    import db_manager
+    cached = db_manager.get_market_cache(track_name)
+    if cached:
+        print(f"⚡ [MARKET] Cache HIT for '{track_name}' — skipping external API call.")
+        return cached
+
+    print(f"🌐 [MARKET] Cache MISS for '{track_name}' — fetching from external API...")
     if USE_MYFUNDS_API:
         return await _get_top_competitors_myfunds(product_type, track_name)
     return await _get_top_competitors_ckan(product_type, track_name)

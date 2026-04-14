@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import DashboardPage from './pages/DashboardPage';
 import Pension from './pages/Pension';
+import InsurancePage from './pages/InsurancePage';
 import Settings from './pages/Settings';
 
 /**
@@ -75,6 +76,16 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <Pension />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected: Insurance (requires auth + onboarding) */}
+        <Route
+          path="/insurance"
+          element={
+            <ProtectedRoute>
+              <InsurancePage />
             </ProtectedRoute>
           }
         />

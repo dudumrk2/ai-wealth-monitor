@@ -291,7 +291,9 @@ export default function Pension() {
               <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
             </div>
             <ActionItems 
-              items={portfolioData.action_items as ActionItem[]} 
+              items={(portfolioData.action_items as ActionItem[] || []).filter(item => 
+                ['פנסיה', 'בורסה', 'כללי', 'equity', 'מניות'].includes(item.category || 'כללי')
+              )} 
               onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
             />
             {categories.map(cat => {
@@ -336,7 +338,7 @@ export default function Pension() {
   };
 
   return (
-    <DashboardLayout onRefresh={() => fetchPortfolio({ refreshMarket: true })} isRefreshing={loading}>
+    <DashboardLayout onRefresh={() => fetchPortfolio({ refreshMarket: true, refreshAi: true })} isRefreshing={loading}>
       {/* Analysis Modals - Rendered here so they stay in DOM during content swaps */}
       <RedactionPreviewModal 
         isOpen={isPreviewOpen}

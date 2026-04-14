@@ -4,11 +4,15 @@ from typing import Dict, List, Optional
 import os
 import json
 import asyncio
+import time
+import httpx
+import fitz
 
 from google import genai
 from google.genai import types
 import db_manager
 from auth import verify_token
+import config
 
 router = APIRouter(tags=["dashboard"])
 
@@ -118,8 +122,43 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
         "relevant_funds": filtered_funds
     }
     
+    async def read_full_policy(policy_id: str) -> str:
+        """Call this tool to read the full text of a specific policy PDF document to answer deep contractual questions.
+        Args:
+            policy_id: The ID or policy number of the policy to read.
+        """
+        print(f"🛠️ [TOOL] read_full_policy called for {policy_id}")
+        url = None
+        for f in filtered_funds:
+            if f.get("id") == policy_id or f.get("policy_number") == policy_id:
+                url = f.get("source_document_url")
+                break
+                
+        if not url:
+             return f"Error: No source document URL found for policy {policy_id}. Cannot read document."
+             
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, timeout=30.0)
+                resp.raise_for_status()
+                pdf_bytes = resp.content
+            
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            text_content = ""
+            for page in doc:
+                text_content += page.get_text()
+                
+            doc.close()
+            # Limit returned text to avoid exceeding token limits
+            if len(text_content) > 35000:
+                print(f"⚠️ [TOOL] Document text truncated (original length: {len(text_content)})")
+                return "[DOCUMENT TRUNCATED DUE TO LENGTH]\n" + text_content[:35000]
+            return text_content
+        except Exception as e:
+            return f"Error reading document: {str(e)}"
     system_prompt = f"""You are an expert family wealth advisor (Copilot).
-Answer the user's question concisely in Hebrew, based ONLY on the provided financial data.
+Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
+If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
 Data: {json.dumps(context_data, ensure_ascii=False)}
 """
 
@@ -132,15 +171,23 @@ Data: {json.dumps(context_data, ensure_ascii=False)}
         client = genai.Client(api_key=api_key)
         max_retries = 5
         
+        # Use chats.create to support automatic tool execution loop
+        chat = client.chats.create(
+            model=config.GEMINI_MODEL_NAME,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                tools=[read_full_policy],
+                temperature=0.3
+            )
+        )
+        
         for attempt in range(max_retries):
             try:
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=request.question,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                    ),
-                )
+                print(f"🤖 [CHAT-AI] Sending question to Gemini 2.5 Flash (Attempt {attempt + 1}/{max_retries})...")
+                start_ai = time.time()
+                response = chat.send_message(request.question)
+                duration = time.time() - start_ai
+                print(f"✅ [CHAT-AI] Gemini responded successfully in {duration:.2f}s")
                 return {"response": response.text}
             except Exception as e:
                 err_str = str(e)

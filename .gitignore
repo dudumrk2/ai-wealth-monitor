@@ -38,3 +38,11 @@ backend/__pycache__/
 
 # Firebase
 serviceAccountKey.json
+
+# Debug and Scratch files
+backend/debug_*.txt
+backend/_debug_*.py
+backend/test_*.py
+backend/*.xlsx
+backend/*.csv
+backend/*.pdf

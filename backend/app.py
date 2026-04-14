@@ -23,7 +23,7 @@ import time
 class Logger(object):
     def __init__(self, file_path, original_stream):
         self.terminal = original_stream
-        self.log = open(file_path, "w", encoding="utf-8")
+        self.log = open(file_path, "a", encoding="utf-8")
 
     def write(self, message):
         self.terminal.write(message)
@@ -56,343 +56,15 @@ import db_manager
 import ai_advisor
 import market_data as market_data_module
 
-def _get_similarity(a: str, b: str) -> float:
-    return difflib.SequenceMatcher(None, a, b).ratio()
-
-def _is_index_mismatch(pdf_name: str, api_name: str) -> bool:
-    """Returns True if the API fund is an index tracker but the PDF fund is not."""
-    is_api_index = any(word in api_name for word in ["עוקב", "מדד", "S&P", "500", "s&p"])
-    is_pdf_index = any(word in pdf_name for word in ["עוקב", "מדד", "S&P", "500", "s&p"])
-    return is_api_index and not is_pdf_index
-
-def _parse_float(val) -> float:
-    """Convert a value to float, stripping %, commas, and whitespace."""
-    try:
-        return float(str(val).replace('%', '').replace(',', '').strip())
-    except (TypeError, ValueError):
-        return 0.0
+from report_utils import (
+    _redact_and_render_pdf,
+    _extract_funds_via_ai,
+    _collect_market_data,
+    _collect_market_data_async,
+    _attach_competitors_to_funds
+)
 
 
-PDF_SKIP_PAGES = 1
-
-def _redact_and_render_pdf(doc, target_strings: list[str]) -> list[str]:
-    """
-    Redact PII (target_strings) from a PDF document and render remaining pages as Base64 PNGs.
-    Skips the first PDF_SKIP_PAGES pages if the document is long enough.
-    Closes the document before returning.
-    """
-    import base64 as _base64
-    import fitz as _fitz
-    
-    redacted_images_b64 = []
-    start_page = PDF_SKIP_PAGES if len(doc) > PDF_SKIP_PAGES else 0
-
-    for page_num in range(start_page, len(doc)):
-        page = doc[page_num]
-        if target_strings:
-            for text in target_strings:
-                if not text or len(text.strip()) < 2:
-                    continue
-                for inst in page.search_for(text):
-                    page.draw_rect(inst, color=(0, 0, 0), fill=(0, 0, 0))
-        
-        mat = _fitz.Matrix(2, 2)
-        pix = page.get_pixmap(matrix=mat)
-        img_data = pix.tobytes("png")
-        redacted_images_b64.append(_base64.b64encode(img_data).decode("utf-8"))
-
-    doc.close()
-    return redacted_images_b64
-
-
-def _extract_funds_via_ai(redacted_images_b64: list[str], api_key: str, source_id_prefix: str) -> list[dict]:
-    """
-    Sends redacted images to Claude Vision, parses the JSON response,
-    and maps the products to the expected fund_data schema.
-    """
-    import json
-    import os
-    import re
-
-    print("🧠 [APP] Sending redacted images to Claude for extraction...")
-    anthropic_client = Anthropic(api_key=api_key)
-    
-    content_blocks = []
-    for b64 in redacted_images_b64[:10]:
-        content_blocks.append({
-            "type": "image",
-            "source": {"type": "base64", "media_type": "image/png", "data": b64},
-        })
-    content_blocks.append({"type": "text", "text": "חלץ את כל המוצרים הפיננסיים מהדפים האלה. החזר JSON תקני בלבד."})
-
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        system=EXTRACTION_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": content_blocks}],
-    )
-
-    response_text = response.content[0].text.strip()
-
-    # Robust JSON parsing
-    response_text = re.sub(r'^```(?:json)?\s*', '', response_text, flags=re.MULTILINE)
-    response_text = re.sub(r'```\s*$', '', response_text, flags=re.MULTILINE).strip()
-
-    start_idx = response_text.find('{')
-    if start_idx == -1:
-        raise ValueError(f"No JSON in Anthropic response: {response_text[:200]}")
-    try:
-        pension_data, _ = json.JSONDecoder().raw_decode(response_text, start_idx)
-    except json.JSONDecodeError:
-        brace_count = 0
-        end_idx = start_idx
-        for i, ch in enumerate(response_text[start_idx:], start_idx):
-            if ch == '{': brace_count += 1
-            elif ch == '}': brace_count -= 1
-            if brace_count == 0:
-                end_idx = i + 1
-                break
-        pension_data = json.loads(response_text[start_idx:end_idx])
-
-    products = pension_data.get("products", [])
-    print(f"✅ [APP] AI Extraction SUCCESS. Found {len(products)} products.")
-    
-    extracted_funds = []
-    
-    for p in products:
-        raw_type = p.get("product_type", "")
-        if "פנסיה" in raw_type:            category = "pension"
-        elif "מנהלים" in raw_type:         category = "managers"
-        elif "השתלמות" in raw_type:        category = "study"
-        elif "גמל להשקעה" in raw_type:     category = "investment_provident"
-        elif "גמל" in raw_type:            category = "provident"
-        else:                              category = "provident"
-
-        fund_data = {
-            "id": f"{source_id_prefix}_{os.urandom(2).hex()}",
-            "category": category,
-            "provider_name": p.get("provider_name", "Unknown"),
-            "track_name": p.get("track_name", "Unknown"),
-            "track_id": p.get("track_id", ""),
-            "status": "active",
-            "balance": p.get("balance", 0),
-            "monthly_deposit": p.get("monthly_deposit", 0),
-            "management_fee_deposit": p.get("management_fee_deposit", 0),
-            "management_fee_accumulation": p.get("management_fee_accumulation", 0),
-            "yield_1yr": p.get("yield_1yr", 0),
-            "yield_3yr": p.get("yield_3yr_cumulative", p.get("yield_3yr", 0)),
-            "yield_5yr": p.get("yield_5yr_cumulative", p.get("yield_5yr", 0)),
-            "sharpe_ratio": p.get("sharpe_ratio", 0),
-            "policy_number": p.get("policy_number", ""),
-        }
-        
-        # Clean float values and apply anti-hallucination correction
-        fund_data["yield_1yr"] = _parse_float(fund_data["yield_1yr"])
-        fund_data["yield_3yr"] = _parse_float(fund_data["yield_3yr"])
-        fund_data["yield_5yr"] = _parse_float(fund_data["yield_5yr"])
-        
-        y3 = fund_data["yield_3yr"]
-        y5 = fund_data["yield_5yr"]
-        y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
-        
-        if y5 == 0 and y5_ann > 0:
-            fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
-            print(f"🤖 [APP] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
-        elif y3 > 0 and 0 < y5 < y3 * 0.4:
-            y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
-            print(f"🤖 [APP] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), likely annualized. Converting → {y5_cumulative}% for {fund_data['track_name']}")
-            fund_data["yield_5yr"] = y5_cumulative
-
-        extracted_funds.append(fund_data)
-
-    return extracted_funds
-
-EXTRACTION_SYSTEM_PROMPT = """
-אתה מומחה לחילוץ נתונים פיננסיים מדוחות פנסיה ישראליים.
-חלץ את כל המוצרים הפיננסיים מהדוח והחזר JSON תקני בלבד.
-שים לב: דוח יחיד יכול להכיל מס' מוצרים שונים. למשל, ב"ביטוח מנהלים" תחת אותה פוליסה יכולים להיות מספר מסלולים, או ב"קרן השתלמות" מספר חשבונות נפרדים. חלץ אותם כמוצרים נפרדים במערך "products".
-
-המבנה חייב להיות:
-{
-  "products": [
-    {
-      "product_type": "string (סוג המוצר בעברית: פנסיה/ביטוח מנהלים/קרן השתלמות/קופת גמל/גמל להשקעה)",
-      "provider_name": "string (שם חברת הביטוח/בית ההשקעות)",
-      "track_name": "string (שם המסלול)",
-      "track_id": "string (קוד מסלול / מספר אישור משרד האוצר - חלץ במידה וקיים בדוח, אחרת השאר מחרוזת ריקה)",
-      "policy_number": "string",
-      "balance": number, # סך צבירה (Total Balance)
-      "monthly_deposit": number, # הפקדה חודשית (Monthly Deposit)
-      "management_fee_deposit": number,
-      "management_fee_accumulation": number,
-      "yield_1yr": number, # תשואה ל-12 חודשים האחרונים
-      "yield_3yr_cumulative": number, # תשואה מצטברת (Cumulative) ל-3 שנים
-      "yield_3yr_annualized": number, # תשואה שנתית ממוצעת (Average Annual) ל-3 שנים
-      "yield_5yr_cumulative": number, # תשואה מצטברת (Cumulative) ל-5 שנים
-      "yield_5yr_annualized": number, # תשואה שנתית ממוצעת (Average Annual) ל-5 שנים
-      "sharpe_ratio": number # מדד שארפ (Sharpe Ratio)
-    }
-  ]
-}
-
-הנחיות קריטיות - קרא בעיון:
-1. הפקדות (monthly_deposit):
-   - חלץ אך ורק *הפקדה חודשית ממוצעת או אחרונה* (למשל 1,500 ₪). 
-   - סכנה: דוחות רבים מציגים "סך הפקדות בשנת הדיווח" או "הפקדות שוטפות" שהם בסכומים גבוהים מאוד (למשל 47,000 ₪). לעולם אל תחלץ סכומים שנתיים מצטברים אלו לתוך monthly_deposit! אם לא כתוב במפורש מה ההפקדה החודשית, השאר את field זה כ-0.
-2. תשואות (Yields):
-   - קיימים שני מונחים: "תשואה מצטברת" (Cumulative, לרוב מספר גבוה כמו 50%+) ו"תשואה שנתית ממוצעת" (Annualized, לרוב מספר נמוך כמו 10%).
-   - הקפד לשים כל נתון בשדה המתאים (cumulative מול annualized).
-   - חלץ בדיוק את המספר שמופיע בדוח בעמודה המתאימה ל-3 ול-5 שנים. אין להמציא ערכים.
-3. מדד שארפ: חלץ את הערך המופיע בדוח. אם לא מופיע, החזר 0.
-
-CRITICAL FORMATTING:
-- החזר JSON תקני בלבד ללא בלוקים של markdown (ללא ```json) וללא כל טקסט חופשי.
-- אל תכניס פסיקים או פסיק עליון במספרים (החזר 1234.56 במקום 1,234.56).
-- אם שדה כלשהו לא מופיע בדוח, יש להחזיר 0 עבור מספרים ו-"" עבור מחרוזות. אל תשמיט שדות ממבנה ה-JSON הנדרש.
-"""
-
-def _collect_market_data(portfolios: dict) -> dict:
-    """
-    Fetch top-3 competitors for every unique (product_type, track_name) pair
-    found in the user's portfolio, and return a dict keyed by track_name.
-
-    Uses asyncio.run() so it is callable from synchronous FastAPI endpoints.
-    For async endpoints, use _collect_market_data_async() instead.
-    """
-    print("\n📊 [APP] Collecting market competitor data for all tracks...")
-
-    async def _fetch_all(tasks: list[tuple[str, str]]) -> dict:
-        results = {}
-        for product_type, track_name in tasks:
-            if track_name and track_name not in results:
-                competitors = await market_data_module.get_top_competitors(
-                    product_type=product_type,
-                    track_name=track_name,
-                )
-                results[track_name] = competitors
-        return results
-
-    # Gather all (product_type, track_name) pairs from both owners
-    tasks: list[tuple[str, str]] = []
-    for owner_key in ["user", "spouse"]:
-        for fund in portfolios.get(owner_key, {}).get("funds", []):
-            tasks.append((
-                fund.get("category", ""),
-                fund.get("track_name", ""),
-            ))
-
-    if not tasks:
-        print("ℹ️  [APP] No funds found — skipping market data collection.")
-        return {}
-
-    try:
-        market_data_result = asyncio.run(_fetch_all(tasks))
-        print(f"✅ [APP] Market data collected for {len(market_data_result)} unique track(s).")
-        return market_data_result
-    except Exception as e:
-        print(f"⚠️  [APP] Market data collection failed: {e}. Proceeding with empty market data.")
-        return {}
-
-async def _collect_market_data_async(portfolios: dict) -> dict:
-    """
-    Async-native version of _collect_market_data.
-    Use this inside async FastAPI endpoints (e.g. process_reports) so that
-    asyncio.run() is never called from within a running event loop.
-    """
-    print("\n📊 [APP] Collecting market competitor data for all tracks (async)...")
-
-    tasks: list[tuple[str, str]] = []
-    for owner_key in ["user", "spouse"]:
-        for fund in portfolios.get(owner_key, {}).get("funds", []):
-            tasks.append((
-                fund.get("category", ""),
-                fund.get("track_name", ""),
-            ))
-
-    if not tasks:
-        print("ℹ️  [APP] No funds found — skipping market data collection.")
-        return {}
-
-    results: dict = {}
-    try:
-        for product_type, track_name in tasks:
-            if track_name and track_name not in results:
-                competitors = await market_data_module.get_top_competitors(
-                    product_type=product_type,
-                    track_name=track_name,
-                )
-                results[track_name] = competitors
-        print(f"✅ [APP] Market data collected for {len(results)} unique track(s).")
-        return results
-    except Exception as e:
-        print(f"⚠️  [APP] Market data collection failed: {e}. Proceeding with empty market data.")
-        return {}
-
-
-def _attach_competitors_to_funds(portfolios: dict, market_data: dict) -> None:
-    """
-    Attach top_competitors list to each fund based on its track_name.
-    This ensures that when the frontend opens a product's details,
-    the competitor benchmarks are already embedded in the fund object.
-    """
-    if not market_data:
-        return
-
-    print("🔗 [APP] Attaching competitor data to individual funds...")
-    for owner_key in ["user", "spouse"]:
-        funds = portfolios.get(owner_key, {}).get("funds", [])
-        for fund in funds:
-            track = fund.get("track_name")
-            if track and track in market_data:
-                track_data = market_data[track]
-                fund["top_competitors"] = track_data.get("top_competitors", [])
-                
-                user_provider = fund.get("provider_name", "").strip()
-                track_id = str(fund.get("track_id", "") or "").strip()
-                track_name_for_match = track or user_provider
-                match = None
-                best_score = 0
-                
-                for comp in track_data.get("all_competitors", []):
-                    comp_provider = comp.get("provider_name", "")
-                    comp_name = comp.get("fund_name", "")
-                    comp_id = str(comp.get("fund_id", "") or "").strip()
-                    
-                    # 0. EXACT TRACK ID MATCH (Ultimate Safety)
-                    if track_id and comp_id and track_id == comp_id:
-                        match = comp
-                        break
-                    
-                    # 1. Broadest check: Must share at least the first significant word of provider_name
-                    if user_provider and comp_provider:
-                        p1 = user_provider.split(" ")[0].replace('"', '')
-                        p2 = comp_provider.split(" ")[0].replace('"', '')
-                        p_match = p1 == p2 or user_provider in comp_provider or comp_provider in user_provider
-                        if not p_match:
-                            continue
-                            
-                    # 2. Strong filter: Prevent matching active funds with index trackers
-                    if _is_index_mismatch(track_name_for_match, comp_name):
-                        continue
-                        
-                    # 3. Calculate sequence similarity between PDF track_name and API fund_name
-                    score = _get_similarity(track_name_for_match, comp_name)
-                    if score > best_score:
-                        best_score = score
-                        match = comp
-                
-                # Minimum acceptable similarity boundary (only applies if we didn't do an exact Track ID match)
-                is_exact_match = (match and track_id and str(match.get("fund_id", "")) == track_id)
-                if match and not is_exact_match and best_score < 0.3:
-                    print(f"⚠️ [APP] Best match for '{user_provider} - {track}' Score {best_score} too low. Discarding.")
-                    match = None
-
-                        
-                if match:
-                    match_method = 'Track ID' if is_exact_match else f'Fuzzy String (Score {best_score:.2f})'
-                    print(f"🔄 [APP] Matched '{user_provider} - {track}' via {match_method}. Injecting missing Sharpe Ratio.")
-                    # TRUST THE PDF YIELDS: By user request, we DO NOT override the 1Y/3Y/5Y metrics.
-                    fund["sharpe_ratio"] = match.get("sharpe_ratio", fund.get("sharpe_ratio"))
 
 
 # Test UID removed - now using dynamic UID from token
@@ -428,7 +100,17 @@ app.add_middleware(
 )
 
 from routers import dashboard_chat
+from routers import documents
+from routers import insurance
+
 app.include_router(dashboard_chat.router)
+app.include_router(documents.router)
+app.include_router(insurance.router)
+
+@app.on_event("startup")
+async def startup_event():
+    print("✅ [APP] Backend service started and ready for requests.")
+    sys.stdout.flush()
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -442,6 +124,32 @@ async def log_requests(request: Request, call_next):
     return response
 
 from auth import verify_token, security
+
+@app.delete("/api/portfolio/fund/{fund_id}")
+async def delete_fund(fund_id: str, user: dict = Depends(verify_token)):
+    uid = user.get("uid")
+    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    if not portfolio_doc:
+        raise HTTPException(status_code=404, detail="תיק נתונים לא נמצא")
+        
+    portfolios = portfolio_doc.get("portfolios", {})
+    deleted = False
+    
+    for owner_key in ["user", "spouse"]:
+        owner_data = portfolios.get(owner_key, {})
+        funds = owner_data.get("funds", [])
+        if not funds: continue
+        
+        new_funds = [f for f in funds if f.get("id") != fund_id]
+        if len(new_funds) < len(funds):
+            owner_data["funds"] = new_funds
+            deleted = True
+            
+    if not deleted:
+        raise HTTPException(status_code=404, detail="הפוליסה לא נמצאה או שכבר נמחקה")
+        
+    db_manager.save_processed_portfolio(uid, portfolio_doc)
+    return {"status": "ok", "message": "הפוליסה הוסרה בהצלחה"}
 @app.get("/api/portfolio")
 async def get_portfolio(
     refresh_market: bool = False,
@@ -469,15 +177,19 @@ async def get_portfolio(
             live_market_data = await _collect_market_data_async(portfolios)
             _attach_competitors_to_funds(portfolios, live_market_data)
             
-            action_items = ai_advisor.generate_action_items(
-                family_portfolio=portfolios,
-                market_data=live_market_data,
-                financial_profile=f_profile
-            )
+            # Generate action items using the unified Gemini-based advisor
+            try:
+                action_items = ai_advisor.generate_action_items(portfolios, live_market_data, f_profile)
+                print(f"✅ [APP] Advisory refresh complete: generated {len(action_items)} action items.")
+            except Exception as ai_e:
+                print(f"⚠️ [APP] Advisory failed during refresh: {ai_e}. Keeping existing items.")
+                action_items = portfolio_doc.get("action_items", [])
+
             portfolio_doc["action_items"] = action_items
             last_updated = datetime.datetime.now().isoformat()
             portfolio_doc["last_updated"] = last_updated
             needs_save = True
+
 
         # 2. Explicit Market Refresh (if AI refresh wasn't already doing it)
         elif refresh_market:
@@ -1414,51 +1126,40 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
 
             print(f"✅ [CRON] Downloaded {len(pdf_bytes):,} bytes")
 
-            # Open PDF from memory
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-
-            # Decrypt with any known member ID
+            # Identify owner by trying to decrypt the PDF
+            from flow_utils import prepare_pdf_for_vision
+            doc, _, authenticated_id = prepare_pdf_for_vision(pdf_bytes, family_profile)
+            
+            # Guess owner (first ID in member_id_numbers -> user, otherwise spouse)
             detected_owner = "user"
-            if doc.is_encrypted:
-                authenticated = False
-                for id_num in member_id_numbers:
-                    if doc.authenticate(id_num):
-                        authenticated = True
-                        # Guess owner (first ID → user, second → spouse)
-                        idx = member_id_numbers.index(id_num)
-                        detected_owner = "user" if idx == 0 else "spouse"
-                        print(f"✅ [CRON] PDF decrypted using member ID index {idx} → owner='{detected_owner}'")
-                        break
-                if not authenticated:
-                    print(f"❌ [CRON] Could not decrypt PDF for message {msg_id}")
-                    results.append({"msg_id": msg_id, "status": "skipped", "reason": "decryption_failed"})
-                    doc.close()
-                    continue
+            if authenticated_id and len(member_id_numbers) > 1:
+                if authenticated_id == member_id_numbers[1]:
+                    detected_owner = "spouse"
+            
+            # Close the doc used for identification (PensionFlow will open its own)
+            doc.close()
 
             # ── Check if we already processed a newer email for this owner ────
             if detected_owner in owners_processed:
                 print(f"⏭️ [CRON] Skipping message {msg_id} — already processed a newer email for owner '{detected_owner}'")
                 results.append({"msg_id": msg_id, "status": "skipped_older", "reason": f"newer_email_already_processed_for_{detected_owner}"})
-                doc.close()
                 continue
 
-            # Redact PII and render pages to base64 PNG
-            redacted_images_b64 = _redact_and_render_pdf(doc, all_target_strings)
-
-            print(f"✅ [CRON] Redacted {len(redacted_images_b64)} page(s)")
-
-            if not api_key:
-                results.append({"msg_id": msg_id, "status": "preview_only", "reason": "no_anthropic_key"})
-                continue
-
-            # ── Anthropic Vision extraction ───────────────────────────────────
-            extracted_funds = _extract_funds_via_ai(redacted_images_b64, api_key, f"gmail_{msg_id}")
-            accumulated_portfolios[detected_owner]["funds"].extend(extracted_funds)
-
-
-            # Mark this owner as processed (only newest email per owner)
+            # Mark this owner as processed
             owners_processed.add(detected_owner)
-            results.append({"msg_id": msg_id, "status": "success", "products_found": len(products), "owner": detected_owner})
+            
+            # --- Use PensionFlow to process the report ---
+            from document_flows import PensionFlow
+            flow = PensionFlow(f_profile=family_profile)
+            flow_result = await flow.process(pdf_bytes, f"{detected_owner}_gmail_report.pdf", uid)
+            
+            results.append({
+                "msg_id": msg_id, 
+                "status": "success", 
+                "owner": detected_owner,
+                "extracted_count": flow_result.get("extracted_count", 0),
+                "validation_warnings": flow_result.get("validation_warnings", [])
+            })
 
         except Exception as e:
             print(f"💥 [CRON] Error processing message {msg_id}: {e}")
@@ -1476,36 +1177,12 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
         except Exception as e:
             print(f"⚠️ [CRON] Failed to label message {mid}: {e}")
 
-    # ── 6. Generate action items & persist ────────────────────────────────────
-    total_funds = sum(len(accumulated_portfolios[k]["funds"]) for k in ["user", "spouse"])
-
-    if total_funds > 0:
-        print(f"\n🤖 [CRON] Generating action items ({total_funds} funds)…")
-        live_market_data = await _collect_market_data_async(accumulated_portfolios)
-        _attach_competitors_to_funds(accumulated_portfolios, live_market_data)
-        action_items = ai_advisor.generate_action_items(
-            family_portfolio=accumulated_portfolios,
-            market_data=live_market_data,
-            financial_profile=f_profile,
-        )
-
-        now = datetime.datetime.now().isoformat()
-        final_json = {
-            "uid": uid,
-            "last_updated": now,
-            "portfolios": accumulated_portfolios,
-            "action_items": action_items,
-        }
-
-        print("\n☁️ [CRON] Saving to Firestore…")
-        db_manager.save_processed_portfolio(uid, final_json)
-
-        # Update last_fetched_at timestamp
-        db_manager.update_family_field(uid, "last_fetched_at", now)
-    else:
-        print("\n⚠️ [CRON] No new funds extracted — preserving existing Firestore data (no overwrite).")
-
+    # All relevant processing is now handled inside the PensionFlow per report.
+    # We update the last_fetched_at if at least one report was successful.
     processed_count = len([r for r in results if r.get("status") == "success"])
+    if processed_count > 0:
+        db_manager.update_family_field(uid, "last_fetched_at", datetime.datetime.now().isoformat())
+    
     print(f"\n🏁 [CRON] fetch-emails COMPLETE — {processed_count}/{len(messages)} processed.")
     return {
         "status": "success",

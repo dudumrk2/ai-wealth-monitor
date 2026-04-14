@@ -18,20 +18,24 @@ export default function UploadSection({ user, onSuccess }: Props) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver]       = useState(false);
   const [uploadState, setUploadState]     = useState<UploadState>('idle');
+  const [documentType, setDocumentType]   = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── File management ───────────────────────────────────────────────────────
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
-    const pdfs = Array.from(incoming).filter(f => f.name.toLowerCase().endsWith('.pdf'));
-    if (pdfs.length !== incoming.length) {
+    const allowedExtensions = ['.pdf', '.xlsx', '.xls', '.csv'];
+    const validFiles = Array.from(incoming).filter(f => 
+      allowedExtensions.some(ext => f.name.toLowerCase().endsWith(ext))
+    );
+    if (validFiles.length !== incoming.length) {
       setUploadState('error');
-      setStatusMessage('ניתן להעלות קבצי PDF בלבד.');
+      setStatusMessage('ניתן להעלות קבצי PDF, Excel או CSV בלבד.');
       return;
     }
     setSelectedFiles(prev => {
-      const merged = [...prev, ...pdfs];
+      const merged = [...prev, ...validFiles];
       if (merged.length > MAX_FILES) {
         setUploadState('error');
         setStatusMessage(`ניתן לבחור לכל היותר ${MAX_FILES} קבצים.`);
@@ -83,27 +87,39 @@ export default function UploadSection({ user, onSuccess }: Props) {
 
       const formData = new FormData();
       selectedFiles.forEach(file => formData.append('files', file));
-      formData.append('uid', user.uid);
-
-      const res = await fetch(`${API_URL}/api/process-reports`, {
-        method: 'POST',
-        headers: {
-          // Do NOT set Content-Type manually — the browser sets it (with boundary)
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.detail || `שגיאת שרת (${res.status})`);
+      
+      // Some endpoints expect 'file', but process-reports expects 'files' list. documents/upload expects 'file' (singular) or can loop. 
+      // Oops, my documents.py handles `file` singly. Wait. UploadSection supports multiple!  If multiple files, we should call it multiple times or backend should support list.
+      // Let's call /api/documents/upload one file at a time!
+      let lastData: any = null;
+      for (const file of selectedFiles) {
+          const singleFormData = new FormData();
+          singleFormData.append('file', file);
+          singleFormData.append('uid', user.uid);
+          singleFormData.append('document_type', documentType);
+          
+          const res = await fetch(`${API_URL}/api/documents/upload`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: singleFormData,
+          });
+          
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData?.detail || `שגיאת שרת (${res.status})`);
+          }
+          lastData = await res.json();
       }
 
-      const data = await res.json();
-      const count = data.processed_count ?? selectedFiles.length;
+      const filesCount = selectedFiles.length;
+      const productsFound = lastData?.products_found_in_file ?? 0;
+      const aiItems = lastData?.action_items_added_or_refreshed ?? 0;
       setUploadState('success');
-      setStatusMessage(`✅ עובדו ${count} קובץ/קבצים בהצלחה! הדאשבורד יתרענן.`);
+      setStatusMessage(`✅ עובדו ${filesCount} קבצים — נמצאו ${productsFound} מוצרים, יוצרו ${aiItems} המלצות חדשות!`);
       setSelectedFiles([]);
+      setDocumentType('');
       onSuccess();
     } catch (err: any) {
       console.error('[UploadSection] Upload error:', err);
@@ -114,18 +130,37 @@ export default function UploadSection({ user, onSuccess }: Props) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const canUpload = selectedFiles.length > 0 && uploadState !== 'uploading';
+  const canUpload = selectedFiles.length > 0 && documentType !== '' && uploadState !== 'uploading';
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm mb-6 transition-colors font-sans">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-          <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+            <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">העלאת מסמכים חכמה</h2>
+            <p className="text-slate-400 dark:text-slate-500 text-xs text-right">עד {MAX_FILES} קבצים (PDF/Excel/CSV) — מעובדים ישירות בענן</p>
+            </div>
         </div>
+        
         <div>
-          <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">העלאת דוחות פנסיה</h2>
-          <p className="text-slate-400 dark:text-slate-500 text-xs">עד {MAX_FILES} קבצי PDF — מעובדים ישירות בענן</p>
+            <select
+               value={documentType}
+               onChange={(e) => setDocumentType(e.target.value)}
+               className={clsx(
+                 "bg-slate-50 dark:bg-slate-800 border text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px] transition-all",
+                 documentType === "" ? "border-orange-300 dark:border-orange-800 text-slate-400" : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+               )}
+            >
+               <option value="" disabled>בחר סוג מסמך...</option>
+               <option value="pension_report">דוח פנסיה שנתי (PDF)</option>
+               <option value="har_bituach">ריכוז ביטוחים - הר הביטוח (Excel)</option>
+               <option value="specific_policy">פוליסת ביטוח ספציפית (מסמך תנאים)</option>
+               <option value="alternative_investment">השקעה אלטרנטיבית (דוח רבעוני/שנתי)</option>
+            </select>
         </div>
       </div>
 
@@ -146,7 +181,7 @@ export default function UploadSection({ user, onSuccess }: Props) {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf"
+          accept=".pdf,.xlsx,.xls,.csv"
           multiple
           onChange={handleFileInputChange}
           className="hidden"
@@ -158,9 +193,9 @@ export default function UploadSection({ user, onSuccess }: Props) {
           <Upload className={clsx('w-5 h-5', isDragOver ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500')} />
         </div>
         <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-          {isDragOver ? 'שחרר כאן…' : 'גרור ושחרר קבצי PDF, או לחץ לבחירה'}
+          {isDragOver ? 'שחרר כאן…' : 'גרור ושחרר קבצי PDF/Excel/CSV, או לחץ לבחירה'}
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500">PDF בלבד · עד {MAX_FILES} קבצים</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">PDF, Excel, CSV בלבד · עד {MAX_FILES} קבצים</p>
       </div>
 
       {/* Selected files list */}
