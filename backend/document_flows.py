@@ -323,10 +323,12 @@ class PensionFlow(BaseDocumentFlow):
 
 class InsuranceFlow(BaseDocumentFlow):
     
-    def __init__(self, filename: str, is_spreadsheet: bool, f_profile: dict = None):
+    def __init__(self, filename: str, is_spreadsheet: bool, f_profile: dict = None, target_policy_id: str = None):
         super().__init__(f_profile)
         self.filename = filename
         self.is_spreadsheet = is_spreadsheet
+        self.target_policy_id = target_policy_id
+        print(f"📄 [INSURANCE-FLOW] Initialized: filename={filename}, is_spreadsheet={is_spreadsheet}, target_policy_id={target_policy_id}")
 
     async def extract_data(self, file_bytes: bytes, filename: str, uid: str) -> Any:
         # If it's har bituach (Excel/CSV)
@@ -336,11 +338,18 @@ class InsuranceFlow(BaseDocumentFlow):
             
         # If it's a specific PDF policy
         else:
-            # 1. Upload the physical document for preservation
-            from routers.documents import upload_to_firebase_storage
-            source_url = upload_to_firebase_storage(file_bytes, uid, filename)
+            print(f"📥 [INSURANCE-FLOW] Processing PDF policy: {filename} ({len(file_bytes)} bytes)")
+            # 1. Upload the physical document for preservation (best-effort — same as PensionFlow)
+            source_url = None
+            try:
+                from routers.documents import upload_to_firebase_storage
+                source_url = upload_to_firebase_storage(file_bytes, uid, filename)
+                print(f"☁️ [INSURANCE-FLOW] Document uploaded to storage: {source_url}")
+            except Exception as storage_err:
+                print(f"⚠️ [INSURANCE-FLOW] Storage upload skipped (non-fatal): {storage_err}")
             
             # 2. Extract core metadata via Claude
+            print(f"🤖 [INSURANCE-FLOW] Starting Claude Vision extraction...")
             from flow_utils import prepare_pdf_for_vision
             doc, _, _ = prepare_pdf_for_vision(file_bytes, self.f_profile)
             images_b64 = []
@@ -354,6 +363,7 @@ class InsuranceFlow(BaseDocumentFlow):
                 images_b64=images_b64,
                 prompt=prompts.POLICY_CORE_EXTRACTION_PROMPT
             )
+            print(f"✅ [INSURANCE-FLOW] Claude extraction complete. Extracted data for policy.")
             parsed_json["source_document_url"] = source_url
             return parsed_json
 
@@ -417,6 +427,7 @@ class InsuranceFlow(BaseDocumentFlow):
         return items_list
 
     async def save_to_db(self, uid: str, final_data: Any, action_items: list[dict]):
+        print(f"💾 [INSURANCE-FLOW] Saving to DB for UID: {uid}")
         existing_doc = db_manager.get_processed_portfolio(uid) or {
             "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}}, 
             "action_items": []
@@ -441,25 +452,62 @@ class InsuranceFlow(BaseDocumentFlow):
             existing_doc["action_items"] = filtered_items
             
         else:
-            # It's a specific policy JSON
-            provider = final_data.get("provider", "")
-            # Merge logic: find matching insurance fund and attach source_document_url
+            # It's a specific policy JSON from Claude extraction
+            # Robustness: Claude might return a list e.g. [{...}] if it's confused
+            if isinstance(final_data, list) and len(final_data) > 0:
+                final_data = final_data[0]
+            
+            if not isinstance(final_data, dict):
+                 print(f"⚠️ [FLOW] Expected dict for specific policy, got {type(final_data)}")
+                 return
+
+            # Map Claude fields to our internal schema
+            if "provider" in final_data:
+                final_data["provider_name"] = final_data.pop("provider")
+            if "policy_type" in final_data:
+                final_data["track_name"] = final_data.pop("policy_type")
+            if "monthly_premium" in final_data:
+                final_data["monthly_deposit"] = final_data.pop("monthly_premium")
+            
+            provider = final_data.get("provider_name", "")
             found = False
-            for o_key in ["user", "spouse"]:
-                for fund in existing_doc["portfolios"][o_key]["funds"]:
-                    if fund.get("category") == "insurance" and (provider in fund.get("provider_name", "")):
-                        fund["source_document_url"] = final_data.get("source_document_url")
-                        fund.update(final_data) # Inject metadata from Claude
-                        found = True
-                        break
+            
+            # 1. Try precise matching by target_policy_id if provided
+            if self.target_policy_id:
+                for o_key in ["user", "spouse"]:
+                    for fund in existing_doc["portfolios"][o_key]["funds"]:
+                        if fund.get("id") == self.target_policy_id:
+                            fund["source_document_url"] = final_data.get("source_document_url")
+                            # Update existing record with new metadata (preserving the ID)
+                            target_id = fund.get("id")
+                            fund.update(final_data)
+                            fund["id"] = target_id
+                            found = True
+                            print(f"🎯 [FLOW] Matched specific document to policy ID: {self.target_policy_id}")
+                            break
+                    if found: break
+
+            # 2. Fallback to provider name matching
+            if not found:
+                for o_key in ["user", "spouse"]:
+                    for fund in existing_doc["portfolios"][o_key]["funds"]:
+                        if fund.get("category") == "insurance" and (provider and provider in fund.get("provider_name", "")):
+                            fund["source_document_url"] = final_data.get("source_document_url")
+                            fund.update(final_data)
+                            found = True
+                            print(f"🔍 [FLOW] Matched specific document to policy via provider name: {provider}")
+                            break
+                    if found: break
             
             if not found:
+                 print(f"⚠️ [INSURANCE-FLOW] No matching policy found for '{provider}'. Creating new record.")
                  # If no existing record matched, attach a new one
                  final_data["category"] = "insurance"
                  existing_doc["portfolios"]["user"]["funds"].append(final_data)
                  
         db_manager.save_processed_portfolio(uid, existing_doc)
         db_manager.clear_cache_for_uid(uid)
+        print(f"🏁 [INSURANCE-FLOW] DB update complete.")
 
 
 class AlternativeInvestmentFlow(BaseDocumentFlow):

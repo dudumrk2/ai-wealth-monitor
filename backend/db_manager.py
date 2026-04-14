@@ -258,18 +258,11 @@ def save_processed_portfolio(uid: str, portfolio_data: dict):
     if db is None:
         print("⚠️ [DB_MANAGER] Firestore not initialized (missing key). Skipping save.")
         return False
-    # print(f"DEBUG DATA: {json.dumps(portfolio_data, indent=2, ensure_ascii=False)}")
     try:
         doc_ref = db.collection("portfolios").document(uid)
         doc_ref.set(portfolio_data)
         _processed_portfolio_cache[uid] = (portfolio_data, time.time()) # update cache explicitly
         print(f"✅ [DB_MANAGER] Successfully saved portfolio for {uid}")
-        print("--- SAVED DATA PREVIEW ---")
-        # Print a summary or first few items to avoid giant logs in terminal but still show it's working
-        print(f"Keys saved: {list(portfolio_data.keys())}")
-        print(f"Action items count: {len(portfolio_data.get('action_items', []))}")
-        print(f"Funds count (user): {len(portfolio_data.get('portfolios', {}).get('user', {}).get('funds', []))}")
-        print("--- END PREVIEW ---")
         return True
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error saving portfolio: {e}")

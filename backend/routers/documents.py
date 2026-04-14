@@ -5,7 +5,7 @@ import uuid
 import time
 import json
 import urllib.parse
-from typing import List
+from typing import List, Optional
 import io
 import pandas as pd
 
@@ -27,11 +27,13 @@ def upload_to_firebase_storage(pdf_bytes: bytes, uid: str, filename: str) -> str
          # Fallback inference if env var isn't explicitly set
          try:
              app = firebase_admin.get_app()
-             # Normally project_id exists if authenticated
-             bucket_name = f"{app.project_id}.appspot.com"
+             # Use the modern .firebasestorage.app suffix provided by user
+             bucket_name = f"{app.project_id}.firebasestorage.app"
          except Exception:
-             bucket_name = "ai-wealth-monitor.appspot.com" # fallback standard
+             bucket_name = "ai-wealth-monitor.firebasestorage.app" # fallback standard
              
+    print(f"☁️ [STORAGE] Attempting upload to bucket: {bucket_name}")
+    
     bucket = storage.bucket(bucket_name)
     blob_name = f"policies/{uid}/{uuid.uuid4().hex}_{filename}"
     blob = bucket.blob(blob_name)
@@ -41,6 +43,7 @@ def upload_to_firebase_storage(pdf_bytes: bytes, uid: str, filename: str) -> str
     blob.metadata = {"firebaseStorageDownloadTokens": token}
     
     blob.upload_from_string(pdf_bytes, content_type="application/pdf")
+    print(f"✅ [STORAGE] Uploaded {blob_name} to Firebase.")
     
     encoded_name = urllib.parse.quote(blob_name, safe='')
     return f"https://firebasestorage.googleapis.com/v0/b/{bucket_name}/o/{encoded_name}?alt=media&token={token}"
@@ -88,15 +91,6 @@ def _extract_har_bituach_data(file_bytes: bytes, filename: str) -> List[dict]:
 
         print(f"📊 [HAR_BITUACH] Loaded {len(df)} rows from {filename}. Header found at row {best_row_idx}.")
         
-        # Dump debug trace 
-        try:
-            with open("debug_har_bituach.txt", "w", encoding="utf-8") as f:
-                f.write(f"Filename: {filename}\n")
-                f.write(f"Detected Header Row Index: {best_row_idx}\n")
-                f.write(f"Raw first 10 rows (without headers):\n{df_raw.head(10).to_string()}\n\n")
-                f.write(f"Columns after setting headers: {list(df.columns)}\n")
-        except: pass
-
         # 1. Standardize columns (fuzzy Hebrew match)
         col_map = {
             'מבטח': 'provider_name',
@@ -245,12 +239,6 @@ def _extract_har_bituach_data(file_bytes: bytes, filename: str) -> List[dict]:
         extracted = list(policy_aggregator.values())
             
         print(f"✅ [HAR_BITUACH] Extracted {len(extracted)} active aggregated products.")
-        if extracted:
-            print("--- הנתונים שחולצו (וולידציה) ---")
-            for i, p in enumerate(extracted, 1):
-                print(f"{i}. חברה: {p['provider_name']} | פוליסה: {p['track_name']} | פרמיה חודשית: {p['monthly_deposit']} ש״ח | תוקף: {p['expiration_date']}")
-            print("---------------------------------")
-            
         return extracted
     except Exception as e:
         print(f"💥 [HAR_BITUACH] Failed to parse: {e}")
@@ -308,6 +296,7 @@ async def upload_document(
     file: UploadFile = File(...),
     uid: str = Form(...),
     document_type: str = Form(...),
+    policy_id: Optional[str] = Form(None),
     user: dict = Depends(verify_token)
 ):
     """
@@ -318,7 +307,7 @@ async def upload_document(
     if user.get("uid") != uid and uid != "CURRENT_UID":
          uid = user.get("uid")
          
-    print(f"\n🚀 [DOCUMENTS] INCOMING REQUEST: /api/documents/upload for uid={uid}, type={document_type}")
+    print(f"\n🚀 [DOCUMENTS] INCOMING REQUEST: /api/documents/upload for uid={uid}, type={document_type}, policy_id={policy_id}")
     
     from report_utils import (
         _redact_and_render_pdf,
@@ -346,7 +335,7 @@ async def upload_document(
             elif document_type in ("har_bituach", "specific_policy"):
                 from document_flows import InsuranceFlow
                 is_spreadsheet = filename_lower.endswith('.csv') or filename_lower.endswith('.xlsx') or filename_lower.endswith('.xls')
-                flow = InsuranceFlow(filename=file.filename, is_spreadsheet=is_spreadsheet, f_profile=family_profile)
+                flow = InsuranceFlow(filename=file.filename, is_spreadsheet=is_spreadsheet, f_profile=family_profile, target_policy_id=policy_id)
                 return await flow.process(file_bytes, file.filename, uid)
                 
             elif document_type == "alternative_investment":

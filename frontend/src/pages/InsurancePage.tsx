@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  UploadCloud, AlertCircle, Car, HeartPulse, Home, FileText, ShieldAlert, Info, MessageCircle, X, Loader2, Trash2
+  UploadCloud, AlertCircle, Car, HeartPulse, Home, FileText, ShieldAlert, Info, MessageCircle, X, Loader2, Trash2, Upload
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
+import PolicyUploadModal from '../components/PolicyUploadModal';
 import type { ActionItem } from '../types/portfolio';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -22,6 +23,10 @@ export default function InsurancePage() {
   // Compare State
   const [comparingId, setComparingId] = useState<string | null>(null);
   const [compareDraft, setCompareDraft] = useState<string | null>(null);
+
+  // Upload Modal State
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState<{id: string, name: string} | null>(null);
 
   const fetchPortfolio = useCallback(async (options?: { refreshAi?: boolean }) => {
     if (!user) return;
@@ -260,11 +265,23 @@ export default function InsurancePage() {
                             <span className="font-medium text-slate-200">{fund.expiration_date || 'לא צוין'}</span>
                         </div>
                         <div className="flex justify-between text-sm items-center mt-4 pt-4 border-t border-slate-700/50">
-                            <span className="text-slate-400">מקור:</span>
+                            <span className="text-slate-400 font-medium">מסמך מקור:</span>
                             {fund.source_document_url ? (
-                                <a href={fund.source_document_url} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-400 underline decoration-blue-500/30">צפה במסמך</a>
+                                <a href={fund.source_document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-bold text-blue-400 hover:text-blue-300 transition-colors underline decoration-blue-500/30">
+                                    <FileText size={14} />
+                                    צפה במסמך
+                                </a>
                             ) : (
-                                <span className="font-bold text-amber-500">ללא גיבוי מסמך</span>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedPolicy({ id: fund.id, name: fund.track_name || 'פוליסת ביטוח' });
+                                    setIsUploadModalOpen(true);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 font-bold text-amber-500 hover:text-amber-400 transition-colors"
+                                >
+                                    <Upload size={14} />
+                                    העלאת פוליסה
+                                </button>
                             )}
                         </div>
                     </div>
@@ -328,6 +345,18 @@ export default function InsurancePage() {
                 </div>
             </div>
         </div>
+      )}
+
+      {/* ─── Policy Upload Modal ─── */}
+      {user && (
+        <PolicyUploadModal 
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          onSuccess={() => fetchPortfolio()}
+          policyId={selectedPolicy?.id || ''}
+          policyName={selectedPolicy?.name || ''}
+          uid={user.uid}
+        />
       )}
 
     </DashboardLayout>
