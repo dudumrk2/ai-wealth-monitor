@@ -150,6 +150,49 @@ async def delete_fund(fund_id: str, user: dict = Depends(verify_token)):
         
     db_manager.save_processed_portfolio(uid, portfolio_doc)
     return {"status": "ok", "message": "הפוליסה הוסרה בהצלחה"}
+
+@app.get("/api/portfolio/fx-rate")
+async def get_fx_rate(user: dict = Depends(verify_token)):
+    """
+    Get the global USD/ILS exchange rate. Uses Firestore cache (config/fx_rates) with 12 hour TTL.
+    """
+    import aiohttp
+    import datetime
+    
+    # 1. Check cache first
+    cached = db_manager.get_fx_rate()
+    if cached:
+        print(f"💰 [APP] Returning cached FX rate: {cached['rate']} from {cached['date']}")
+        return {"rate": cached["rate"], "date": cached["date"], "is_fallback": False, "cached": True}
+        
+    # 2. Fetch fresh if no cache or stale
+    print(f"💰 [APP] Fetching fresh FX rate from API...")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.frankfurter.app/latest?from=USD&to=ILS', timeout=5) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    rate = data['rates']['ILS']
+                    date_str = data['date']
+                    
+                    # Ensure it is a float
+                    rate = float(rate)
+                    
+                    # Save to cache
+                    db_manager.save_fx_rate(rate, date_str)
+                    
+                    return {"rate": rate, "date": date_str, "is_fallback": False, "cached": False}
+                else:
+                    print(f"⚠️ [APP] frankfurter.app returned status {response.status}")
+    except Exception as e:
+        print(f"💥 [APP] Error fetching FX rate: {e}")
+        
+    # 3. Fallback
+    fallback_rate = 3.70
+    fallback_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    print(f"💰 [APP] Using fallback FX rate: {fallback_rate}")
+    return {"rate": fallback_rate, "date": fallback_date, "is_fallback": True, "cached": False}
+
 @app.get("/api/portfolio")
 async def get_portfolio(
     refresh_market: bool = False,
@@ -205,14 +248,16 @@ async def get_portfolio(
         return {
             "last_updated": last_updated,
             "portfolios": portfolios,
-            "action_items": action_items
+            "action_items": action_items,
+            "stocks": portfolio_doc.get("stocks", [])
         }
     
     print(f"⚠️ [APP] Portfolio not found in Firestore for {uid}. Falling back to mock data.")
     return {
         "last_updated": MOCK_DATA["last_updated"],
         "portfolios": MOCK_DATA["portfolios"],
-        "action_items": MOCK_DATA["action_items"]
+        "action_items": MOCK_DATA["action_items"],
+        "stocks": []
     }
 
 @app.get("/api/action-items")

@@ -547,3 +547,27 @@ class AlternativeInvestmentFlow(BaseDocumentFlow):
             
         existing_doc["portfolios"]["user"]["alternative_investments"].append(final_data)
         db_manager.save_processed_portfolio(uid, existing_doc)
+        
+class StocksFlow(BaseDocumentFlow):
+    async def extract_data(self, file_bytes: bytes, filename: str, uid: str) -> list[dict]:
+        from routers.documents import _extract_stocks
+        return _extract_stocks(file_bytes, filename)
+
+    async def analyze_and_advise(self, enriched_data: Any) -> list[dict]:
+        return []
+
+    async def save_to_db(self, uid: str, final_data: list[dict], action_items: list[dict]):
+        existing_doc = db_manager.get_processed_portfolio(uid) or {
+            "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}}, 
+            "action_items": []
+        }
+        
+        # We wipe out any existing stocks marked as 'file_upload' and add the new ones
+        existing_stocks = existing_doc.get("stocks", [])
+        retained_stocks = [s for s in existing_stocks if s.get("source") != "file_upload"]
+        
+        existing_doc["stocks"] = retained_stocks + final_data
+        
+        db_manager.save_processed_portfolio(uid, existing_doc)
+        db_manager.clear_cache_for_uid(uid)
+

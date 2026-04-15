@@ -340,3 +340,48 @@ def get_market_cache(track_name: str):
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error reading market cache for '{track_name}': {e}")
         return None
+
+# ──────────────────────────────────────────────────────────────────────────────
+# FX Rate Global Cache
+# Collection: config / Document ID: fx_rates
+# ──────────────────────────────────────────────────────────────────────────────
+
+def save_fx_rate(rate: float, date_str: str) -> bool:
+    """Save the global USD/ILS exchange rate to Firestore."""
+    if db is None:
+        return False
+    try:
+        doc_ref = db.collection("config").document("fx_rates")
+        doc_ref.set({
+            "usd_ils": {
+                "rate": rate,
+                "date": date_str,
+                "fetched_at": firestore.SERVER_TIMESTAMP
+            }
+        }, merge=True)
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving FX rate: {e}")
+        return False
+
+def get_fx_rate() -> dict | None:
+    """Get the global USD/ILS exchange rate from Firestore."""
+    if db is None:
+        return None
+    try:
+        doc_ref = db.collection("config").document("fx_rates")
+        doc = doc_ref.get()
+        if doc.exists:
+            data = doc.to_dict().get("usd_ils", {})
+            # check the timestamp
+            fetched_at = data.get("fetched_at")
+            if fetched_at:
+                now = datetime.datetime.now(datetime.timezone.utc)
+                diff_hours = (now - fetched_at).total_seconds() / 3600
+                if diff_hours < 12:
+                    return data
+            print(f"ℹ️ [DB_MANAGER] FX rate cache STALE or missing.")
+        return None
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error getting FX rate: {e}")
+        return None

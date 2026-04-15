@@ -32,7 +32,7 @@ export default function DashboardLayout({ children, onRefresh, isRefreshing }: D
   const navLinks = [
     { name: 'דשבורד', path: '/dashboard', icon: LayoutDashboard },
     { name: 'פנסיה', path: '/pension', icon: Landmark },
-    { name: 'בורסה', path: '/market', icon: LineChart },
+    { name: 'בורסה', path: '/stocks', icon: LineChart },
     { name: 'אלטרנטיבי', path: '/alternative', icon: HandCoins },
     { name: 'ביטוח', path: '/insurance', icon: Shield },
   ];

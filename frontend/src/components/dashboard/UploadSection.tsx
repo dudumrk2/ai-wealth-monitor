@@ -114,10 +114,16 @@ export default function UploadSection({ user, onSuccess }: Props) {
       }
 
       const filesCount = selectedFiles.length;
-      const productsFound = lastData?.products_found_in_file ?? 0;
-      const aiItems = lastData?.action_items_added_or_refreshed ?? 0;
-      setUploadState('success');
-      setStatusMessage(`✅ עובדו ${filesCount} קבצים — נמצאו ${productsFound} מוצרים, יוצרו ${aiItems} המלצות חדשות!`);
+      if (documentType === 'stocks_portfolio') {
+          const imported = lastData?.extracted_count ?? 0;
+          setUploadState('success');
+          setStatusMessage(`✅ עובדו ${filesCount} קבצים — יובאו ${imported} נכסים לתיק!`);
+      } else {
+          const productsFound = lastData?.products_found_in_file ?? 0;
+          const aiItems = lastData?.action_items_added_or_refreshed ?? 0;
+          setUploadState('success');
+          setStatusMessage(`✅ עובדו ${filesCount} קבצים — נמצאו ${productsFound} מוצרים, יוצרו ${aiItems} המלצות חדשות!`);
+      }
       setSelectedFiles([]);
       setDocumentType('');
       onSuccess();
@@ -158,6 +164,7 @@ export default function UploadSection({ user, onSuccess }: Props) {
                <option value="" disabled>בחר סוג מסמך...</option>
                <option value="pension_report">דוח פנסיה שנתי (PDF)</option>
                <option value="har_bituach">ריכוז ביטוחים - הר הביטוח (Excel)</option>
+               <option value="stocks_portfolio">תיק מניות — ייצוא מניות (Excel/CSV)</option>
                <option value="specific_policy">פוליסת ביטוח ספציפית (מסמך תנאים)</option>
                <option value="alternative_investment">השקעה אלטרנטיבית (דוח רבעוני/שנתי)</option>
             </select>

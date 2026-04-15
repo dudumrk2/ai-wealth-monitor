@@ -244,6 +244,117 @@ def _extract_har_bituach_data(file_bytes: bytes, filename: str) -> List[dict]:
         print(f"💥 [HAR_BITUACH] Failed to parse: {e}")
         return []
 
+def _extract_stocks(file_bytes: bytes, filename: str) -> List[dict]:
+    """
+    Deterministic extraction from Stock Portfolio CSV/Excel.
+    Expects specific column headers like 'שם', 'סימבול', 'שער אחרון', 'כמות', 'מטבע'.
+    """
+    try:
+        is_csv = filename.lower().endswith('.csv')
+        
+        if is_csv:
+            try:
+                df = pd.read_csv(io.BytesIO(file_bytes), encoding='utf-8-sig', dtype=str)
+            except:
+                df = pd.read_csv(io.BytesIO(file_bytes), encoding='cp1255', dtype=str)
+        else:
+            import openpyxl # Ensure it's imported
+            df = pd.read_excel(io.BytesIO(file_bytes), dtype=str)
+            
+        print(f"📊 [STOCKS] Loaded {len(df)} rows from {filename}.")
+        
+        # Mapping rules based on the user's uploaded snapshot
+        col_map = {
+            'שם': 'name',
+            'סימבול': 'symbol',
+            'שער אחרון': 'lastPrice',
+            'שינוי %': 'dailyChangePercent',
+            'שינוי%': 'dailyChangePercent',
+            'רווח/הפסד יומי': 'dailyPnlOriginal',
+            'רווח/הפסד כולל': 'totalPnlOriginal',
+            'תשואה ממוצעת': 'totalReturnPercent', # Based on the image, this might be 'תשואה מצטברת' or similar
+            'תשואה': 'totalReturnPercent',
+            'שווי כולל': 'totalValueOriginal',
+            'כמות': 'qty',
+            'שער עלות ממוצע': 'avgCostPrice',
+            'מטבע': 'currency'
+        }
+        
+        # Fallback mappings for slightly different CSV formats
+        assigned_destinations = set()
+        found_cols = {}
+        for c in df.columns:
+            c_str = str(c).replace('\n', ' ').strip()
+            for k, v in col_map.items():
+                if k in c_str and v not in assigned_destinations:
+                    found_cols[c] = v
+                    assigned_destinations.add(v)
+                    break
+                    
+        df = df.rename(columns=found_cols)
+        
+        # Drop rows that don't have a symbol or a name (likely summary rows or empty)
+        if 'symbol' in df.columns and 'name' in df.columns:
+            df = df.dropna(subset=['symbol', 'name'], how='all')
+            
+        extracted_stocks = []
+        
+        for _, row in df.iterrows():
+            symbol = str(row.get('symbol', '')).strip()
+            name = str(row.get('name', '')).strip()
+            if not symbol and not name:
+                continue
+                
+            currency = str(row.get('currency', 'USD')).strip()
+            if currency not in ['USD', 'ILS']:
+                 # Try to infer currency from symbol if missing
+                 if any('\u0590' <= c <= '\u05EA' for c in name) or symbol.isnumeric():
+                     currency = 'ILS'
+                 else:
+                     currency = 'USD'
+            
+            # Simple sector detection
+            sector = "us_tech" if currency == 'USD' else "israel_tech"
+            if currency == 'ILS' and ('סל' in name or 'מחק' in name or 'ETF' in name.upper()):
+                sector = "israel_index"
+            elif currency == 'USD' and ('ETF' in name.upper() or 'VANGUARD' in name.upper() or 'ISHARES' in name.upper()):
+                sector = "us_index"
+                
+            def sfloat(val):
+                try:
+                    if pd.isna(val): return 0.0
+                    return float(str(val).replace(',', ''))
+                except:
+                    return 0.0
+
+            holding = {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "symbol": symbol,
+                "currency": currency,
+                "qty": sfloat(row.get('qty', 0)),
+                "lastPrice": sfloat(row.get('lastPrice', 0)),
+                "avgCostPrice": sfloat(row.get('avgCostPrice', 0)),
+                "totalValueOriginal": sfloat(row.get('totalValueOriginal', 0)),
+                "dailyChangePercent": sfloat(row.get('dailyChangePercent', 0)),
+                "dailyPnlOriginal": sfloat(row.get('dailyPnlOriginal', 0)),
+                "totalPnlOriginal": sfloat(row.get('totalPnlOriginal', 0)),
+                "totalReturnPercent": sfloat(row.get('totalReturnPercent', 0)),
+                "sector": sector,
+                "source": "file_upload",
+                "uploaded_at": datetime.datetime.now().isoformat()
+            }
+            
+            # Basic validation to ensure we don't save empty rows
+            if holding["qty"] > 0 or holding["totalValueOriginal"] > 0:
+                 extracted_stocks.append(holding)
+
+        print(f"✅ [STOCKS] Extracted {len(extracted_stocks)} stock holdings.")
+        return extracted_stocks
+        
+    except Exception as e:
+        print(f"💥 [STOCKS] Failed to parse: {e}")
+        return []
 
 def normalize_id(oid) -> str:
     """Normalize an Israeli ID number by stripping floats and leading zeros for consistent comparison."""
@@ -322,7 +433,7 @@ async def upload_document(
     # For now, we route matching types directly to the new classes and return early.
     # The old code is kept below as a fallback until testing is complete.
     try:
-        if document_type in ("pension_report", "har_bituach", "specific_policy", "alternative_investment"):
+        if document_type in ("pension_report", "har_bituach", "specific_policy", "alternative_investment", "stocks_portfolio"):
             print(f"🔀 [DOCUMENTS] Routing {document_type} to new Flow Classes...")
             file_bytes = await file.read()
             family_profile = db_manager.get_family_profile(uid) or {}
@@ -341,6 +452,11 @@ async def upload_document(
             elif document_type == "alternative_investment":
                 from document_flows import AlternativeInvestmentFlow
                 flow = AlternativeInvestmentFlow(f_profile=family_profile)
+                return await flow.process(file_bytes, file.filename, uid)
+                
+            elif document_type == "stocks_portfolio":
+                from document_flows import StocksFlow
+                flow = StocksFlow(f_profile=family_profile)
                 return await flow.process(file_bytes, file.filename, uid)
                 
     except Exception as e:

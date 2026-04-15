@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import Pension from './pages/Pension';
 import InsurancePage from './pages/InsurancePage';
 import Settings from './pages/Settings';
+import StocksDashboard from './pages/StocksDashboard';
 
 /**
  * Route Guard: only for authenticated users.
@@ -86,6 +87,16 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <InsurancePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected: Stocks Portfolio (requires auth + onboarding) */}
+        <Route
+          path="/stocks"
+          element={
+            <ProtectedRoute>
+              <StocksDashboard />
             </ProtectedRoute>
           }
         />
