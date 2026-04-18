@@ -1,6 +1,7 @@
 # AI Model Definitions
 CLAUDE_MODEL_NAME = "claude-sonnet-4-6"
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
+GEMINI_PRO_MODEL_NAME = "gemini-2.5-pro"
 
 # Document Parsing Settings
 PDF_SKIP_PAGES = 1

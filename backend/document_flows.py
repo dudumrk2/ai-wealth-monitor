@@ -571,3 +571,50 @@ class StocksFlow(BaseDocumentFlow):
         db_manager.save_processed_portfolio(uid, existing_doc)
         db_manager.clear_cache_for_uid(uid)
 
+        # Also sync to 'holdings' subcollection for cron job and dashboard refresh
+        import datetime
+        
+        # Calculate aggregate totals for the Dashboard Summary
+        fx_rate_dict = db_manager.get_fx_rate()
+        rate = fx_rate_dict.get("rate", 3.70) if fx_rate_dict else 3.70
+        
+        total_value_ils = 0.0
+        total_daily_pnl_ils = 0.0
+        total_pnl_ils = 0.0
+        total_invested_ils = 0.0
+
+        for stock in final_data:
+            symbol = stock.get("symbol")
+            if not symbol: continue
+            
+            currency = stock.get("currency", "USD")
+            r = rate if currency == "USD" else 1.0
+            
+            v_orig = stock.get("totalValueOriginal", 0.0)
+            dp_orig = stock.get("dailyPnlOriginal", 0.0)
+            tp_orig = stock.get("totalPnlOriginal", 0.0)
+            
+            val = v_orig * r
+            total_value_ils += val
+            total_daily_pnl_ils += dp_orig * r
+            total_pnl_ils += tp_orig * r
+            total_invested_ils += (val - (tp_orig * r))
+
+            # Sync individual holding
+            updates = {
+                "current_price": stock.get("lastPrice", 0.0),
+                "shares": stock.get("qty", 0.0),
+                "average_cost": stock.get("avgCostPrice", 0.0),
+                "last_updated": stock.get("uploaded_at", datetime.datetime.now().isoformat()),
+                "name": stock.get("name", ""),
+                "currency": currency
+            }
+            db_manager.update_family_holding(uid, symbol, updates)
+
+        # Update the main family-level summary for the dashboard
+        daily_base = total_value_ils - total_daily_pnl_ils
+        daily_return_pct = (total_daily_pnl_ils / daily_base * 100) if daily_base > 0 else 0.0
+        total_return_pct = (total_pnl_ils / total_invested_ils * 100) if total_invested_ils > 0 else 0.0
+        
+        db_manager.update_portfolio_summary(uid, total_value_ils, daily_return_pct, total_return_pct)
+

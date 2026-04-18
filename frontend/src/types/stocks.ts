@@ -3,10 +3,13 @@
 export type StockCurrency = 'USD' | 'ILS';
 
 export type StockSector =
-  | 'us_tech'    // US Technology stocks
-  | 'us_etf'     // US ETFs
-  | 'il_stocks'  // Israeli equities
-  | 'il_bonds';  // Israeli bonds / bond-like instruments
+  | 'mutual_funds'  // קרנות נאמנות
+  | 'etf'           // קרנות סל
+  | 'foreign_funds' // קרנות חוץ
+  | 'stocks'        // מניות
+  | 'bonds'         // אג"ח
+  | 'makam'         // מק"מ
+  | 'cash';         // מזומן
 
 export interface StockHolding {
   id: string;
@@ -35,15 +38,21 @@ export interface ExchangeRate {
 }
 
 export const SECTOR_LABELS: Record<StockSector, string> = {
-  us_tech:   'מניות טכנולוגיה ארה"ב',
-  us_etf:    'תעודות סל ארה"ב',
-  il_stocks: 'ניירות ערך ישראליים',
-  il_bonds:  'אגרות חוב ישראליות',
+  mutual_funds:  'קרנות נאמנות',
+  etf:           'קרנות סל',
+  foreign_funds: 'קרנות חוץ',
+  stocks:        'מניות',
+  bonds:         'אג"ח',
+  makam:         'מק"מ',
+  cash:          'מזומן',
 };
 
 export const SECTOR_COLORS: Record<StockSector, string> = {
-  us_tech:   '#3b82f6', // blue
-  us_etf:    '#10b981', // emerald
-  il_stocks: '#8b5cf6', // violet
-  il_bonds:  '#f59e0b', // amber
+  mutual_funds:  '#a855f7', // Purple
+  etf:           '#3b82f6', // Blue
+  foreign_funds: '#f97316', // Orange
+  stocks:        '#2dd4bf', // Teal/Cyan
+  bonds:         '#22c55e', // Green
+  makam:         '#1e3a8a', // Dark blue
+  cash:          '#fdba74', // Light orange
 };

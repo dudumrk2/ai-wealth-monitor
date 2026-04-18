@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request, UploadFile, File, Form
 import firebase_admin
 import datetime
+import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -13,6 +14,8 @@ import fitz # PyMuPDF
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from firebase_admin import auth
+import requests
+from bs4 import BeautifulSoup
 
 import sys
 import time
@@ -66,8 +69,76 @@ from report_utils import (
 
 
 
+# --- STOCK SCRAPING HELPERS ---
+import re
+import json
 
-# Test UID removed - now using dynamic UID from token
+def fetch_bizportal_fund_data(ticker: str) -> Optional[dict]:
+    """
+    Fetches the latest price for an Israeli mutual fund or ETF from Bizportal.
+    Target URL: https://www.bizportal.co.il/mutualfunds/quote/generalview/{ticker}
+    Returns a dict with 'current_price' and 'previous_close'.
+    """
+    url = f"https://www.bizportal.co.il/mutualfunds/quote/generalview/{ticker}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"⚠️ [BIZPORTAL] HTTP {response.status_code} for fund {ticker}")
+            return None
+            
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract Current Price
+        # Bizportal stores prices inside `<div class="num">`
+        num_divs = soup.find_all('div', class_='num')
+        if not num_divs:
+            print(f"❌ [BIZPORTAL] Could not find price container (.num) for fund {ticker}")
+            return None
+        
+        current_price_str = num_divs[0].get_text().strip().replace(",", "")
+        current_price_agorot = float(current_price_str)
+        
+        # Bizportal prices are in AGOROT (1/100 of NIS), convert to NIS
+        current_price = current_price_agorot / 100.0
+        
+        # Extract Daily PCT Change
+        # Bizportal stores pct change in `<span class="num percent rise">` or `<span class="num percent drop">`
+        pct_change = 0.0
+        rise_span = soup.select_one('.num.percent.rise')
+        drop_span = soup.select_one('.num.percent.drop')
+        
+        if rise_span:
+            pct_str = rise_span.get_text().strip().replace("%", "").replace(",", "")
+            pct_change = float(pct_str)
+        elif drop_span:
+            pct_str = drop_span.get_text().strip().replace("%", "").replace(",", "")
+            pct_change = -float(pct_str)
+            
+        # Calculate Previous Close
+        # formula: current_price = previous_close * (1 + pct_change/100) -> previous_close = current_price / (1 + pct_change/100)
+        if pct_change != -100.0:
+            previous_close = current_price / (1 + (pct_change / 100))
+        else:
+            previous_close = current_price # Fallback to prevent division by zero edge-cases
+            
+        return {
+            "current_price": current_price,
+            "previous_close": previous_close,
+            "pct_change": pct_change
+        }
+
+    except Exception as e:
+        print(f"❌ [BIZPORTAL] Failed to scrape Bizportal for fund {ticker}: {e}")
+        return None
+
+# --- DATABASE HELPERS ---
 
 app = FastAPI(title="AI Family Pension & Wealth Monitor API")
 
@@ -193,6 +264,44 @@ async def get_fx_rate(user: dict = Depends(verify_token)):
     print(f"💰 [APP] Using fallback FX rate: {fallback_rate}")
     return {"rate": fallback_rate, "date": fallback_date, "is_fallback": True, "cached": False}
 
+def _calculate_stock_summary_data(stocks: list, fx_rate: float) -> dict:
+    """Calculate aggregate totals for the stock portfolio in ILS."""
+    if not stocks:
+        return {"total_value": 0, "daily_return": 0, "total_return": 0}
+        
+    total_value_ils = 0.0
+    total_daily_pnl_ils = 0.0
+    total_pnl_ils = 0.0
+    total_invested_ils = 0.0
+
+    for stock in stocks:
+        symbol = stock.get("symbol")
+        if not symbol: continue
+        
+        currency = stock.get("currency", "USD")
+        r = fx_rate if currency == "USD" else 1.0
+        
+        # Prefer new naming from scraper, fallback to Excel naming
+        v_orig = stock.get("totalValueOriginal", stock.get("value", 0.0))
+        dp_orig = stock.get("dailyPnlOriginal", stock.get("dailyPnl", 0.0))
+        tp_orig = stock.get("totalPnlOriginal", stock.get("totalPnl", 0.0))
+        
+        val_ils = v_orig * r
+        total_value_ils += val_ils
+        total_daily_pnl_ils += dp_orig * r
+        total_pnl_ils += tp_orig * r
+        total_invested_ils += (val_ils - (tp_orig * r))
+
+    daily_base = total_value_ils - total_daily_pnl_ils
+    daily_return_pct = (total_daily_pnl_ils / daily_base * 100) if daily_base > 0 else 0.0
+    total_return_pct = (total_pnl_ils / total_invested_ils * 100) if total_invested_ils > 0 else 0.0
+    
+    return {
+        "total_value": total_value_ils,
+        "daily_return": daily_return_pct,
+        "total_return": total_return_pct
+    }
+
 @app.get("/api/portfolio")
 async def get_portfolio(
     refresh_market: bool = False,
@@ -245,11 +354,21 @@ async def get_portfolio(
             print(f"☁️ [APP] Saving updated portfolio after refresh...")
             db_manager.save_processed_portfolio(uid, portfolio_doc)
 
+        # Get FX rate
+        fx_rate_data = db_manager.get_fx_rate()
+        fx_rate = fx_rate_data.get("rate", 3.70) if fx_rate_data else 3.70
+
+        # ALWAYS calculate fresh summary for the dashboard
+        stocks_list = portfolio_doc.get("stocks", [])
+        stock_summary = _calculate_stock_summary_data(stocks_list, fx_rate)
+
         return {
             "last_updated": last_updated,
             "portfolios": portfolios,
             "action_items": action_items,
-            "stocks": portfolio_doc.get("stocks", [])
+            "stocks": stocks_list,
+            "stock_portfolio_summary": stock_summary,
+            "fx_rate": fx_rate
         }
     
     print(f"⚠️ [APP] Portfolio not found in Firestore for {uid}. Falling back to mock data.")
@@ -259,6 +378,162 @@ async def get_portfolio(
         "action_items": MOCK_DATA["action_items"],
         "stocks": []
     }
+
+
+async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") -> dict:
+    """
+    Unified logic to refresh stock prices and FX rates for a specific user.
+    Called both by manual refresh and automated cron jobs.
+    """
+    # 1. Refresh USD/ILS FX Rate first
+    try:
+        fx_ticker = yf.Ticker("USDILS=X")
+        fx_data = fx_ticker.history(period="1d")
+        if not fx_data.empty:
+            new_rate = float(fx_data['Close'].iloc[-1])
+            db_manager.save_fx_rate(new_rate, datetime.datetime.now().strftime("%Y-%m-%d"))
+            print(f"💰 [{source_label}] Updated FX Rate: {new_rate}")
+    except Exception as e:
+        print(f"⚠️ [{source_label}] Failed to update FX rate: {e}")
+
+    # 2. Identify stocks to update
+    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    if not portfolio_doc:
+        return {"updated": 0, "message": "No portfolio found"}
+        
+    stocks = portfolio_doc.get("stocks", [])
+    if not stocks:
+        return {"updated": 0, "message": "No holdings found"}
+        
+    total_value = 0.0
+    total_daily_return_value = 0.0
+    total_invested = 0.0
+    updated_count = 0
+    
+    print(f"🔄 [{source_label}] Starting refresh for UID: {uid} ({len(stocks)} symbols)")
+    
+    for holding in stocks:
+        symbol = holding.get("symbol")
+        if not symbol: continue
+        
+        try:
+            # Normalize: if numeric, append .TA for Yahoo Finance
+            ticker = str(symbol).strip()
+            current_price = None
+            previous_close = None
+            method_label = "yfinance"
+    
+            if ticker.isdigit():
+                # Israeli Mutual Fund / ETF - Use Bizportal
+                method_label = "Bizportal"
+                fund_data = fetch_bizportal_fund_data(ticker)
+                if fund_data:
+                    current_price = fund_data["current_price"]
+                    previous_close = fund_data["previous_close"]
+                else:
+                    print(f"⚠️ [{source_label}] Bizportal fetch failed for {ticker}, skipping price update.")
+            else:
+                # US/Other Stock - Use yfinance
+                try:
+                    t = yf.Ticker(ticker)
+                    hist = t.history(period="5d")
+                    if not hist.empty:
+                        current_price = float(hist['Close'].iloc[-1])
+                        previous_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
+                    else:
+                        print(f"⚠️ [{source_label}] No yfinance history found for ticker {ticker}")
+                except Exception as yf_e:
+                    print(f"⚠️ [{source_label}] yfinance error for {ticker}: {yf_e}")
+    
+            old_price = holding.get("lastPrice", holding.get("current_price", 0.0))
+            
+            if current_price is None:
+                # Fallback to existing calculations if fetch failed
+                shares = float(holding.get("qty", holding.get("shares", 0.0)))
+                holding_value = shares * float(old_price)
+                avg_cost = float(holding.get("avgCostPrice", holding.get("average_cost", old_price)))
+                total_value += holding_value
+                total_invested += shares * avg_cost
+                total_daily_return_value += float(holding.get("dailyPnlOriginal", 0.0))
+                continue
+                
+            diff = current_price - float(old_price)
+            pct_change = (diff / float(old_price) * 100) if float(old_price) > 0 else 0.0
+            
+            # Extract shares for log
+            shares_for_log = float(holding.get("qty", holding.get("shares", 0.0)))
+            print(f"📊 [{source_label}] {symbol} ({shares_for_log:,.2f} units) via {method_label}: {float(old_price):.2f} -> {current_price:.2f} (Δ: {diff:+.2f}, {pct_change:+.2f}%)")
+    
+            # Compute aggregations for THIS stock
+            shares = float(holding.get("qty", holding.get("shares", 0.0)))
+            avg_cost = float(holding.get("avgCostPrice", holding.get("average_cost", current_price)))
+            
+            holding_value = shares * current_price
+            holding_invested = shares * avg_cost
+            
+            # Daily delta
+            daily_delta = current_price - previous_close
+            daily_pnl = shares * daily_delta
+            total_pnl = holding_value - holding_invested
+                
+            # 1. Update the stock object for `portfolios` doc (the UI view)
+            holding["lastPrice"] = current_price
+            holding["qty"] = shares  # Ensure qty is saved for the frontend
+            holding["dailyChangePercent"] = (daily_delta / previous_close * 100) if previous_close > 0 else 0.0
+            holding["dailyPnlOriginal"] = daily_pnl
+            holding["totalPnlOriginal"] = total_pnl
+            holding["totalValueOriginal"] = holding_value
+            holding["totalReturnPercent"] = (total_pnl / holding_invested * 100) if holding_invested > 0 else 0.0
+            holding["last_updated"] = datetime.datetime.now().isoformat()
+    
+            # 2. Update the `families/{uid}/holdings` subcollection for cron job sync
+            updates_for_subcol = {
+                "current_price": current_price,
+                "shares": shares,
+                "average_cost": avg_cost,
+                "last_updated": datetime.datetime.now().isoformat(),
+                "name": holding.get("name", ""),
+                "currency": holding.get("currency", "USD")
+            }
+            db_manager.update_family_holding(uid, symbol, updates_for_subcol)
+            
+            updated_count += 1
+            total_value += holding_value
+            total_invested += holding_invested
+            total_daily_return_value += daily_pnl
+                    
+        except Exception as e:
+            print(f"⚠️ [{source_label}] Error updating {symbol}: {e}")
+            shares = float(holding.get("qty", 0.0))
+            total_value += shares * float(old_price)
+            avg_cost = float(holding.get("avgCostPrice", holding.get("average_cost", old_price)))
+            total_invested += shares * avg_cost
+            total_daily_return_value += float(holding.get("dailyPnlOriginal", 0.0))
+    
+    if updated_count > 0:
+        # Recalculate summary using the clean helper
+        fx_rate_data = db_manager.get_fx_rate()
+        fx_rate = fx_rate_data.get("rate", 3.70) if fx_rate_data else 3.70
+        summary = _calculate_stock_summary_data(stocks, fx_rate)
+        
+        # Save back the whole portfolio doc to update the UI
+        db_manager.save_processed_portfolio(uid, portfolio_doc)
+
+        # Update the summary too
+        db_manager.update_portfolio_summary(uid, summary["total_value"], summary["daily_return"], summary["total_return"])
+        print(f"✅ [{source_label}] Completed. {updated_count} stocks updated. Total Value: {summary['total_value']:,.0f}")
+
+    return {"updated": updated_count}
+
+@app.post("/api/portfolio/update-prices")
+async def user_update_stock_prices(user: dict = Depends(verify_token)):
+    """
+    User-triggered endpoint to update their family stock holdings with the latest price.
+    """
+    uid = user.get("uid")
+    res = await _perform_stock_prices_update(uid, source_label="USER-REFRESH")
+    return {"status": "success", "updated": res["updated"]}
+
 
 @app.get("/api/action-items")
 def get_action_items(user: dict = Depends(verify_token)):
@@ -283,6 +558,111 @@ class ManualInvestment(BaseModel):
 @app.post("/api/manual-investment", status_code=status.HTTP_201_CREATED)
 def add_manual_investment(investment: ManualInvestment, user: dict = Depends(verify_token)):
     return {"status": "success", "data": investment.model_dump()}
+
+# ── MANUAL STOCK ENTRY ────────────────────────────────────────────────────────
+
+class ManualStockRequest(BaseModel):
+    symbol: str
+    name: str
+    qty: float
+    avgCostPrice: float
+    currency: str = "USD"
+
+@app.post("/api/portfolio/stock/manual")
+async def add_manual_stock(stock_req: ManualStockRequest, user: dict = Depends(verify_token)):
+    uid = user.get("uid")
+    print(f"📥 [APP] Manual stock entry for {uid}: {stock_req.symbol}")
+    
+    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    if not portfolio_doc:
+        # Create a skeleton doc if none exists
+        portfolio_doc = {
+            "uid": uid,
+            "last_updated": datetime.datetime.now().isoformat(),
+            "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}},
+            "stocks": [],
+            "action_items": []
+        }
+    
+    stocks = portfolio_doc.get("stocks", [])
+    
+    # 1. Create the stock object
+    import uuid
+    new_stock = {
+        "id": str(uuid.uuid4()),
+        "symbol": stock_req.symbol.strip().upper(),
+        "name": stock_req.name.strip(),
+        "qty": stock_req.qty,
+        "avgCostPrice": stock_req.avgCostPrice,
+        "currency": stock_req.currency.strip().upper(),
+        "source": "manual",
+        "is_manual": True,
+        "last_updated": datetime.datetime.now().isoformat(),
+        "lastPrice": stock_req.avgCostPrice, # Initial fallback
+        "totalValueOriginal": stock_req.qty * stock_req.avgCostPrice,
+        "totalPnlOriginal": 0.0,
+        "totalReturnPercent": 0.0,
+        "dailyPnlOriginal": 0.0,
+        "dailyChangePercent": 0.0,
+        "sector": "Other"
+    }
+
+    # Use existing symbol or append? Let's check for duplicates.
+    existing_idx = next((i for i, s in enumerate(stocks) if s.get("symbol") == new_stock["symbol"]), -1)
+    if existing_idx >= 0:
+        # Update existing
+        stocks[existing_idx].update(new_stock)
+        print(f"🔄 [APP] Updated existing manual stock: {new_stock['symbol']}")
+    else:
+        stocks.append(new_stock)
+        print(f"✨ [APP] Added new manual stock: {new_stock['symbol']}")
+
+    # 2. Update processed_portfolio
+    portfolio_doc["stocks"] = stocks
+    db_manager.save_processed_portfolio(uid, portfolio_doc)
+    
+    # 3. Sync to holdings subcollection for price updater
+    updates_for_subcol = {
+        "current_price": new_stock["lastPrice"],
+        "shares": new_stock["qty"],
+        "average_cost": new_stock["avgCostPrice"],
+        "last_updated": new_stock["last_updated"],
+        "name": new_stock["name"],
+        "currency": new_stock["currency"],
+        "is_manual": True
+    }
+    db_manager.update_family_holding(uid, new_stock["symbol"], updates_for_subcol)
+    
+    # 4. Trigger price update immediately for this one stock? (Maybe not needed yet, user can hit refresh)
+    
+    return {"status": "success", "stock": new_stock}
+
+@app.delete("/api/portfolio/stock/{symbol}")
+async def delete_stock(symbol: str, user: dict = Depends(verify_token)):
+    uid = user.get("uid")
+    print(f"🗑️ [APP] Deleting stock {symbol} for {uid}")
+    
+    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    if not portfolio_doc:
+         raise HTTPException(status_code=404, detail="Portfolio not found")
+         
+    stocks = portfolio_doc.get("stocks", [])
+    new_stocks = [s for s in stocks if s.get("symbol") != symbol]
+    
+    if len(new_stocks) == len(stocks):
+        raise HTTPException(status_code=404, detail="Stock not found in portfolio")
+        
+    portfolio_doc["stocks"] = new_stocks
+    db_manager.save_processed_portfolio(uid, portfolio_doc)
+    
+    # Also delete from holdings subcollection
+    from firebase_admin import firestore
+    try:
+        db_manager.db.collection("families").document(uid).collection("holdings").document(symbol).delete()
+    except:
+        pass # Best effort
+        
+    return {"status": "success", "message": f"Stock {symbol} removed"}
 
 class FamilyMemberPII(BaseModel):
     name: str = ""
@@ -1235,6 +1615,150 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
         "total_found": len(messages),
         "results": results,
     }
+
+
+@app.post("/api/cron/update-stock-prices")
+async def update_stock_prices_cron(request: Request):
+    """
+    Daily cron endpoint to update all family stock holdings with the latest price.
+    Also calculates total daily and all-time returns for the stock portfolio.
+    Secured via X-Cron-Secret header.
+    """
+    import yfinance as yf
+    
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    uids = db_manager.get_all_family_uids_for_holdings()
+    print(f"\n📈 [CRON] update-stock-prices — targeting {len(uids)} family/families")
+    
+    results = []
+    
+    results = []
+    for uid in uids:
+        res = await _perform_stock_prices_update(uid, source_label="CRON")
+        if res.get("updated", 0) > 0:
+            results.append({"uid": uid, "updated": res["updated"]})
+
+    return {"status": "success", "families_processed": len(results), "results": results}
+
+
+@app.post("/api/cron/weekly-stock-summary")
+async def weekly_stock_summary_cron(request: Request):
+    """
+    Weekly cron endpoint to analyze stock portfolios using Gemini 2.5 Pro and email the results.
+    Secured via X-Cron-Secret header.
+    """
+    import base64
+    from email.mime.text import MIMEText
+    import markdown
+    from google import genai
+    from google.genai import types
+    import config
+    import prompts
+
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    # Get families with gmail
+    uids = db_manager.get_all_family_uids()
+    print(f"\n📧 [CRON] weekly-stock-summary — targeting {len(uids)} family/families")
+    
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
+    if not client:
+        return {"status": "error", "detail": "GEMINI_API_KEY not configured."}
+        
+    results = []
+    
+    for uid in uids:
+        try:
+            family_profile = db_manager.get_family_profile(uid)
+            if not family_profile: continue
+            
+            refresh_token = family_profile.get("gmail_refresh_token")
+            if not refresh_token: continue
+            
+            email_addr = family_profile.get("pii_data", {}).get("member1", {}).get("email")
+            if not email_addr:
+                print(f"⚠️ [CRON] No email found for {uid}")
+                continue
+
+            holdings = db_manager.get_family_holdings(uid)
+            if not holdings:
+                continue
+                
+            # Build portfolio data string
+            portfolio_strings = []
+            for h in holdings:
+                ticker = h.get("id")
+                shares = float(h.get("shares", 0.0))
+                current_price = float(h.get("current_price", 0.0))
+                average_cost = float(h.get("average_cost", 0.0))
+                previous_week_price = float(h.get("previous_week_price", current_price))
+                
+                weekly_delta_pct = ((current_price - previous_week_price) / previous_week_price * 100) if previous_week_price else 0.0
+                all_time_delta_pct = ((current_price - average_cost) / average_cost * 100) if average_cost > 0 else 0.0
+                
+                portfolio_strings.append(
+                    f"- {ticker}: {shares} מדדים | מחיר נוכחי: ${current_price:.2f} | "
+                    f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
+                )
+            
+            portfolio_data_string = "\n".join(portfolio_strings)
+            
+            final_prompt = prompts.WEEKLY_STOCK_SUMMARY_PROMPT.format(portfolio_data_string=portfolio_data_string)
+            
+            # Call Gemini
+            print(f"\n--- AI CALL (WEEKLY SUMMARY CRON) ---")
+            print(f"Model: {config.GEMINI_PRO_MODEL_NAME}")
+            print(f"Prompt Snippet: {final_prompt[:500]}...")
+            print(f"--------------------------------------\n")
+            
+            print(f"🤖 [CRON-AI] Calling Gemini {config.GEMINI_PRO_MODEL_NAME} for weekly summary...")
+            response = client.models.generate_content(
+                model=config.GEMINI_PRO_MODEL_NAME,
+                contents=final_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.5
+                )
+            )
+            
+            ai_text = response.text
+            
+            # Convert to HTML
+            html_content = markdown.markdown(ai_text)
+            email_html = f"<html><head><style>body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }} h2 {{ color: #2c3e50; }} strong {{ color: #1abc9c; }}</style></head><body dir='rtl'>{html_content}</body></html>"
+            
+            # Send Email
+            service = _get_gmail_service(refresh_token)
+            message = MIMEText(email_html, 'html', 'utf-8')
+            message['To'] = email_addr
+            message['Subject'] = "סיכום תיק מניות שבועי והמלצות"
+            raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            
+            service.users().messages().send(userId="me", body={'raw': raw_msg}).execute()
+            print(f"✅ [CRON] Email sent successfully to {email_addr}")
+            
+            # Reset previous_week_price
+            for h in holdings:
+                ticker = h.get("id")
+                current_price = h.get("current_price")
+                if ticker and current_price:
+                    # current_price could be updated via Daily Cron, so use the value we just fetched
+                    db_manager.update_family_holding(uid, ticker, {"previous_week_price": current_price})
+                    
+            results.append({"uid": uid, "status": "success", "email": email_addr})
+            
+        except Exception as e:
+            print(f"💥 [CRON] Error weekly summary for {uid}: {e}")
+            results.append({"uid": uid, "status": "error", "reason": str(e)})
+
+    return {"status": "success", "families_processed": len(uids), "results": results}
 
 
 if __name__ == "__main__":

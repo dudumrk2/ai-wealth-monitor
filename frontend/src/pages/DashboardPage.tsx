@@ -18,7 +18,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 import ActionItems from '../components/dashboard/ActionItems';
@@ -90,9 +90,14 @@ const DashboardPage: React.FC = () => {
       .filter((f: any) => pensionCats.includes(f.category))
       .reduce((s: number, f: any) => s + (f.balance || 0), 0);
       
+    // Add value from the specific stock portfolio (from Excel/Scrapers)
+    const stockPortfolioSummary = portfolioData.stock_portfolio_summary || {};
+    const stockPortfolioTotal = stockPortfolioSummary.total_value || 0;
+    const stockDailyReturnPct = stockPortfolioSummary.daily_return || 0;
+
     const marketSum = allFunds
       .filter((f: any) => f.category === 'stocks')
-      .reduce((s: number, f: any) => s + (f.balance || 0), 0);
+      .reduce((s: number, f: any) => s + (f.balance || 0), 0) + stockPortfolioTotal;
       
     const altSum = altInvest.reduce((s: number, a: any) => s + (a.current_value || a.balance || 0), 0) + 
                    allFunds.filter((f: any) => f.category === 'alternative').reduce((s: number, f: any) => s + (f.balance || 0), 0);
@@ -110,9 +115,12 @@ const DashboardPage: React.FC = () => {
       market: marketSum,
       alternative: altSum,
       insuranceMonthly,
-      total: total
+      total: total,
+      stockDailyReturnPct // Expose this for UI
     };
   }, [portfolioData]);
+
+  const [chartTab, setChartTab] = useState<'assets' | 'geo'>('assets');
 
   const allocationData = useMemo(() => [
     { name: 'פנסיה', value: totals.pension, color: '#3b82f6' },
@@ -120,8 +128,30 @@ const DashboardPage: React.FC = () => {
     { name: 'אלטרנטיבי', value: totals.alternative, color: '#8b5cf6' },
   ].filter(item => item.value > 0), [totals]);
 
+  // Geographic distribution computed from stocks list
+  const geoData = useMemo(() => {
+    const stocks: any[] = portfolioData?.stocks || [];
+    const fxRate = portfolioData?.fx_rate || 3.70;
+    let usa = 0, israel = 0;
+    for (const s of stocks) {
+      const val = (s.totalValueOriginal || 0) * (s.currency === 'USD' ? fxRate : 1);
+      if (s.currency === 'USD') usa += val;
+      else israel += val;
+    }
+    // Pension and alt are all Israeli
+    israel += totals.pension + totals.alternative;
+    const total = usa + israel;
+    return total > 0 ? [
+      { name: 'ארה"ב', value: usa, color: '#f97316' },
+      { name: 'ישראל', value: israel, color: '#3b82f6' },
+    ] : [];
+  }, [portfolioData, totals]);
+
+  const activeChartData = chartTab === 'assets' ? allocationData : geoData;
+  const activeTotal   = activeChartData.reduce((s, d) => s + d.value, 0);
+
   // If no values, use a placeholder for the pie
-  const chartData = allocationData.length > 0 ? allocationData : [{ name: 'אין נתונים', value: 1, color: '#e2e8f0' }];
+  const chartData = activeChartData.length > 0 ? activeChartData : [{ name: 'אין נתונים', value: 1, color: '#e2e8f0' }];
 
   if (loading) {
     return (
@@ -170,58 +200,101 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Center Column: Asset Allocation */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 md:p-6 flex flex-col items-center relative h-full transition-all hover:border-slate-300 dark:hover:border-slate-700">
-            <h2 className="font-semibold text-lg md:text-xl w-full mb-2 md:mb-4 text-slate-900 dark:text-slate-100 flex items-center gap-2">פיזור נכסים</h2>
-            <div className="flex-1 w-full relative">
+          {/* Center Column: Asset Allocation - TASE+ Style */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 md:p-6 flex flex-col relative h-full transition-all hover:border-slate-300 dark:hover:border-slate-700">
+            {/* Tab Header */}
+            <div className="flex items-center gap-1 mb-4 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 self-start">
+              <button
+                id="chart-tab-assets"
+                onClick={() => setChartTab('assets')}
+                className={clsx(
+                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200",
+                  chartTab === 'assets'
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                פיזור נכסים
+              </button>
+              <button
+                id="chart-tab-geo"
+                onClick={() => setChartTab('geo')}
+                className={clsx(
+                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200",
+                  chartTab === 'geo'
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                פיזור גיאוגרפי
+              </button>
+            </div>
+
+            {/* Donut Chart */}
+            <div className="flex-1 relative min-h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={chartData}
-                    innerRadius={70}
-                    outerRadius={100}
-                    paddingAngle={allocationData.length > 1 ? 5 : 0}
+                    innerRadius="55%"
+                    outerRadius="75%"
+                    paddingAngle={activeChartData.length > 1 ? 3 : 0}
                     dataKey="value"
                     stroke="none"
                     animationBegin={0}
-                    animationDuration={1500}
+                    animationDuration={900}
                     animationEasing="ease-out"
                   >
                     {chartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.color} 
-                        className="hover:opacity-80 transition-opacity cursor-pointer drop-shadow-md"
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.color}
+                        className="hover:opacity-85 transition-opacity cursor-pointer"
                       />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(15, 23, 42, 0.9)', 
-                      borderColor: 'rgba(51, 65, 85, 0.5)', 
-                      borderRadius: '0.75rem', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                      borderColor: 'rgba(51, 65, 85, 0.5)',
+                      borderRadius: '0.75rem',
                       color: '#f8fafc',
                       backdropFilter: 'blur(8px)',
-                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
+                      fontSize: '12px',
+                      fontWeight: 700,
                     }}
-                    itemStyle={{ color: '#f8fafc', fontWeight: 700 }}
-                    formatter={(value: number) => [formatCurrency(value), '']}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={40} 
-                    iconType="circle"
-                    formatter={(value) => <span className="text-slate-600 dark:text-slate-300 ml-2 font-bold text-xs">{value}</span>}
+                    formatter={(value: number, name: string) => [
+                      `${formatCurrency(value)} (${activeTotal > 0 ? ((value / activeTotal) * 100).toFixed(1) : 0}%)`,
+                      name
+                    ]}
                   />
                 </PieChart>
               </ResponsiveContainer>
-              {/* Custom Center Text */}
-              <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none pb-2 flex flex-col justify-center items-center drop-shadow-lg">
-                <div className="text-slate-500 text-xs md:text-sm font-bold mb-0.5">סה"כ</div>
-                <div className="text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-slate-900 to-slate-700 dark:from-white dark:to-slate-300">
-                  {totals.total > 1000000 ? `₪${(totals.total/1000000).toFixed(1)}M` : formatCurrency(totals.total)}
+
+              {/* Center Label */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="text-slate-400 text-[10px] font-bold mb-0.5">סה"כ</div>
+                <div className="text-lg md:text-xl font-bold text-slate-900 dark:text-white leading-tight">
+                  {activeTotal > 1000000
+                    ? `₪${(activeTotal / 1000000).toFixed(1)}M`
+                    : formatCurrency(activeTotal)}
                 </div>
               </div>
+            </div>
+
+            {/* Legend rows */}
+            <div className="mt-3 space-y-2">
+              {activeChartData.map((item) => {
+                const pct = activeTotal > 0 ? ((item.value / activeTotal) * 100).toFixed(1) : '0';
+                return (
+                  <div key={item.name} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-slate-600 dark:text-slate-400 font-medium flex-1">{item.name}</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(item.value)}</span>
+                    <span className="text-slate-400 font-bold w-12 text-left">{pct}%</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -242,7 +315,17 @@ const DashboardPage: React.FC = () => {
                 <LineChart className="w-6 h-6 md:w-7 md:h-7" />
               </div>
               <div className="flex-1">
-                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">תיק בורסה</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-slate-500 text-xs md:text-sm font-bold">תיק בורסה</p>
+                  {totals.stockDailyReturnPct !== 0 && (
+                    <span className={clsx(
+                      "text-[10px] md:text-xs font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5",
+                      totals.stockDailyReturnPct > 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                    )}>
+                      {totals.stockDailyReturnPct > 0 ? '+' : ''}{totals.stockDailyReturnPct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(totals.market)}</h3>
               </div>
             </div>

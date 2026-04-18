@@ -65,7 +65,13 @@ Draft the WhatsApp message now:
     try:
         client = genai.Client(api_key=api_key)
         
-        print(f"🤖 [INSURANCE-AI] Calling Gemini 2.5 Flash for comparison draft...")
+        print(f"\n--- AI CALL (INSURANCE COMPARISON) ---")
+        print(f"Model: {config.GEMINI_MODEL_NAME}")
+        print(f"System Prompt: {system_prompt}")
+        print(f"User Prompt: {user_prompt}")
+        print(f"---------------------------------------\n")
+        
+        print(f"🤖 [INSURANCE-AI] Calling Gemini {config.GEMINI_MODEL_NAME} for comparison draft...")
         import time
         start_ai = time.time()
         response = client.models.generate_content(

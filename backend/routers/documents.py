@@ -313,13 +313,36 @@ def _extract_stocks(file_bytes: bytes, filename: str) -> List[dict]:
                  else:
                      currency = 'USD'
             
-            # Simple sector detection
-            sector = "us_tech" if currency == 'USD' else "israel_tech"
-            if currency == 'ILS' and ('סל' in name or 'מחק' in name or 'ETF' in name.upper()):
-                sector = "israel_index"
-            elif currency == 'USD' and ('ETF' in name.upper() or 'VANGUARD' in name.upper() or 'ISHARES' in name.upper()):
-                sector = "us_index"
-                
+            # Smart sector detection (TASE+ style)
+            name_upper = name.upper()
+            
+            # Default to stocks initially
+            sector = "stocks"
+            
+            # 1. Bonds (אג"ח)
+            if 'אג"ח' in name or 'אגח' in name or 'BOND' in name_upper:
+                sector = "bonds"
+            
+            # 2. Makam (מק"מ)
+            elif 'מק"מ' in name or 'מקמ' in name:
+                sector = "makam"
+            
+            # 3. ETFs (קרנות סל) / Foreign Funds (קרנות חוץ)
+            elif 'ETF' in name_upper or 'VANGUARD' in name_upper or 'ISHARES' in name_upper or 'INVESCO' in name_upper or 'SPDR' in name_upper or 'FUND' in name_upper:
+                if currency == 'ILS':
+                    sector = "etf"
+                else:
+                    # Often US/Global ETFs count as "Foreign Funds" or "ETFs" in TASE, we'll map USD funds to 'foreign_funds'.
+                    sector = "foreign_funds"
+            elif 'סל' in name or 'מחק' in name or 'MTF' in name_upper or 'KSM' in name_upper:
+                 sector = "etf"
+                 
+            # 4. Mutual Funds (קרנות נאמנות - usually 7-digit numbers in ILS, often starting with 51)
+            elif currency == 'ILS' and symbol.isnumeric() and len(symbol) == 7 and (symbol.startswith('51') or symbol.startswith('53')):
+                # Double check it isn't already classified as an ETF based on the naming
+                if sector not in ["etf", "bonds", "makam"]:
+                    sector = "mutual_funds"
+
             def sfloat(val):
                 try:
                     if pd.isna(val): return 0.0
@@ -344,6 +367,12 @@ def _extract_stocks(file_bytes: bytes, filename: str) -> List[dict]:
                 "source": "file_upload",
                 "uploaded_at": datetime.datetime.now().isoformat()
             }
+            
+            # Israeli funds/ETFs (numeric symbols, ILS) report prices in AGOROT (1/100 NIS).
+            # Normalize to NIS so all downstream calculations are consistent.
+            if currency == 'ILS' and symbol.isnumeric():
+                holding["lastPrice"] = holding["lastPrice"] / 100.0
+                holding["avgCostPrice"] = holding["avgCostPrice"] / 100.0
             
             # Basic validation to ensure we don't save empty rows
             if holding["qty"] > 0 or holding["totalValueOriginal"] > 0:
@@ -693,11 +722,13 @@ async def upload_document(
                 # Context domain mapping for prompt enforcement
                 hebrew_domain = "ביטוח" if current_category == "insurance" else "פנסיה"
                 
-                sys_prompt = f"You are an objective, expert family wealth advisor. Review the provided list of active policies/funds specifically for the '{current_category}' domain. Identify: 1. Items expiring within 60 days. 2. Suspected duplicate coverages. 3. Cost optimization opportunities. Return a strict JSON object containing `action_items`. Each item must have: `title` (short, in Hebrew), `description` (Detailed explanation in Hebrew), `severity` ('high', 'medium', 'low'), and `category` (this must explicitly be '{hebrew_domain}'). MUST RESPOND ENTIRELY IN HEBREW."
+                print(f"\n--- AI CALL (DOCS ANALYSIS) ---")
+                print(f"Model: {config.GEMINI_MODEL_NAME}")
+                print(f"System Instruction: {sys_prompt}")
+                print(f"User Prompt Snippet: {user_prompt[:500]}...")
+                print(f"-------------------------------\n")
                 
-                user_prompt = f"Market Data: {json.dumps(live_market_data, ensure_ascii=False)}\nPortfolio: {json.dumps(filtered_portfolios, ensure_ascii=False)}"
-                
-                print(f"🤖 [DOCS-AI] Calling Gemini 2.5 Flash for {current_category} analysis ({total_filtered_funds} funds)...")
+                print(f"🤖 [DOCS-AI] Calling Gemini {config.GEMINI_MODEL_NAME} for {current_category} analysis ({total_filtered_funds} funds)...")
                 start_ai = time.time()
                 response = client.models.generate_content(
                     model=config.GEMINI_MODEL_NAME,

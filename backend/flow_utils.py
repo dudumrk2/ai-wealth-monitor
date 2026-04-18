@@ -136,7 +136,13 @@ def call_gemini_json(api_key: str, sys_prompt: str, user_prompt: str, max_retrie
 
     for attempt in range(1, max_retries + 1):
         try:
-            print(f"🤖 [FLOW_UTILS] Calling Gemini 2.5 Flash... (attempt {attempt}/{max_retries})")
+            print(f"\n--- AI CALL (GEMINI JSON UTILS) ---")
+            print(f"Model: {config.GEMINI_MODEL_NAME}")
+            print(f"System Instruction: {sys_prompt[:500]}...")
+            print(f"User Prompt Snippet: {user_prompt[:500]}...")
+            print(f"------------------------------------\n")
+            
+            print(f"🤖 [FLOW_UTILS] Calling Gemini {config.GEMINI_MODEL_NAME}... (attempt {attempt}/{max_retries})")
             start_time = time.time()
             response = client.models.generate_content(
                 model=config.GEMINI_MODEL_NAME,

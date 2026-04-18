@@ -385,3 +385,107 @@ def get_fx_rate() -> dict | None:
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error getting FX rate: {e}")
         return None
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Cron Helpers: Portfolios and Holdings
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_all_family_uids_for_holdings() -> list:
+    """Return a list of all family UIDs in Firestore to iterate through."""
+    if db is None:
+        return []
+    try:
+        # We use select([]) to only fetch document IDs to save bandwidth
+        docs = db.collection("families").select([]).stream()
+        return [doc.id for doc in docs]
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching all family UIDs: {e}")
+        return []
+
+def get_family_holdings(uid: str) -> list:
+    """Fetch all documents in the family's 'holdings' subcollection."""
+    if db is None:
+        return []
+    try:
+        docs = db.collection("families").document(uid).collection("holdings").stream()
+        return [doc.to_dict() | {"id": doc.id} for doc in docs]
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching holdings for {uid}: {e}")
+        return []
+
+def update_family_holding(uid: str, ticker: str, data: dict) -> bool:
+    """Update fields for a specific holding in the family's 'holdings' subcollection."""
+    if db is None:
+        return False
+    try:
+        db.collection("families").document(uid).collection("holdings").document(ticker).set(data, merge=True)
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error updating holding {ticker} for {uid}: {e}")
+        return False
+
+def update_portfolio_summary(uid: str, total_value: float, daily_return: float, total_return: float) -> bool:
+    """Save the calculated aggregate stats back to families/{uid} under stock_portfolio_summary."""
+    if db is None:
+        return False
+    try:
+        summary_data = {
+            "total_value": total_value,
+            "daily_return": daily_return,
+            "total_return": total_return,
+            "last_updated": firestore.SERVER_TIMESTAMP
+        }
+        db.collection("families").document(uid).update({"stock_portfolio_summary": summary_data})
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error updating portfolio summary for {uid}: {e}")
+        return False
+
+# ==========================================
+# Chat History Management (Firestore)
+# Note: Manually configure TTL on the `createdAt` field in the Google Cloud Console for 30 days!
+# ==========================================
+
+def save_chat_message(uid: str, role: str, text: str) -> bool:
+    """Saves a single chat message to the families/{uid}/chat_history subcollection."""
+    if db is None:
+        return False
+    try:
+        import datetime
+        doc_ref = db.collection("families").document(uid).collection("chat_history").document()
+        doc_ref.set({
+            "role": role,
+            "text": text,
+            "createdAt": firestore.SERVER_TIMESTAMP,
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving chat message for {uid}: {e}")
+        return False
+
+def get_chat_history(uid: str, limit: int = 50) -> list:
+    """Retrieves the last `limit` messages from chat_history ordered by createdAt asc."""
+    if db is None:
+        return []
+    try:
+        docs = db.collection("families").document(uid).collection("chat_history") \
+            .order_by("createdAt", direction=firestore.Query.DESCENDING) \
+            .limit(limit).stream()
+        
+        # We queried descending to get the newest, but we want to return them in chronological order
+        msgs = [d.to_dict() for d in docs]
+        return msgs[::-1]  # reverse
+    except Exception as e:
+        # If the index doesn't exist yet, this will throw an error. We fallback to fetching without order
+        print(f"⚠️ [DB_MANAGER] Error fetching chat history for {uid} (index missing?): {e}")
+        try:
+             docs = db.collection("families").document(uid).collection("chat_history").stream()
+             msgs = [d.to_dict() for d in docs]
+             msgs.sort(key=lambda x: x.get("timestamp", ""))
+             return msgs[-limit:]
+        except Exception as inner_e:
+             print(f"💥 [DB_MANAGER] Fallback fetching failed: {inner_e}")
+             return []
+
+
