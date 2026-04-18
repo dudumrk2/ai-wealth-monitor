@@ -1,0 +1,170 @@
+import { useState } from 'react';
+import { X, Plus, Loader2 } from 'lucide-react';
+import clsx from 'clsx';
+import { useAuth } from '../../context/AuthContext';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export default function ManualStockModal({ isOpen, onClose, onSuccess }: Props) {
+  const { user } = useAuth();
+  const [symbol, setSymbol] = useState('');
+  const [name, setName] = useState('');
+  const [qty, setQty] = useState('');
+  const [avgCost, setAvgCost] = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/portfolio/stock/manual`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          symbol,
+          name,
+          qty: parseFloat(qty),
+          avgCostPrice: parseFloat(avgCost),
+          currency,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'שגיאה בשמירת הנייר');
+      }
+
+      onSuccess();
+      onClose();
+      // Reset
+      setSymbol('');
+      setName('');
+      setQty('');
+      setAvgCost('');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose} dir="rtl">
+      <div 
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <Plus className="w-5 h-5 text-blue-500" />
+            הוספת נייר ערך ידני
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-sans">סמל נייר (Ticker)</label>
+            <input
+              type="text" required
+              value={symbol}
+              onChange={e => setSymbol(e.target.value.toUpperCase())}
+              placeholder="E.g. AAPL or 5138409"
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-slate-100 font-sans"
+              dir="ltr"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-sans">שם הנייר</label>
+            <input
+              type="text" required
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="שם החברה או הקרן"
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-slate-100 text-right font-sans"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-sans">כמות (Units)</label>
+              <input
+                type="number" step="any" required
+                value={qty}
+                onChange={e => setQty(e.target.value)}
+                className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-slate-100 text-center font-sans"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-sans">מחיר קנייה ממוצע</label>
+              <input
+                type="number" step="any" required
+                value={avgCost}
+                onChange={e => setAvgCost(e.target.value)}
+                className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 dark:text-slate-100 text-center font-sans"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-sans">מטבע</label>
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+              {['USD', 'ILS'].map(cur => (
+                <button
+                  key={cur}
+                  type="button"
+                  onClick={() => setCurrency(cur)}
+                  className={clsx(
+                    "flex-1 py-2 text-xs font-bold rounded-lg transition-all font-sans",
+                    currency === cur 
+                      ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  )}
+                >
+                  {cur === 'USD' ? 'דולר ($)' : 'שקל (₪)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl text-xs text-red-600 dark:text-red-400 font-sans">
+              {error}
+            </div>
+          )}
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 font-sans"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              {loading ? 'שומר...' : 'הוסף לתיק'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
