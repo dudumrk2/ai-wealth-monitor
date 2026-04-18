@@ -2,12 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  UploadCloud, AlertCircle, Car, HeartPulse, Home, FileText, ShieldAlert, Info, MessageCircle, X, Loader2, Trash2, Upload
+  UploadCloud, AlertCircle, Car, HeartPulse, Home, FileText, ShieldAlert, MessageCircle, X, Loader2, Trash2, Upload
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
 import PolicyUploadModal from '../components/PolicyUploadModal';
-import type { ActionItem } from '../types/portfolio';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -50,7 +49,6 @@ export default function InsurancePage() {
       const insFunds = allFunds.filter(f => f.category === 'insurance');
       
       // Merge identical policies covering both spouses into a single UI card
-      const mergedInsFunds: any[] = [];
       const policyMap = new Map<string, any>();
 
       for (const fund of insFunds) {

@@ -72,6 +72,8 @@ export interface ActionItem {
   action_required?: string;
   is_completed: boolean;
   severity: Severity;
+  /** Domain category, e.g. 'פנסיה', 'ביטוח', 'בורסה', 'כללי' */
+  category?: string;
 }
 
 /** Human-readable Hebrew label for each fund category */

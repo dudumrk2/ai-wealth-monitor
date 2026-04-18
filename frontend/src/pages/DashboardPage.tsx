@@ -2,17 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import {
   RefreshCcw,
-  Settings,
-  Bell,
-  User,
-  Bot,
-  Send,
   Landmark,
   LineChart,
   Shield,
-  ShieldAlert,
-  Wallet,
-  ChevronLeft,
   HandCoins,
   Loader2,
   AlertCircle
@@ -263,7 +255,7 @@ const DashboardPage: React.FC = () => {
                       fontSize: '12px',
                       fontWeight: 700,
                     }}
-                    formatter={(value: number, name: string) => [
+                    formatter={(value: any, name: any) => [
                       `${formatCurrency(value)} (${activeTotal > 0 ? ((value / activeTotal) * 100).toFixed(1) : 0}%)`,
                       name
                     ]}

@@ -25,9 +25,15 @@ export interface StockHolding {
   totalPnlOriginal: number;     // total P&L in original currency
   totalReturnPercent: number;   // cumulative return %
   qty: number;
+  /** Alias for qty — used in some broker CSV formats */
+  shares?: number;
+  /** Average cost price in original currency */
+  avgCostPrice?: number;
   /** Total market value in original currency */
   totalValueOriginal: number;
   sector: StockSector;
+  /** 'manual' for hand-entered holdings, 'csv' for uploaded broker data */
+  source?: 'manual' | 'csv' | string;
 }
 
 export interface ExchangeRate {

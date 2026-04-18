@@ -10,7 +10,6 @@ import type { AlternativeInvestment } from '../../types/portfolio';
 import { Plus, X, Trash2, TrendingUp, Calendar } from 'lucide-react';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
-import { Badge } from '../ui/Badge';
 
 const fmt = (val: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);

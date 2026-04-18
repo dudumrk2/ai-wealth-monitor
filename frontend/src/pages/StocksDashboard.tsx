@@ -16,15 +16,8 @@ import {
   Pencil,
   Trash2,
   DollarSign,
-  ArrowRightLeft,
   Info,
   AlertCircle,
-  PieChart as PieChartIcon,
-  LayoutGrid,
-  List,
-  Smartphone,
-  Globe,
-  Search
 } from 'lucide-react';
 import clsx from 'clsx';
 import { auth } from '../lib/firebase';
@@ -382,7 +375,7 @@ const StocksDashboard: React.FC = () => {
                       borderRadius: '0.75rem', color: '#f8fafc', backdropFilter: 'blur(8px)',
                       fontSize: '12px', fontWeight: 700, direction: 'rtl',
                     }}
-                    formatter={(value: number, name: string) => [
+                    formatter={(value: any, name: any) => [
                       `${formatILS(value)} (${activeTotal2 > 0 ? ((value / activeTotal2) * 100).toFixed(1) : 0}%)`, name,
                     ]}
                   />

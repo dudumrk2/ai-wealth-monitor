@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertTriangle, CheckCircle, FileText, Upload } from 'lucide-react';
 
 export interface Policy {

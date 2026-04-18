@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, AlertTriangle, Info, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import type { ActionItem } from '../../types/portfolio';
-import { Card, CardHeader, CardTitle, CardFooter } from '../ui/Card';
+import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 
 interface ActionItemsProps {
