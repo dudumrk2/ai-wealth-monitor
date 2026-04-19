@@ -84,6 +84,7 @@ const StocksDashboard: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chartTab, setChartTab] = useState<'sector' | 'geo'>('sector');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
 
   // ── Live Data Fetch ─────────────────────────────────────────────
   const fetchPortfolioData = async (silent = false) => {
@@ -524,7 +525,7 @@ const StocksDashboard: React.FC = () => {
                                   className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black text-white shrink-0" 
                                   style={{ backgroundColor: (SECTOR_COLORS[h.sector] || '#94a3b8') + 'cc' }}
                                 >
-                                  {h.symbol.slice(0, 2)}
+                                  {h.sector === 'cash' ? <DollarSign className="w-4 h-4" /> : h.symbol.slice(0, 2)}
                                 </div>
                                 <div>
                                   <div className="flex items-center gap-2">
@@ -543,15 +544,17 @@ const StocksDashboard: React.FC = () => {
                             </td>
                             {/* Daily % */}
                             <td className="px-4 py-3">
-                              <span className={clsx(
-                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold',
-                                h.dailyChangePercent >= 0 
-                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                                  : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                              )}>
-                                {h.dailyChangePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                {formatPct(h.dailyChangePercent)}
-                              </span>
+                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
+                                <span className={clsx(
+                                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold',
+                                  h.dailyChangePercent >= 0 
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                    : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                                )}>
+                                  {h.dailyChangePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                  {formatPct(h.dailyChangePercent)}
+                                </span>
+                              )}
                             </td>
                             {/* Value ILS */}
                             <td className="px-4 py-3">
@@ -562,21 +565,27 @@ const StocksDashboard: React.FC = () => {
                             </td>
                             {/* Daily P&L ILS */}
                             <td className="px-4 py-3">
-                              <span className={clsx('font-bold text-[13px]', dILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                                {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
-                              </span>
+                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
+                                <span className={clsx('font-bold text-[13px]', dILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                                  {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
+                                </span>
+                              )}
                             </td>
                             {/* Total P&L ILS */}
                             <td className="px-4 py-3">
-                              <span className={clsx('font-bold text-[13px]', pILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                                {pILS >= 0 ? '+' : ''}{formatILS(pILS)}
-                              </span>
+                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
+                                <span className={clsx('font-bold text-[13px]', pILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                                  {pILS >= 0 ? '+' : ''}{formatILS(pILS)}
+                                </span>
+                              )}
                             </td>
                             {/* Total Return % */}
                             <td className="px-4 py-3">
-                              <span className={clsx('text-xs font-bold', h.totalReturnPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400')}>
-                                {formatPct(h.totalReturnPercent)}
-                              </span>
+                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
+                                <span className={clsx('text-xs font-bold', h.totalReturnPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400')}>
+                                  {formatPct(h.totalReturnPercent)}
+                                </span>
+                              )}
                             </td>
                             {/* Actions */}
                             <td className="px-4 py-3">
@@ -589,7 +598,14 @@ const StocksDashboard: React.FC = () => {
                                 </button>
                                 {openMenu === h.id && (
                                   <div className="absolute left-0 top-full mt-1 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                                    <button className="w-full text-right flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                    <button 
+                                      onClick={() => {
+                                        setEditingStock(h);
+                                        setIsManualModalOpen(true);
+                                        setOpenMenu(null);
+                                      }}
+                                      className="w-full text-right flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                                    >
                                       <Pencil className="w-3.5 h-3.5 text-blue-500" />
                                       עדכון
                                     </button>
@@ -622,25 +638,29 @@ const StocksDashboard: React.FC = () => {
                           className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0" 
                           style={{ backgroundColor: (SECTOR_COLORS[h.sector] || '#94a3b8') + 'cc' }}
                         >
-                          {h.symbol.slice(0, 2)}
+                          {h.sector === 'cash' ? <DollarSign className="w-5 h-5" /> : h.symbol.slice(0, 2)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{h.name}</span>
-                            <span className={clsx(
-                              'text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0',
-                              h.dailyChangePercent >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'
-                            )}>
-                              {formatPct(h.dailyChangePercent)}
-                            </span>
+                            {h.sector !== 'cash' && (
+                              <span className={clsx(
+                                'text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0',
+                                h.dailyChangePercent >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'
+                              )}>
+                                {formatPct(h.dailyChangePercent)}
+                              </span>
+                            )}
                           </div>
-                          <p className="text-slate-400 text-xs font-mono">{h.symbol} · {(h.qty ?? h.shares ?? 0).toLocaleString()} יחידות</p>
+                          <p className="text-slate-400 text-xs font-mono">{h.sector === 'cash' ? 'מזומן' : h.symbol} · {(h.qty ?? h.shares ?? 0).toLocaleString()} {h.sector === 'cash' ? 'יחידות מטבע' : 'יחידות'}</p>
                         </div>
                         <div className="text-left shrink-0">
                           <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{formatILS(vILS)}</p>
-                          <p className={clsx('text-xs font-bold', dILS >= 0 ? 'text-emerald-500' : 'text-red-400')}>
-                            {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
-                          </p>
+                          {h.sector !== 'cash' && (
+                            <p className={clsx('text-xs font-bold', dILS >= 0 ? 'text-emerald-500' : 'text-red-400')}>
+                              {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
+                            </p>
+                          )}
                         </div>
                         {/* Mobile actions */}
                         <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
@@ -652,7 +672,14 @@ const StocksDashboard: React.FC = () => {
                           </button>
                           {openMenu === h.id && (
                             <div className="absolute left-0 top-full mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                              <button className="w-full text-right flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
+                              <button 
+                                onClick={() => {
+                                  setEditingStock(h);
+                                  setIsManualModalOpen(true);
+                                  setOpenMenu(null);
+                                }}
+                                className="w-full text-right flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                              >
                                 <Pencil className="w-3.5 h-3.5 text-blue-500" />עדכון
                               </button>
                               <button className="w-full text-right flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">
@@ -676,10 +703,14 @@ const StocksDashboard: React.FC = () => {
       </div>
       
       {/* ── Modals ────────────────────────────────────────────── */}
-      <ManualStockModal
-        isOpen={isManualModalOpen}
-        onClose={() => setIsManualModalOpen(false)}
-        onSuccess={() => fetchPortfolioData()}
+      <ManualStockModal 
+        isOpen={isManualModalOpen} 
+        onClose={() => {
+          setIsManualModalOpen(false);
+          setEditingStock(null);
+        }}
+        onSuccess={() => fetchPortfolioData(true)} 
+        initialData={editingStock}
       />
 
       <style dangerouslySetInnerHTML={{ __html: `

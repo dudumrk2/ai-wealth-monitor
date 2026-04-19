@@ -416,35 +416,43 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
         symbol = holding.get("symbol")
         if not symbol: continue
         
+        is_cash = holding.get("is_cash", False)
+        
         try:
-            # Normalize: if numeric, append .TA for Yahoo Finance
-            ticker = str(symbol).strip()
             current_price = None
             previous_close = None
             method_label = "yfinance"
-    
-            if ticker.isdigit():
-                # Israeli Mutual Fund / ETF - Use Bizportal
-                method_label = "Bizportal"
-                fund_data = fetch_bizportal_fund_data(ticker)
-                if fund_data:
-                    current_price = fund_data["current_price"]
-                    previous_close = fund_data["previous_close"]
-                else:
-                    print(f"⚠️ [{source_label}] Bizportal fetch failed for {ticker}, skipping price update.")
+
+            if is_cash:
+                current_price = 1.0
+                previous_close = 1.0
+                method_label = "cash"
             else:
-                # US/Other Stock - Use yfinance
-                try:
-                    t = yf.Ticker(ticker)
-                    hist = t.history(period="5d")
-                    if not hist.empty:
-                        current_price = float(hist['Close'].iloc[-1])
-                        previous_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
+                # Normalize: if numeric, append .TA for Yahoo Finance
+                ticker = str(symbol).strip()
+        
+                if ticker.isdigit():
+                    # Israeli Mutual Fund / ETF - Use Bizportal
+                    method_label = "Bizportal"
+                    fund_data = fetch_bizportal_fund_data(ticker)
+                    if fund_data:
+                        current_price = fund_data["current_price"]
+                        previous_close = fund_data["previous_close"]
                     else:
-                        print(f"⚠️ [{source_label}] No yfinance history found for ticker {ticker}")
-                except Exception as yf_e:
-                    print(f"⚠️ [{source_label}] yfinance error for {ticker}: {yf_e}")
-    
+                        print(f"⚠️ [{source_label}] Bizportal fetch failed for {ticker}, skipping price update.")
+                else:
+                    # US/Other Stock - Use yfinance
+                    try:
+                        t = yf.Ticker(ticker)
+                        hist = t.history(period="5d")
+                        if not hist.empty:
+                            current_price = float(hist['Close'].iloc[-1])
+                            previous_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
+                        else:
+                            print(f"⚠️ [{source_label}] No yfinance history found for ticker {ticker}")
+                    except Exception as yf_e:
+                        print(f"⚠️ [{source_label}] yfinance error for {ticker}: {yf_e}")
+        
             old_price = holding.get("lastPrice", holding.get("current_price", 0.0))
             
             if current_price is None:
@@ -567,11 +575,12 @@ class ManualStockRequest(BaseModel):
     qty: float
     avgCostPrice: float
     currency: str = "USD"
+    is_cash: Optional[bool] = False
 
 @app.post("/api/portfolio/stock/manual")
 async def add_manual_stock(stock_req: ManualStockRequest, user: dict = Depends(verify_token)):
     uid = user.get("uid")
-    print(f"📥 [APP] Manual stock entry for {uid}: {stock_req.symbol}")
+    print(f"📥 [APP] Manual stock/cash entry for {uid}: {stock_req.symbol}")
     
     portfolio_doc = db_manager.get_processed_portfolio(uid)
     if not portfolio_doc:
@@ -590,21 +599,22 @@ async def add_manual_stock(stock_req: ManualStockRequest, user: dict = Depends(v
     import uuid
     new_stock = {
         "id": str(uuid.uuid4()),
-        "symbol": stock_req.symbol.strip().upper(),
+        "symbol": stock_req.symbol.strip().upper() if not (stock_req.is_cash and stock_req.symbol.strip().upper() == "CASH") else f"CASH_{uuid.uuid4().hex[:6].upper()}",
         "name": stock_req.name.strip(),
         "qty": stock_req.qty,
-        "avgCostPrice": stock_req.avgCostPrice,
+        "avgCostPrice": stock_req.avgCostPrice if not stock_req.is_cash else 1.0,
         "currency": stock_req.currency.strip().upper(),
         "source": "manual",
         "is_manual": True,
+        "is_cash": stock_req.is_cash,
         "last_updated": datetime.datetime.now().isoformat(),
-        "lastPrice": stock_req.avgCostPrice, # Initial fallback
-        "totalValueOriginal": stock_req.qty * stock_req.avgCostPrice,
+        "lastPrice": stock_req.avgCostPrice if not stock_req.is_cash else 1.0, # Initial fallback
+        "totalValueOriginal": stock_req.qty * (stock_req.avgCostPrice if not stock_req.is_cash else 1.0),
         "totalPnlOriginal": 0.0,
         "totalReturnPercent": 0.0,
         "dailyPnlOriginal": 0.0,
         "dailyChangePercent": 0.0,
-        "sector": "Other"
+        "sector": "cash" if stock_req.is_cash else "Other"
     }
 
     # Use existing symbol or append? Let's check for duplicates.
@@ -1735,10 +1745,16 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
             weekly_delta_pct = ((current_price - previous_week_price) / previous_week_price * 100) if previous_week_price else 0.0
             all_time_delta_pct = ((current_price - average_cost) / average_cost * 100) if average_cost > 0 else 0.0
             
-            portfolio_strings.append(
-                f"- {ticker}: {shares} מדדים | מחיר נוכחי: ${current_price:.2f} | "
-                f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
-            )
+            if h.get("is_manual", False) and h.get("name") and str(ticker).startswith("CASH_"): 
+                name = h.get("name")
+                portfolio_strings.append(
+                    f"- 💰 מזומן ({name}): {shares:,.2f} {h.get('currency', 'ILS')}"
+                )
+            else:
+                portfolio_strings.append(
+                    f"- 📈 {ticker}: {shares:,.2f} יחידות | מחיר נוכחי: {current_price:.2f} | "
+                    f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
+                )
         
         portfolio_data_string = "\n".join(portfolio_strings)
         
