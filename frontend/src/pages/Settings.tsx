@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { deleteFamily, addAuthorizedEmail } from '../lib/familyService';
 import { STORAGE_KEYS } from '../lib/storageKeys';
-import { Trash2, AlertTriangle, Users, UserCircle2, Mail, ChevronRight, X, RefreshCw, Loader2, Link2, Settings2, Clock, Moon, Sun } from 'lucide-react';
+import { Trash2, AlertTriangle, Users, UserCircle2, Mail, ChevronRight, X, RefreshCw, Loader2, Link2, Settings2, Clock, Moon, Sun, Play, Activity } from 'lucide-react';
 import UploadSection from '../components/dashboard/UploadSection';
 import { useTheme } from '../context/ThemeContext';
 import clsx from 'clsx';
@@ -54,6 +54,27 @@ export default function Settings() {
   const [gmailScanning, setGmailScanning] = useState(false);
   const [gmailScanMsg, setGmailScanMsg] = useState<string | null>(null);
 
+  // Cron states
+  const [cronFetchEmailsEnabled, setCronFetchEmailsEnabled] = useState(true);
+  const [cronStockPricesEnabled, setCronStockPricesEnabled] = useState(true);
+  const [cronWeeklySummaryEnabled, setCronWeeklySummaryEnabled] = useState(true);
+
+  const [runningStockPrices, setRunningStockPrices] = useState(false);
+  const [runningWeeklySummary, setRunningWeeklySummary] = useState(false);
+  const [cronRunMsg, setCronRunMsg] = useState<string | null>(null);
+
+  const updateCronStatus = async (key: string, value: boolean) => {
+    if (!user) return;
+    try {
+      const idToken = await user.getIdToken();
+      await fetch(`${API_URL}/api/settings/gmail`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      });
+    } catch { /* ignore */ }
+  };
+
   // Load Gmail settings from backend on mount + handle OAuth return
   useEffect(() => {
     const gmailParam = searchParams.get('gmail');
@@ -77,6 +98,9 @@ export default function Settings() {
         setCronDay(data.cron_day ?? 1);
         setCronFreq(data.cron_frequency_months ?? 3);
         setLastFetched(data.last_fetched_at ?? null);
+        setCronFetchEmailsEnabled(data.cron_fetch_emails_enabled ?? true);
+        setCronStockPricesEnabled(data.cron_stock_prices_enabled ?? true);
+        setCronWeeklySummaryEnabled(data.cron_weekly_summary_enabled ?? true);
       } catch { /* silent */ }
     };
     load();
@@ -137,6 +161,9 @@ export default function Settings() {
           gmail_subject: gmailSubject,
           cron_day: cronDay,
           cron_frequency_months: cronFreq,
+          cron_fetch_emails_enabled: cronFetchEmailsEnabled,
+          cron_stock_prices_enabled: cronStockPricesEnabled,
+          cron_weekly_summary_enabled: cronWeeklySummaryEnabled,
         }),
       });
       if (res.ok) setGmailSaveMsg('✅ ההגדרות נשמרו בהצלחה');
@@ -171,6 +198,45 @@ export default function Settings() {
       setGmailScanMsg('❌ שגיאה בסריקה: ' + err.message);
     } finally {
       setGmailScanning(false);
+    }
+  };
+
+  const handleRunStockPrices = async () => {
+    if (!user) return;
+    setRunningStockPrices(true);
+    setCronRunMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/cron/update-stock-prices/run`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      if (!res.ok) throw new Error('שגיאה בשרת');
+      const data = await res.json();
+      setCronRunMsg(`✅ מחירים עודכנו בהצלחה. ${data.result?.updated || 0} מניות התעדכנו.`);
+    } catch (err: any) {
+      setCronRunMsg('❌ שגיאה בעדכון מחירים: ' + err.message);
+    } finally {
+      setRunningStockPrices(false);
+    }
+  };
+
+  const handleRunWeeklySummary = async () => {
+    if (!user) return;
+    setRunningWeeklySummary(true);
+    setCronRunMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/cron/weekly-stock-summary/run`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      if (!res.ok) throw new Error('שגיאה בשרת');
+      setCronRunMsg('✅ דוח שבועי הופק ונשלח למייל בהצלחה.');
+    } catch (err: any) {
+      setCronRunMsg('❌ שגיאה בהפקת הדוח השבועי: ' + err.message);
+    } finally {
+      setRunningWeeklySummary(false);
     }
   };
 
@@ -528,7 +594,116 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* 6. Theme / Appearance Card */}
+        {/* 6. Cron Jobs Card */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="w-9 h-9 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">ניהול תהליכי רקע (Cron Jobs)</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">הפעל, הפסק, או הרץ ידנית את תהליכי הרקע</p>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {cronRunMsg && (
+              <div className={`p-3 rounded-xl text-sm font-semibold mb-4 ${cronRunMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {cronRunMsg}
+              </div>
+            )}
+            
+            {/* Cron 1: Emails */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="flex-1">
+                <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">סריקת דוחות ביטוח חדשים</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">מחפש מיילים מהכתובת המוגדרת, מחלץ ומנתח PDF בעזרת AI</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => {
+                    const next = !cronFetchEmailsEnabled;
+                    setCronFetchEmailsEnabled(next);
+                    updateCronStatus('cron_fetch_emails_enabled', next);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cronFetchEmailsEnabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cronFetchEmailsEnabled ? '-translate-x-6' : '-translate-x-1'}`} />
+                </button>
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                <button
+                  onClick={handleScanNow}
+                  disabled={gmailScanning || !gmailConnected}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  {gmailScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-blue-500" />}
+                  הרץ עכשיו
+                </button>
+              </div>
+            </div>
+
+            {/* Cron 2: Stocks */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="flex-1">
+                <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">עדכון מחירי מניות ושערי המרה</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">עדכון יומי של מחירי תיק המניות (משולב Bizportal ו-Yahoo Finance)</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => {
+                    const next = !cronStockPricesEnabled;
+                    setCronStockPricesEnabled(next);
+                    updateCronStatus('cron_stock_prices_enabled', next);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cronStockPricesEnabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cronStockPricesEnabled ? '-translate-x-6' : '-translate-x-1'}`} />
+                </button>
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                <button
+                  onClick={handleRunStockPrices}
+                  disabled={runningStockPrices}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  {runningStockPrices ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-blue-500" />}
+                  הרץ עכשיו
+                </button>
+              </div>
+            </div>
+
+            {/* Cron 3: Weekly Summary */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="flex-1">
+                <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">סיכום מניות שבועי מבוסס AI</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">ניתוח והפקה אוטומטית של דוח השקעות שבועי ישירות למייל (Gemini)</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => {
+                    const next = !cronWeeklySummaryEnabled;
+                    setCronWeeklySummaryEnabled(next);
+                    updateCronStatus('cron_weekly_summary_enabled', next);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cronWeeklySummaryEnabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cronWeeklySummaryEnabled ? '-translate-x-6' : '-translate-x-1'}`} />
+                </button>
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                <button
+                  onClick={handleRunWeeklySummary}
+                  disabled={runningWeeklySummary}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  {runningWeeklySummary ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-blue-500" />}
+                  הרץ עכשיו
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* 7. Theme / Appearance Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
             <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">

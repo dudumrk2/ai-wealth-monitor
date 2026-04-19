@@ -1214,6 +1214,9 @@ class GmailSettingsPayload(BaseModel):
     gmail_subject: Optional[str] = None
     cron_day: Optional[int] = None
     cron_frequency_months: Optional[int] = None
+    cron_fetch_emails_enabled: Optional[bool] = None
+    cron_stock_prices_enabled: Optional[bool] = None
+    cron_weekly_summary_enabled: Optional[bool] = None
 
 
 @app.put("/api/settings/gmail")
@@ -1237,6 +1240,12 @@ async def save_gmail_settings(
         updates["cron_day"] = max(1, min(30, payload.cron_day))
     if payload.cron_frequency_months is not None:
         updates["cron_frequency_months"] = max(1, min(12, payload.cron_frequency_months))
+    if payload.cron_fetch_emails_enabled is not None:
+        updates["cron_fetch_emails_enabled"] = payload.cron_fetch_emails_enabled
+    if payload.cron_stock_prices_enabled is not None:
+        updates["cron_stock_prices_enabled"] = payload.cron_stock_prices_enabled
+    if payload.cron_weekly_summary_enabled is not None:
+        updates["cron_weekly_summary_enabled"] = payload.cron_weekly_summary_enabled
 
     if not updates:
         raise HTTPException(status_code=422, detail="No fields to update")
@@ -1265,7 +1274,34 @@ async def get_gmail_settings(credentials: HTTPAuthorizationCredentials = Depends
         "cron_day": profile.get("cron_day", 1),
         "cron_frequency_months": profile.get("cron_frequency_months", 3),
         "last_fetched_at": profile.get("last_fetched_at"),
+        "cron_fetch_emails_enabled": profile.get("cron_fetch_emails_enabled", True),
+        "cron_stock_prices_enabled": profile.get("cron_stock_prices_enabled", True),
+        "cron_weekly_summary_enabled": profile.get("cron_weekly_summary_enabled", True),
     }
+
+@app.post("/api/settings/cron/update-stock-prices/run")
+async def trigger_manual_update_stock_prices(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    print(f"\n🚀 [APP] Manual stock price update triggered by user {uid}")
+    res = await _perform_stock_prices_update(uid, source_label="USER-MANUAL-CRON")
+    return {"status": "success", "result": res}
+
+@app.post("/api/settings/cron/weekly-stock-summary/run")
+async def trigger_manual_weekly_summary(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    print(f"\n🚀 [APP] Manual weekly summary triggered by user {uid}")
+    res = await _weekly_stock_summary_for_family(uid)
+    return {"status": "success", "result": res}
 
 @app.delete("/api/settings/gmail")
 async def disconnect_gmail(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -1436,6 +1472,11 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     all_target_strings = list(set([s for s in all_target_strings if s and len(s.strip()) > 2]))
 
     # ── 2. Schedule check ────────────────────────────────────────────────────
+    
+    if family_profile.get("cron_fetch_emails_enabled", True) is False and not bypass_schedule:
+        print(f"⏭️  [CRON] Skipping fetch_emails for {uid} (disabled in settings)")
+        return {"processed": 0, "skipped": "disabled_in_settings"}
+
     from datetime import date as _date
     cron_day = int(family_profile.get("cron_day") or 1)
     cron_freq = int(family_profile.get("cron_frequency_months") or 3)
@@ -1638,6 +1679,11 @@ async def update_stock_prices_cron(request: Request):
     
     results = []
     for uid in uids:
+        profile = db_manager.get_family_profile(uid)
+        if profile and profile.get("cron_stock_prices_enabled", True) is False:
+            print(f"⏭️  [CRON] Skipping update_stock_prices for {uid} (disabled in settings)")
+            continue
+
         res = await _perform_stock_prices_update(uid, source_label="CRON")
         if res.get("updated", 0) > 0:
             results.append({"uid": uid, "updated": res["updated"]})
@@ -1645,12 +1691,7 @@ async def update_stock_prices_cron(request: Request):
     return {"status": "success", "families_processed": len(results), "results": results}
 
 
-@app.post("/api/cron/weekly-stock-summary")
-async def weekly_stock_summary_cron(request: Request):
-    """
-    Weekly cron endpoint to analyze stock portfolios using Gemini 2.5 Pro and email the results.
-    Secured via X-Cron-Secret header.
-    """
+async def _weekly_stock_summary_for_family(uid: str) -> dict:
     import base64
     from email.mime.text import MIMEText
     import markdown
@@ -1659,6 +1700,101 @@ async def weekly_stock_summary_cron(request: Request):
     import config
     import prompts
 
+    try:
+        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_api_key:
+            return {"status": "error", "reason": "GEMINI_API_KEY not configured."}
+        client = genai.Client(api_key=gemini_api_key)
+        
+        family_profile = db_manager.get_family_profile(uid)
+        if not family_profile: 
+            return {"status": "error", "reason": "no_family_profile"}
+        
+        refresh_token = family_profile.get("gmail_refresh_token")
+        if not refresh_token: 
+            return {"status": "error", "reason": "no_gmail_refresh_token"}
+        
+        email_addr = family_profile.get("pii_data", {}).get("member1", {}).get("email")
+        if not email_addr:
+            print(f"⚠️ [CRON] No email found for {uid}")
+            return {"status": "error", "reason": "no_email_found"}
+
+        holdings = db_manager.get_family_holdings(uid)
+        if not holdings:
+            return {"status": "error", "reason": "no_stock_holdings_found"}
+            
+        # Build portfolio data string
+        portfolio_strings = []
+        for h in holdings:
+            ticker = h.get("id")
+            shares = float(h.get("shares", 0.0))
+            current_price = float(h.get("current_price", 0.0))
+            average_cost = float(h.get("average_cost", 0.0))
+            previous_week_price = float(h.get("previous_week_price", current_price))
+            
+            weekly_delta_pct = ((current_price - previous_week_price) / previous_week_price * 100) if previous_week_price else 0.0
+            all_time_delta_pct = ((current_price - average_cost) / average_cost * 100) if average_cost > 0 else 0.0
+            
+            portfolio_strings.append(
+                f"- {ticker}: {shares} מדדים | מחיר נוכחי: ${current_price:.2f} | "
+                f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
+            )
+        
+        portfolio_data_string = "\n".join(portfolio_strings)
+        
+        final_prompt = prompts.WEEKLY_STOCK_SUMMARY_PROMPT.format(portfolio_data_string=portfolio_data_string)
+        
+        # Call Gemini
+        print(f"\n--- AI CALL (WEEKLY SUMMARY) ---")
+        print(f"Model: {config.GEMINI_PRO_MODEL_NAME}")
+        print(f"Prompt Snippet: {final_prompt[:500]}...")
+        print(f"--------------------------------------\n")
+        
+        print(f"🤖 [CRON-AI] Calling Gemini {config.GEMINI_PRO_MODEL_NAME} for weekly summary...")
+        response = client.models.generate_content(
+            model=config.GEMINI_PRO_MODEL_NAME,
+            contents=final_prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.5
+            )
+        )
+        
+        ai_text = response.text
+        
+        # Convert to HTML
+        html_content = markdown.markdown(ai_text)
+        email_html = f"<html><head><style>body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }} h2 {{ color: #2c3e50; }} strong {{ color: #1abc9c; }}</style></head><body dir='rtl'>{html_content}</body></html>"
+        
+        # Send Email
+        service = _get_gmail_service(refresh_token)
+        message = MIMEText(email_html, 'html', 'utf-8')
+        message['To'] = email_addr
+        message['Subject'] = "סיכום תיק מניות שבועי והמלצות"
+        raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        
+        service.users().messages().send(userId="me", body={'raw': raw_msg}).execute()
+        print(f"✅ [CRON] Email sent successfully to {email_addr}")
+        
+        # Reset previous_week_price
+        for h in holdings:
+            ticker = h.get("id")
+            current_price = h.get("current_price")
+            if ticker and current_price:
+                db_manager.update_family_holding(uid, ticker, {"previous_week_price": current_price})
+                
+        return {"status": "success", "email": email_addr}
+        
+    except Exception as e:
+        print(f"💥 [CRON] Error weekly summary for {uid}: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
+@app.post("/api/cron/weekly-stock-summary")
+async def weekly_stock_summary_cron(request: Request):
+    """
+    Weekly cron endpoint to analyze stock portfolios using Gemini 2.5 Pro and email the results.
+    Secured via X-Cron-Secret header.
+    """
     cron_secret = os.environ.get("CRON_SECRET", "")
     incoming_secret = request.headers.get("X-Cron-Secret", "")
     if not cron_secret or incoming_secret != cron_secret:
@@ -1668,95 +1804,16 @@ async def weekly_stock_summary_cron(request: Request):
     uids = db_manager.get_all_family_uids()
     print(f"\n📧 [CRON] weekly-stock-summary — targeting {len(uids)} family/families")
     
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
-    if not client:
-        return {"status": "error", "detail": "GEMINI_API_KEY not configured."}
-        
     results = []
     
     for uid in uids:
-        try:
-            family_profile = db_manager.get_family_profile(uid)
-            if not family_profile: continue
+        profile = db_manager.get_family_profile(uid)
+        if profile and profile.get("cron_weekly_summary_enabled", True) is False:
+            print(f"⏭️  [CRON] Skipping weekly_summary for {uid} (disabled in settings)")
+            continue
             
-            refresh_token = family_profile.get("gmail_refresh_token")
-            if not refresh_token: continue
-            
-            email_addr = family_profile.get("pii_data", {}).get("member1", {}).get("email")
-            if not email_addr:
-                print(f"⚠️ [CRON] No email found for {uid}")
-                continue
-
-            holdings = db_manager.get_family_holdings(uid)
-            if not holdings:
-                continue
-                
-            # Build portfolio data string
-            portfolio_strings = []
-            for h in holdings:
-                ticker = h.get("id")
-                shares = float(h.get("shares", 0.0))
-                current_price = float(h.get("current_price", 0.0))
-                average_cost = float(h.get("average_cost", 0.0))
-                previous_week_price = float(h.get("previous_week_price", current_price))
-                
-                weekly_delta_pct = ((current_price - previous_week_price) / previous_week_price * 100) if previous_week_price else 0.0
-                all_time_delta_pct = ((current_price - average_cost) / average_cost * 100) if average_cost > 0 else 0.0
-                
-                portfolio_strings.append(
-                    f"- {ticker}: {shares} מדדים | מחיר נוכחי: ${current_price:.2f} | "
-                    f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
-                )
-            
-            portfolio_data_string = "\n".join(portfolio_strings)
-            
-            final_prompt = prompts.WEEKLY_STOCK_SUMMARY_PROMPT.format(portfolio_data_string=portfolio_data_string)
-            
-            # Call Gemini
-            print(f"\n--- AI CALL (WEEKLY SUMMARY CRON) ---")
-            print(f"Model: {config.GEMINI_PRO_MODEL_NAME}")
-            print(f"Prompt Snippet: {final_prompt[:500]}...")
-            print(f"--------------------------------------\n")
-            
-            print(f"🤖 [CRON-AI] Calling Gemini {config.GEMINI_PRO_MODEL_NAME} for weekly summary...")
-            response = client.models.generate_content(
-                model=config.GEMINI_PRO_MODEL_NAME,
-                contents=final_prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.5
-                )
-            )
-            
-            ai_text = response.text
-            
-            # Convert to HTML
-            html_content = markdown.markdown(ai_text)
-            email_html = f"<html><head><style>body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }} h2 {{ color: #2c3e50; }} strong {{ color: #1abc9c; }}</style></head><body dir='rtl'>{html_content}</body></html>"
-            
-            # Send Email
-            service = _get_gmail_service(refresh_token)
-            message = MIMEText(email_html, 'html', 'utf-8')
-            message['To'] = email_addr
-            message['Subject'] = "סיכום תיק מניות שבועי והמלצות"
-            raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            
-            service.users().messages().send(userId="me", body={'raw': raw_msg}).execute()
-            print(f"✅ [CRON] Email sent successfully to {email_addr}")
-            
-            # Reset previous_week_price
-            for h in holdings:
-                ticker = h.get("id")
-                current_price = h.get("current_price")
-                if ticker and current_price:
-                    # current_price could be updated via Daily Cron, so use the value we just fetched
-                    db_manager.update_family_holding(uid, ticker, {"previous_week_price": current_price})
-                    
-            results.append({"uid": uid, "status": "success", "email": email_addr})
-            
-        except Exception as e:
-            print(f"💥 [CRON] Error weekly summary for {uid}: {e}")
-            results.append({"uid": uid, "status": "error", "reason": str(e)})
+        res = await _weekly_stock_summary_for_family(uid)
+        results.append({"uid": uid, **res})
 
     return {"status": "success", "families_processed": len(uids), "results": results}
 
