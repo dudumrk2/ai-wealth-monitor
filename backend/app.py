@@ -119,7 +119,8 @@ def fetch_bizportal_fund_data(ticker: str) -> Optional[dict]:
             pct_change = float(pct_str)
         elif drop_span:
             pct_str = drop_span.get_text().strip().replace("%", "").replace(",", "")
-            pct_change = -float(pct_str)
+            # Bizportal includes the minus sign in the string, so we just convert it
+            pct_change = float(pct_str)
             
         # Calculate Previous Close
         # formula: current_price = previous_close * (1 + pct_change/100) -> previous_close = current_price / (1 + pct_change/100)
@@ -128,6 +129,7 @@ def fetch_bizportal_fund_data(ticker: str) -> Optional[dict]:
         else:
             previous_close = current_price # Fallback to prevent division by zero edge-cases
             
+        print(f"🔍 [BIZPORTAL] Scraped {ticker}: Price={current_price}, Pct={pct_change}%, CalculatedPrev={previous_close}")
         return {
             "current_price": current_price,
             "previous_close": previous_close,
@@ -386,13 +388,16 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
     Called both by manual refresh and automated cron jobs.
     """
     # 1. Refresh USD/ILS FX Rate first
+    fx_prev_close = 1.0
+    new_rate = 1.0
     try:
         fx_ticker = yf.Ticker("USDILS=X")
-        fx_data = fx_ticker.history(period="1d")
+        fx_data = fx_ticker.history(period="5d")
         if not fx_data.empty:
             new_rate = float(fx_data['Close'].iloc[-1])
+            fx_prev_close = float(fx_data['Close'].iloc[-2]) if len(fx_data) > 1 else new_rate
             db_manager.save_fx_rate(new_rate, datetime.datetime.now().strftime("%Y-%m-%d"))
-            print(f"💰 [{source_label}] Updated FX Rate: {new_rate}")
+            print(f"💰 [{source_label}] Updated FX Rate: {new_rate} (Prev: {fx_prev_close})")
     except Exception as e:
         print(f"⚠️ [{source_label}] Failed to update FX rate: {e}")
 
@@ -425,7 +430,13 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
 
             if is_cash:
                 current_price = 1.0
-                previous_close = 1.0
+                currency = holding.get("currency", "USD")
+                if currency == "USD" and fx_prev_close > 0:
+                    # To reflect FX change in Daily P&L, previous native price should be:
+                    # previous_native = 1.0 / (new_rate / fx_prev_close)
+                    previous_close = 1.0 * (fx_prev_close / new_rate)
+                else:
+                    previous_close = 1.0
                 method_label = "cash"
             else:
                 # Normalize: if numeric, append .TA for Yahoo Finance
@@ -465,12 +476,8 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
                 total_daily_return_value += float(holding.get("dailyPnlOriginal", 0.0))
                 continue
                 
-            diff = current_price - float(old_price)
-            pct_change = (diff / float(old_price) * 100) if float(old_price) > 0 else 0.0
-            
             # Extract shares for log
             shares_for_log = float(holding.get("qty", holding.get("shares", 0.0)))
-            print(f"📊 [{source_label}] {symbol} ({shares_for_log:,.2f} units) via {method_label}: {float(old_price):.2f} -> {current_price:.2f} (Δ: {diff:+.2f}, {pct_change:+.2f}%)")
     
             # Compute aggregations for THIS stock
             shares = float(holding.get("qty", holding.get("shares", 0.0)))
@@ -485,14 +492,23 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
             total_pnl = holding_value - holding_invested
                 
             # 1. Update the stock object for `portfolios` doc (the UI view)
+            calc_daily_pct = (daily_delta / previous_close * 100) if previous_close > 0 else 0.0
+            
+            # Print the correct stats to matches what is saved
+            print(f"📊 [{source_label}] {symbol} ({shares_for_log:,.2f} units) via {method_label}: Prev={previous_close:.2f} -> Curr={current_price:.2f} (Daily Δ: {daily_delta:+.2f}, {calc_daily_pct:+.2f}%)")
+            
             holding["lastPrice"] = current_price
             holding["qty"] = shares  # Ensure qty is saved for the frontend
-            holding["dailyChangePercent"] = (daily_delta / previous_close * 100) if previous_close > 0 else 0.0
+            
+            holding["dailyChangePercent"] = calc_daily_pct
             holding["dailyPnlOriginal"] = daily_pnl
             holding["totalPnlOriginal"] = total_pnl
             holding["totalValueOriginal"] = holding_value
             holding["totalReturnPercent"] = (total_pnl / holding_invested * 100) if holding_invested > 0 else 0.0
             holding["last_updated"] = datetime.datetime.now().isoformat()
+            
+            if method_label == "Bizportal":
+                print(f"🎯 [DEBUG-IL] {ticker} -> Price: {current_price}, Prev: {previous_close}, DailyDelta: {daily_delta:+.2f}, DailyChange%: {calc_daily_pct:+.2f}%")
     
             # 2. Update the `families/{uid}/holdings` subcollection for cron job sync
             updates_for_subcol = {
@@ -1751,9 +1767,16 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
                     f"- 💰 מזומן ({name}): {shares:,.2f} {h.get('currency', 'ILS')}"
                 )
             else:
+                name = h.get("name", ticker)
+                # If name is just the ticker, try to keep it clean
+                display_name = f"{name} ({ticker})" if name != ticker else ticker
+                
+                # Check why return might be 0%
+                has_prev = "previous_week_price" in h
+                
                 portfolio_strings.append(
-                    f"- 📈 {ticker}: {shares:,.2f} יחידות | מחיר נוכחי: {current_price:.2f} | "
-                    f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
+                    f"- 📈 {display_name}: {shares:,.2f} יחידות | מחיר נוכחי: {current_price:.2f} | "
+                    f"תשואה שבועית: {weekly_delta_pct:.2f}% (יש היסטוריה: {has_prev}) | תשואה כוללת: {all_time_delta_pct:.2f}%"
                 )
         
         portfolio_data_string = "\n".join(portfolio_strings)
@@ -1761,10 +1784,9 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
         final_prompt = prompts.WEEKLY_STOCK_SUMMARY_PROMPT.format(portfolio_data_string=portfolio_data_string)
         
         # Call Gemini
-        print(f"\n--- AI CALL (WEEKLY SUMMARY) ---")
-        print(f"Model: {config.GEMINI_PRO_MODEL_NAME}")
-        print(f"Prompt Snippet: {final_prompt[:500]}...")
-        print(f"--------------------------------------\n")
+        print(f"\n{'='*20} FULL AI PROMPT (WEEKLY SUMMARY) {'='*20}")
+        print(final_prompt)
+        print(f"{'='*60}\n")
         
         print(f"🤖 [CRON-AI] Calling Gemini {config.GEMINI_PRO_MODEL_NAME} for weekly summary...")
         response = client.models.generate_content(

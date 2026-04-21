@@ -544,17 +544,15 @@ const StocksDashboard: React.FC = () => {
                             </td>
                             {/* Daily % */}
                             <td className="px-4 py-3">
-                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
-                                <span className={clsx(
-                                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold',
-                                  h.dailyChangePercent >= 0 
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                                    : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                                )}>
-                                  {h.dailyChangePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                  {formatPct(h.dailyChangePercent)}
-                                </span>
-                              )}
+                              <span className={clsx(
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold',
+                                h.dailyChangePercent >= 0 
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                  : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                              )}>
+                                {h.dailyChangePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {formatPct(h.dailyChangePercent)}
+                              </span>
                             </td>
                             {/* Value ILS */}
                             <td className="px-4 py-3">
@@ -565,27 +563,21 @@ const StocksDashboard: React.FC = () => {
                             </td>
                             {/* Daily P&L ILS */}
                             <td className="px-4 py-3">
-                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
-                                <span className={clsx('font-bold text-[13px]', dILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                                  {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
-                                </span>
-                              )}
+                              <span className={clsx('font-bold text-[13px]', dILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                                {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
+                              </span>
                             </td>
                             {/* Total P&L ILS */}
                             <td className="px-4 py-3">
-                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
-                                <span className={clsx('font-bold text-[13px]', pILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                                  {pILS >= 0 ? '+' : ''}{formatILS(pILS)}
-                                </span>
-                              )}
+                              <span className={clsx('font-bold text-[13px]', pILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                                {pILS >= 0 ? '+' : ''}{formatILS(pILS)}
+                              </span>
                             </td>
                             {/* Total Return % */}
                             <td className="px-4 py-3">
-                              {h.sector === 'cash' ? <span className="text-slate-400 font-bold">-</span> : (
-                                <span className={clsx('text-xs font-bold', h.totalReturnPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400')}>
-                                  {formatPct(h.totalReturnPercent)}
-                                </span>
-                              )}
+                              <span className={clsx('text-xs font-bold', h.totalReturnPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400')}>
+                                {formatPct(h.totalReturnPercent)}
+                              </span>
                             </td>
                             {/* Actions */}
                             <td className="px-4 py-3">
@@ -643,24 +635,20 @@ const StocksDashboard: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{h.name}</span>
-                            {h.sector !== 'cash' && (
-                              <span className={clsx(
-                                'text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0',
-                                h.dailyChangePercent >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'
-                              )}>
-                                {formatPct(h.dailyChangePercent)}
-                              </span>
-                            )}
+                            <span className={clsx(
+                              'text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0',
+                              h.dailyChangePercent >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'
+                            )}>
+                              {formatPct(h.dailyChangePercent)}
+                            </span>
                           </div>
                           <p className="text-slate-400 text-xs font-mono">{h.sector === 'cash' ? 'מזומן' : h.symbol} · {(h.qty ?? h.shares ?? 0).toLocaleString()} {h.sector === 'cash' ? 'יחידות מטבע' : 'יחידות'}</p>
                         </div>
                         <div className="text-left shrink-0">
                           <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{formatILS(vILS)}</p>
-                          {h.sector !== 'cash' && (
-                            <p className={clsx('text-xs font-bold', dILS >= 0 ? 'text-emerald-500' : 'text-red-400')}>
-                              {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
-                            </p>
-                          )}
+                          <p className={clsx('text-xs font-bold', dILS >= 0 ? 'text-emerald-500' : 'text-red-400')}>
+                            {dILS >= 0 ? '+' : ''}{formatILS(dILS)}
+                          </p>
                         </div>
                         {/* Mobile actions */}
                         <div className="relative shrink-0" onClick={e => e.stopPropagation()}>

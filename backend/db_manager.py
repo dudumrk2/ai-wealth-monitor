@@ -261,8 +261,9 @@ def save_processed_portfolio(uid: str, portfolio_data: dict):
     try:
         doc_ref = db.collection("portfolios").document(uid)
         doc_ref.set(portfolio_data)
-        _processed_portfolio_cache[uid] = (portfolio_data, time.time()) # update cache explicitly
-        print(f"✅ [DB_MANAGER] Successfully saved portfolio for {uid}")
+        # Invalidate cache so the next GET fetches from Firestore
+        _processed_portfolio_cache.pop(uid, None)
+        print(f"✅ [DB_MANAGER] Successfully saved and invalidated cache for {uid}")
         return True
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error saving portfolio: {e}")
@@ -451,13 +452,17 @@ def save_chat_message(uid: str, role: str, text: str) -> bool:
     if db is None:
         return False
     try:
-        import datetime
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        expiration_time = now + timedelta(days=30)
+        
         doc_ref = db.collection("families").document(uid).collection("chat_history").document()
         doc_ref.set({
             "role": role,
             "text": text,
             "createdAt": firestore.SERVER_TIMESTAMP,
-            "timestamp": datetime.datetime.now().isoformat()
+            "expireAt": expiration_time,
+            "timestamp": now.isoformat()
         })
         return True
     except Exception as e:
