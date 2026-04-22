@@ -4,7 +4,7 @@ import { TrendingUp, ShieldCheck, Users, LogIn, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithDemo } = useAuth();
   const navigate = useNavigate();
 
   // Path 1: returning user — sign in and go to dashboard
@@ -27,6 +27,15 @@ export default function Login() {
       navigate('/onboarding');
     } catch (error) {
       console.error("כשל בכניסה", error);
+    }
+  };
+
+  const handleDemoSignIn = async () => {
+    try {
+      await signInWithDemo();
+      navigate('/dashboard');
+    } catch (error) {
+      console.error("כשל בכניסה למשתמש דמו", error);
     }
   };
 
@@ -98,6 +107,18 @@ export default function Login() {
         >
           <LogIn className="w-5 h-5 text-blue-400" />
           כניסה לחשבון משפחה קיים
+          <ArrowLeft className="w-4 h-4 opacity-50 mr-auto" />
+        </button>
+
+        {/* Option C: Demo User */}
+        <button
+          onClick={handleDemoSignIn}
+          className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500/10 to-blue-500/10 hover:from-emerald-500/20 hover:to-blue-500/20 border border-emerald-500/20 text-emerald-400 py-3.5 px-4 rounded-xl font-bold transition-all transform active:scale-95 backdrop-blur-md group"
+        >
+          <div className="bg-emerald-500/20 p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+            <TrendingUp className="w-4 h-4" />
+          </div>
+          צפו בתיק דוגמה חי
           <ArrowLeft className="w-4 h-4 opacity-50 mr-auto" />
         </button>
 

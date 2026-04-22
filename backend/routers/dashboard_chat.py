@@ -13,6 +13,7 @@ from google.genai import types
 import db_manager
 from auth import verify_token
 import config
+from services.demo_constants import DEMO_CHAT_RESPONSES
 
 router = APIRouter(tags=["dashboard"])
 
@@ -91,6 +92,19 @@ async def get_dashboard_summary(family_id: str, user: dict = Depends(verify_toke
 async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_token)):
     uid = user.get("uid")
     
+    # --- DEMO BYPASS ---
+    if uid == config.DEMO_UID:
+        q = request.question.lower()
+        if "פנסיה" in q or "קרן" in q or "חיסכון" in q or "גמל" in q or "השתלמות" in q:
+            ans = DEMO_CHAT_RESPONSES["pension"]
+        elif "מניה" in q or "בורסה" in q or "תיק" in q:
+            ans = DEMO_CHAT_RESPONSES["stocks"]
+        elif "ביטוח" in q:
+            ans = DEMO_CHAT_RESPONSES["insurance"]
+        else:
+            ans = DEMO_CHAT_RESPONSES["default"]
+        return {"response": ans}
+
     family_profile = db_manager.get_family_profile(uid)
     portfolio_doc = db_manager.get_processed_portfolio(uid)
     if not portfolio_doc:
@@ -230,6 +244,14 @@ async def get_advisor_chat_history(family_id: str, limit: int = 50, user: dict =
 @router.post("/api/chat/advisor")
 async def copilot_advisor_chat(request: AdvisorChatRequest, user: dict = Depends(verify_token)):
     uid = user.get("uid")
+    
+    # --- DEMO BYPASS ---
+    if uid == config.DEMO_UID:
+        reply = "אני יועץ ה-AI שלכם בסביבת הדמו. כאן תוכלו לראות איך אני מנתח את תיק ההשקעות שלכם ומציע תובנות. בגרסה האמיתית, אנתח עבורכם שינויים בשוק, אשווה בין מסלולי השקעה ואעזור לכם לקבל החלטות מושכלות."
+        db_manager.save_chat_message(config.DEMO_UID, "user", request.question)
+        db_manager.save_chat_message(config.DEMO_UID, "model", reply)
+        return {"response": reply}
+
     uid_to_use = uid if request.family_id == "CURRENT_UID" else uid
     
     # 1. Fetch current portfolio context

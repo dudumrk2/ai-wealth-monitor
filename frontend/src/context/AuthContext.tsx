@@ -13,6 +13,7 @@ interface AuthContextType {
   familyConfig: (FamilyConfig & { familyId: string }) | null;
   refreshFamily: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithDemo: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -25,8 +26,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadFamily = async (currentUser: User) => {
     const config = await getUserFamily(currentUser.uid, currentUser.email || '');
-    setFamilyConfig(config);
-    return config;
+    
+    // Flatten pii_data if present to match the expected interface
+    const pii = (config as any).pii_data;
+    const flattenedConfig = pii ? { 
+      ...config, 
+      ...pii
+    } : config;
+    
+    setFamilyConfig(flattenedConfig);
+    return flattenedConfig;
   };
 
   /** Re-fetch family config from Firestore (call after createFamily or deleteFamily) */
@@ -35,6 +44,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Check for existing demo session
+    const isDemo = localStorage.getItem('is_demo') === 'true';
+    if (isDemo) {
+      const demoToken = localStorage.getItem('demo_token');
+      const demoUid = localStorage.getItem('demo_uid');
+      if (demoToken && demoUid) {
+        const demoUser = {
+          uid: demoUid,
+          email: 'demo@example.com',
+          displayName: 'Demo Family',
+          getIdToken: async () => demoToken,
+        } as any;
+        setUser(demoUser);
+        
+        // Load family config from localStorage cache
+        const raw = localStorage.getItem(STORAGE_KEYS.FAMILY_CONFIG);
+        if (raw) {
+          try {
+            setFamilyConfig(JSON.parse(raw));
+          } catch (e) {
+            console.error('Error parsing demo family config', e);
+          }
+        }
+        setLoading(false);
+        return;
+      }
+    }
+
     // Demo bypass for Playwright tests — simulates a logged-in user with no family
     if (window.location.search.includes('demo=true')) {
       const demoUser = {
@@ -70,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
+      localStorage.removeItem('is_demo');
       await signInWithPopup(auth, googleProvider);
       // onAuthStateChanged will fire and call loadFamily automatically
     } catch (error) {
@@ -78,9 +116,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithDemo = async () => {
+    try {
+      setLoading(true);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const res = await fetch(`${API_URL}/api/auth/demo`, { method: 'POST' });
+      const data = await res.json();
+      
+      const demoUser = {
+        uid: data.uid,
+        email: 'demo@example.com',
+        displayName: 'Demo Family',
+        getIdToken: async () => data.token,
+      } as any;
+
+      localStorage.setItem('is_demo', 'true');
+      localStorage.setItem('demo_token', data.token);
+      localStorage.setItem('demo_uid', data.uid);
+      localStorage.setItem(STORAGE_KEYS.ONBOARDING_DONE, 'true');
+      
+      if (data.family_config) {
+        // Flatten pii_data if present to match the FamilyConfig interface
+        const pii = data.family_config.pii_data;
+        const fullConfig = pii ? { 
+          ...data.family_config, 
+          ...pii,
+          familyId: data.uid 
+        } : { ...data.family_config, familyId: data.uid };
+        
+        localStorage.setItem(STORAGE_KEYS.FAMILY_CONFIG, JSON.stringify(fullConfig));
+        setFamilyConfig(fullConfig as any);
+      }
+
+      setUser(demoUser);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error signing in with Demo', error);
+      setLoading(false);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
+      localStorage.removeItem('is_demo');
+      localStorage.removeItem('demo_token');
+      localStorage.removeItem('demo_uid');
+      localStorage.removeItem(STORAGE_KEYS.ONBOARDING_DONE);
+      localStorage.removeItem(STORAGE_KEYS.FAMILY_CONFIG);
+      
       await signOut(auth);
+      setUser(null);
       setFamilyConfig(null);
     } catch (error) {
       console.error('Error signing out', error);
@@ -107,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       familyConfig,
       refreshFamily,
       signInWithGoogle,
+      signInWithDemo,
       logout,
     }}>
       {children}

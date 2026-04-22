@@ -5,14 +5,14 @@ import AddAlternativeModal from '../components/dashboard/AddAlternativeModal';
 import PolicyDetailsModal from '../components/dashboard/PolicyDetailsModal';
 import ProjectDetailsModal from '../components/dashboard/ProjectDetailsModal';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { auth, db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 
 import { API_URL } from '../lib/api';
 import { getMonthsElapsed } from '../utils/date';
 import { formatCurrency } from '../utils/format';
 
 export default function AltInvestmentsDashboard() {
+  const { user } = useAuth();
   const [showExited, setShowExited] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<LeveragedPolicy | null>(null);
@@ -27,7 +27,6 @@ export default function AltInvestmentsDashboard() {
   const fetchAlternativeData = async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const user = auth.currentUser;
       if (!user) return;
       const token = await user.getIdToken();
 
@@ -49,19 +48,8 @@ export default function AltInvestmentsDashboard() {
         setPolicies(polData);
       }
 
-      // Fetch prime rate from Firestore settings/financials
-      try {
-        const settingsDoc = await getDoc(doc(db, 'settings', 'financials'));
-        if (settingsDoc.exists()) {
-          const rate = settingsDoc.data()?.current_prime_rate;
-          if (typeof rate === 'number' && rate > 0) {
-            setCurrentPrimeRate(rate);
-            console.log(`[AltDashboard] Prime rate loaded from Firestore: ${rate}%`);
-          }
-        }
-      } catch (fsErr) {
-        console.warn('[AltDashboard] Could not fetch prime rate from Firestore:', fsErr);
-      }
+      // For demo or when direct Firestore is disabled, we stick with default prime rate
+      // or fetch it from a backend settings endpoint.
     } catch (error) {
       console.error('Error fetching alt investments data:', error);
     } finally {
@@ -75,7 +63,6 @@ export default function AltInvestmentsDashboard() {
 
   const handleSaveAsset = async (data: AltProject | LeveragedPolicy, type: 'real_estate' | 'policy', file: File | null) => {
     try {
-      const user = auth.currentUser;
       if (!user) return;
       const token = await user.getIdToken();
 

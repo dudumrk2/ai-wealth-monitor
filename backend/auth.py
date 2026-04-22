@@ -3,6 +3,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import firebase_admin
 from firebase_admin import auth
 
+import config
+
 security = HTTPBearer()
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -16,6 +18,11 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
             detail="Invalid or missing authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+        
+    # --- DEMO BYPASS ---
+    if token == config.DEMO_TOKEN:
+        return {"uid": config.DEMO_UID, "email": "demo@example.com"}
+
     try:
         if not firebase_admin._apps:
             # If we're here, initialization failed. Try one last search.

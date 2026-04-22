@@ -133,6 +133,22 @@ async def log_requests(request: Request, call_next):
     sys.stdout.flush()
     return response
 
+@app.post("/api/auth/demo")
+async def login_demo():
+    """Seed demo data and return a demo token for the frontend."""
+    from services.demo_seeder import seed_demo_data
+    import config
+    seed_demo_data()
+    
+    # Get the seeded profile to return to frontend
+    profile = db_manager.get_family_profile(config.DEMO_UID)
+    
+    return {
+        "token": config.DEMO_TOKEN, 
+        "uid": config.DEMO_UID,
+        "family_config": profile
+    }
+
 from auth import verify_token
 
 @app.post("/api/portfolio/update-prices")

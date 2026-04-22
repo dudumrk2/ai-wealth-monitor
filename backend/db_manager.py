@@ -2,6 +2,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import os
 import sys
+import time
+import config
 
 # Global DB client placeholder
 db = None
@@ -155,6 +157,19 @@ def get_family_profile(uid: str):
         print(f"💥 [DB_MANAGER] Error fetching family profile: {e}")
         return None
 
+def save_family_profile(uid: str, data: dict) -> bool:
+    """Save or update a family profile in Firestore."""
+    if db is None:
+        return False
+    try:
+        db.collection("families").document(uid).set(data, merge=True)
+        # Invalidate cache
+        _family_profile_cache.pop(uid, None)
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving family profile: {e}")
+        return False
+
 def get_processed_portfolio(uid: str):
     """
     Fetch the final processed portfolio from the 'portfolios' collection.
@@ -202,8 +217,8 @@ def get_all_family_uids() -> list:
             .where("gmail_refresh_token", "!=", "")
             .stream()
         )
-        uids = [doc.id for doc in docs]
-        print(f"✅ [DB_MANAGER] Found {len(uids)} Gmail-enabled family/families.")
+        uids = [doc.id for doc in docs if doc.id != config.DEMO_UID]
+        print(f"✅ [DB_MANAGER] Found {len(uids)} Gmail-enabled family/families (excluding demo).")
         return uids
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error fetching Gmail-enabled family UIDs: {e}")
@@ -398,7 +413,7 @@ def get_all_family_uids_for_holdings() -> list:
     try:
         # We use select([]) to only fetch document IDs to save bandwidth
         docs = db.collection("families").select([]).stream()
-        return [doc.id for doc in docs]
+        return [doc.id for doc in docs if doc.id != config.DEMO_UID]
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error fetching all family UIDs: {e}")
         return []

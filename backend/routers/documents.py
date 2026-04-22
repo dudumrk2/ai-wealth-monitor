@@ -447,6 +447,10 @@ async def upload_document(
     if user.get("uid") != uid and uid != "CURRENT_UID":
          uid = user.get("uid")
          
+    # --- DEMO BYPASS ---
+    if uid == config.DEMO_UID:
+        raise HTTPException(status_code=403, detail="העלאת מסמכים חסומה בסביבת הדמו. תוכלו להתרשם מהנתונים הקיימים בתיק.")
+
     print(f"\n🚀 [DOCUMENTS] INCOMING REQUEST: /api/documents/upload for uid={uid}, type={document_type}, policy_id={policy_id}")
     
     from report_utils import (

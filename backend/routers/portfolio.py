@@ -3,6 +3,7 @@ import datetime
 import db_manager
 from auth import verify_token
 import ai_advisor
+import config
 from services.stock_updater import _perform_stock_prices_update, _calculate_stock_summary_data
 from report_utils import _collect_market_data_async, _attach_competitors_to_funds
 from mock_data import MOCK_DATA
@@ -105,8 +106,12 @@ async def get_portfolio(
             
             # Generate action items using the unified Gemini-based advisor
             try:
-                action_items = ai_advisor.generate_action_items(portfolios, live_market_data, f_profile)
-                print(f"✅ [PORTFOLIO-ROUTER] Advisory refresh complete: generated {len(action_items)} action items.")
+                if uid == config.DEMO_UID:
+                     print(f"⏭️  [PORTFOLIO-ROUTER] Skipping AI advisor for demo user.")
+                     action_items = portfolio_doc.get("action_items", [])
+                else:
+                     action_items = ai_advisor.generate_action_items(portfolios, live_market_data, f_profile)
+                     print(f"✅ [PORTFOLIO-ROUTER] Advisory refresh complete: generated {len(action_items)} action items.")
             except Exception as ai_e:
                 print(f"⚠️ [PORTFOLIO-ROUTER] Advisory failed during refresh: {ai_e}. Keeping existing items.")
                 action_items = portfolio_doc.get("action_items", [])

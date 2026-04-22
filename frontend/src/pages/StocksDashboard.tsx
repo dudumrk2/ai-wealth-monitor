@@ -20,7 +20,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { auth } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import type { StockHolding, ExchangeRate, StockSector } from '../types/stocks';
 import { SECTOR_LABELS, SECTOR_COLORS } from '../types/stocks';
@@ -36,9 +36,13 @@ import { formatCurrency } from '../utils/format';
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
-const formatILS = (val: number) => formatCurrency(val);
+const formatILS = (val: number | undefined | null) => {
+  if (val === undefined || val === null || isNaN(val)) return '₪0';
+  return formatCurrency(val);
+};
 
-const formatPct = (val: number) => {
+const formatPct = (val: number | undefined | null) => {
+  if (val === undefined || val === null) return '0.00%';
   const prefix = val > 0 ? '+' : '';
   return `${prefix}${val.toFixed(2)}%`;
 };
@@ -72,6 +76,7 @@ function getSortValue(h: StockHolding, key: SortKey, rate: number): number | str
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────
 const StocksDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [fxRate, setFxRate]       = useState<ExchangeRate | null>(null);
   const [fxLoading, setFxLoading] = useState(true);
   const [holdings, setHoldings]   = useState<StockHolding[]>([]);
@@ -92,7 +97,6 @@ const StocksDashboard: React.FC = () => {
       setFxLoading(true);
     }
     try {
-      const user = auth.currentUser;
       if (!user) return;
       const token = await user.getIdToken();
 
@@ -516,7 +520,7 @@ const StocksDashboard: React.FC = () => {
                         const pILS  = totalPnlILS(h, rate);
                         const pct   = (vILS / totalValueILS) * 100;
                         return (
-                          <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                          <tr key={h.id || h.symbol} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                             {/* Name / Symbol */}
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
@@ -624,7 +628,7 @@ const StocksDashboard: React.FC = () => {
                     const vILS = toILS(h, rate);
                     const dILS = dailyILS(h, rate);
                     return (
-                      <div key={h.id} className="px-4 py-3 flex items-center gap-3">
+                      <div key={h.id || h.symbol} className="px-4 py-3 flex items-center gap-3">
                         <div 
                           className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0" 
                           style={{ backgroundColor: (SECTOR_COLORS[h.sector] || '#94a3b8') + 'cc' }}

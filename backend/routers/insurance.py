@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import os
 import db_manager
 from auth import verify_token
+import config
 from google import genai
 from google.genai import types
 import config
@@ -16,6 +17,10 @@ class CompareRequest(BaseModel):
 async def compare_insurance(request: CompareRequest, user: dict = Depends(verify_token)):
     uid = user.get("uid")
     
+    # --- DEMO BYPASS ---
+    if uid == config.DEMO_UID:
+        return {"draft": "שלום, בדקתי את תנאי הפוליסה שלי וראיתי שישנן חלופות עם דמי ניהול נמוכים משמעותית. אשמח לבחון הוזלה בעלויות הנוכחיות שלי כדי שאוכל להישאר אצלכם. תודה!"}
+
     portfolio_doc = db_manager.get_processed_portfolio(uid)
     if not portfolio_doc:
         raise HTTPException(status_code=404, detail="לא נמצא תיק נתונים")

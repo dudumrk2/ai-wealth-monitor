@@ -15,3 +15,8 @@ PRODUCT_TYPE_TO_CATEGORY: dict[str, str] = {
     "גמל להשקעה":      "investment_provident",
     "תיק מניות":        "stocks",
 }
+
+# Demo Settings
+import os
+DEMO_UID = "demo-user-12345"
+DEMO_TOKEN = os.environ.get("DEMO_TOKEN", "demo-token-12345")
