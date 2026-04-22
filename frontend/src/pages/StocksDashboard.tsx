@@ -27,8 +27,8 @@ import { SECTOR_LABELS, SECTOR_COLORS } from '../types/stocks';
 import { AdvisorChat } from '../components/dashboard/AdvisorChat';
 import ManualStockModal from '../components/stocks/ManualStockModal';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
+import { API_URL } from '../lib/api';
+import { formatCurrency } from '../utils/format';
 // ─────────────────────────────────────────────────────────────────
 // MOCK DATA REMOVED - using live API
 // ─────────────────────────────────────────────────────────────────
@@ -36,8 +36,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
-const formatILS = (val: number) =>
-  new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
+const formatILS = (val: number) => formatCurrency(val);
 
 const formatPct = (val: number) => {
   const prefix = val > 0 ? '+' : '';
@@ -701,10 +700,7 @@ const StocksDashboard: React.FC = () => {
         initialData={editingStock}
       />
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes fade-in-up { 0%{opacity:0;transform:translateY(10px)} 100%{opacity:1;transform:translateY(0)} }
-        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
-      ` }} />
+
     </DashboardLayout>
   );
 };

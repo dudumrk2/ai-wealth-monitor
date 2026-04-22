@@ -8,7 +8,7 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
 import PolicyUploadModal from '../components/PolicyUploadModal';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../lib/api';
 
 export default function InsurancePage() {
   const [activeTab, setActiveTab] = useState('רכב');

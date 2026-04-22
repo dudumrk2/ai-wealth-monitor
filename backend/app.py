@@ -3,7 +3,6 @@ import firebase_admin
 import datetime
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -226,8 +225,7 @@ async def log_requests(request: Request, call_next):
     sys.stdout.flush()
     return response
 
-from auth import verify_token, security
-
+from auth import verify_token
 @app.delete("/api/portfolio/fund/{fund_id}")
 async def delete_fund(fund_id: str, user: dict = Depends(verify_token)):
     uid = user.get("uid")
@@ -720,229 +718,7 @@ async def delete_stock(symbol: str, user: dict = Depends(verify_token)):
         
     return {"status": "success", "message": f"Stock {symbol} removed"}
 
-class FamilyMemberPII(BaseModel):
-    name: str = ""
-    lastName: str = ""
-    idNumber: str = ""
-    email: str = ""
 
-class PIIDataRequest(BaseModel):
-    member1: Optional[FamilyMemberPII] = None
-    member2: Optional[FamilyMemberPII] = None
-    debug: bool = False
-    analyze: bool = True
-
-@app.post("/api/process-inbox")
-def process_inbox(pii_request: PIIDataRequest, user: dict = Depends(verify_token)):
-    """
-    Process PDFs from local_inbox, redact PII, send to Anthropic Vision, and archive.
-    """
-    print("\n" + "="*50)
-    print(f"🚀 INCOMING REQUEST: processing inbox for user: {user.get('uid')}")
-    print("="*50 + "\n")
-    sys.stdout.flush()
-    
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    results = []
-    
-    # Pre-process PII into targets
-    members = []
-    if pii_request.member1: members.append(("member_1", pii_request.member1))
-    if pii_request.member2: members.append(("member_2", pii_request.member2))
-    
-    # 0. Cleanup: If we are analyzing, clear previous AI-extracted data to prevent duplication
-    if pii_request.analyze:
-        print("Clearing previous AI-extracted funds from portfolios...")
-        for key in ["user", "spouse"]:
-            MOCK_DATA["portfolios"][key]["funds"] = [f for f in MOCK_DATA["portfolios"][key]["funds"] if not f.get("id", "").startswith("ai_")]
-    
-    all_target_strings = []
-    for _, m in members:
-        all_target_strings.extend([m.name, m.lastName, m.idNumber, m.email])
-        # Special logic: if ID starts with 0, also redact version without 0
-        if m.idNumber and m.idNumber.startswith('0'):
-            all_target_strings.append(m.idNumber[1:])
-    
-    # Step A: Call get_family_profile(uid) before processing the PDF
-    uid = user.get("uid")
-    print(f"\n🚀 [APP] Starting processing flow for UID: {uid}")
-    family_profile = db_manager.get_family_profile(uid)
-    
-    f_profile = {}
-    if family_profile:
-        print(f"✅ [APP] Family profile found for {uid}")
-        # Step B: Pass the fetched pii_data to the local PDF redaction logic
-        f_pii = family_profile.get("pii_data", {})
-        f_profile = family_profile.get("financial_profile", {})
-        
-        print(f"DEBUG: Financial Profile keys found: {list(f_profile.keys())}")
-        
-        for m_key in ["member1", "member2"]:
-            m_data = f_pii.get(m_key)
-            if m_data:
-                name = m_data.get("name", "")
-                last = m_data.get("lastName", "")
-                id_num = m_data.get("idNumber", "")
-                email = m_data.get("email", "")
-                print(f"DEBUG: Adding redaction targets for {m_key}: {name} {last}, {id_num}, {email}")
-                all_target_strings.extend([name, last, id_num, email])
-                if id_num and id_num.startswith('0'):
-                    all_target_strings.append(id_num[1:])
-    else:
-        print(f"⚠️ [APP] No profile found for {uid} in Firestore. Falling back to request data.")
-
-    all_target_strings = list(set([s for s in all_target_strings if s and len(s.strip()) > 2]))
-    print(f"DEBUG: Total collective redaction strings: {len(all_target_strings)}")
-    
-    print(f"DEBUG: Scanning inbox directory: {INBOX_DIR}")
-    sys.stdout.flush()
-    if not os.path.exists(INBOX_DIR):
-        print(f"ERROR: Inbox directory missing at {INBOX_DIR}")
-        return {"processed_count": 0, "results": [], "error": f"Inbox directory missing at {INBOX_DIR}"}
-
-    pdf_files = [f for f in os.listdir(INBOX_DIR) if f.lower().endswith('.pdf')]
-    print(f"DEBUG: Found {len(pdf_files)} PDF files to process.")
-    sys.stdout.flush()
-    
-    if not pdf_files:
-        print("ℹ️ [APP] No PDF files found in local_inbox")
-        return {"processed_count": 0, "results": [], "message": "No PDFs found in local_inbox"}
-        
-    for filename in pdf_files:
-        print(f"\n📄 [APP] Processing file: {filename}")
-        filepath = os.path.join(INBOX_DIR, filename)
-        redacted_images_base64 = []
-        
-        try:
-            with open(filepath, "rb") as f:
-                file_bytes = f.read()
-            
-            doc = fitz.open("pdf", file_bytes)
-            
-            detected_owner = "unknown"
-            if doc.is_encrypted:
-                print(f"DEBUG: Document {filename} is encrypted. Trying password authentication...")
-                authenticated = False
-                for label, m in members:
-                    if m.idNumber and doc.authenticate(m.idNumber):
-                        authenticated = True
-                        detected_owner = label
-                        print(f"✅ Authenticated using request {label}'s ID.")
-                        break
-                
-                if not authenticated and family_profile:
-                    for m_key in ["member1", "member2"]:
-                        m_id = family_profile.get("pii_data", {}).get(m_key, {}).get("idNumber")
-                        if m_id and doc.authenticate(m_id):
-                            authenticated = True
-                            detected_owner = "member_1" if m_key == "member1" else "member_2"
-                            print(f"✅ Authenticated using Firestore {m_key}'s ID.")
-                            break
-
-                if not authenticated:
-                    print(f"❌ [APP] Could not authenticate {filename}")
-                    results.append({"filename": filename, "error": "PDF is password protected and none of the provided IDs worked."})
-                    doc.close()
-                    continue
-            else:
-                # Fallback: Count matches in text if not encrypted
-                match_counts = {"member_1": 0, "member_2": 0}
-                for page in doc:
-                    text = page.get_text().lower()
-                    for label, m in members:
-                        if m.name and m.name.lower().strip() in text: match_counts[label] += 1
-                        if m.idNumber and m.idNumber.strip() in text: match_counts[label] += 1
-                    
-                    if family_profile:
-                        for m_key in ["member1", "member2"]:
-                            m_pii = family_profile.get("pii_data", {}).get(m_key, {})
-                            label = "member_1" if m_key == "member1" else "member_2"
-                            if m_pii.get("name") and m_pii.get("name").lower().strip() in text: match_counts[label] += 1
-                            if m_pii.get("idNumber") and m_pii.get("idNumber").strip() in text: match_counts[label] += 1
-
-                if match_counts["member_1"] > match_counts["member_2"]: detected_owner = "member_1"
-                elif match_counts["member_2"] > match_counts["member_1"]: detected_owner = "member_2"
-                print(f"DEBUG: Identified Owner: {detected_owner} (Matches: {match_counts})")
-
-            print(f"DEBUG: Rendering and redacting {len(doc)} pages...")
-            redacted_images_base64 = _redact_and_render_pdf(doc, all_target_strings)
-
-            print(f"✅ Redacted {len(redacted_images_base64)} pages for {filename}")
-
-            if not api_key or not pii_request.analyze:
-                print(f"DEBUG: Skipping AI analysis (analyze={pii_request.analyze}, api_key={bool(api_key)})")
-                # Return a sample of redacted images (first 3 pages) for preview
-                preview_sample = redacted_images_base64[:3]
-                results.append({"filename": filename, "status": "preview_only", "preview_images": preview_sample})
-                continue
-
-            # Step C: Extract portfolio data via Anthropic Vision
-                y5 = fund_data["yield_5yr"]
-                y5_ann = _parse_float(p.get("yield_5yr_annualized", 0))
-                
-                # Case 1: cumulative is 0 but annualized exists → convert
-                if y5 == 0 and y5_ann > 0:
-                    fund_data["yield_5yr"] = round(((1 + (y5_ann / 100.0)) ** 5 - 1) * 100, 2)
-                    print(f"🤖 [APP] Converted 5Y annualized ({y5_ann}%) → cumulative ({fund_data['yield_5yr']}%) for {fund_data['track_name']}")
-                # Case 2: 5Y is suspiciously low vs 3Y — likely annualized was put in cumulative field
-                elif y3 > 0 and 0 < y5 < y3 * 0.4:
-                    y5_cumulative = round(((1 + (y5 / 100.0)) ** 5 - 1) * 100, 2)
-                    print(f"🤖 [APP] Anti-Hallucination: 5Y ({y5}%) << 3Y ({y3}%), likely annualized. Converting → {y5_cumulative}% for {fund_data['track_name']}")
-                    fund_data["yield_5yr"] = y5_cumulative
-
-                MOCK_DATA["portfolios"][owner_key]["funds"].append(fund_data)
-            
-            shutil.move(filepath, os.path.join(ARCHIVE_DIR, filename))
-
-        except Exception as e:
-            print(f"💥 [APP] Error processing {filename}: {str(e)}")
-            results.append({"filename": filename, "error": str(e)})
-
-    # Step D: Generate action items ONLY if funds were actually extracted
-    total_funds_extracted = (
-        len(MOCK_DATA["portfolios"].get("user", {}).get("funds", [])) +
-        len(MOCK_DATA["portfolios"].get("spouse", {}).get("funds", []))
-    )
-    
-    if total_funds_extracted > 0 and pii_request.analyze:
-        print(f"\n🤖 [APP] Orchestrating Action Items generation ({total_funds_extracted} funds found)...")
-        # Fetch live competitor benchmarks for every track in the portfolio
-        live_market_data = _collect_market_data(MOCK_DATA["portfolios"])
-        _attach_competitors_to_funds(MOCK_DATA["portfolios"], live_market_data)
-        action_items = ai_advisor.generate_action_items(
-            family_portfolio=MOCK_DATA["portfolios"],
-            market_data=live_market_data,
-            financial_profile=f_profile
-        )
-    elif not pii_request.analyze:
-        # Preview-only scan — don't call Claude for action items, return early
-        print("\nℹ️ [APP] Preview scan complete. Skipping action items (analyze=False).")
-        return {"status": "preview", "processed_count": len(pdf_files), "results": results}
-    else:
-        print(f"\n⚠️ [APP] No funds extracted from PDFs. Skipping action items to avoid empty recommendations.")
-        action_items = []
-    
-    # Step E: Combine the extracted portfolio and action items into a single final JSON
-    MOCK_DATA["action_items"] = action_items
-    MOCK_DATA["last_updated"] = datetime.datetime.now().isoformat()
-    
-    final_json = {
-        "uid": uid,
-        "last_updated": MOCK_DATA["last_updated"],
-        "portfolios": MOCK_DATA["portfolios"],
-        "action_items": MOCK_DATA["action_items"]
-    }
-    
-    print("\n📦 [APP] Final result consolidated. Sample Action Item:")
-    if action_items:
-        print(json.dumps(action_items[0], indent=2, ensure_ascii=False))
-    
-    # Step F: Pass the final JSON to save_processed_portfolio(uid, final_json)
-    print("\n☁️ [APP] Final step: Persisting to Firestore...")
-    db_manager.save_processed_portfolio(uid, final_json)
-    
-    print(f"\n🏁 [APP] Processing flow for {uid} COMPLETE.")
-    return {"status": "success", "processed_count": len(pdf_files), "results": results, "final_data": final_json}
 
 @app.post("/api/process-reports")
 async def process_reports(
@@ -1184,7 +960,7 @@ def _build_oauth_url(uid: str, member_id: str) -> str:
 
 
 @app.get("/api/auth/gmail/url")
-async def get_gmail_auth_url(uid: str = None, member: str = "member1", credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_gmail_auth_url(uid: str = None, member: str = "member1", user: dict = Depends(verify_token)):
     """
     Return the Google OAuth URL for Gmail authorization.
     Requires Firebase auth token in Authorization header.
@@ -1192,11 +968,7 @@ async def get_gmail_auth_url(uid: str = None, member: str = "member1", credentia
                  ?member=<member_id>  (defaults to member1)
     """
     import httpx as _httpx
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        requester_uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    requester_uid = user["uid"]
 
     target_uid = uid or requester_uid
     oauth_url = _build_oauth_url(target_uid, member)
@@ -1278,14 +1050,10 @@ class GmailSettingsPayload(BaseModel):
 @app.put("/api/settings/gmail")
 async def save_gmail_settings(
     payload: GmailSettingsPayload,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    user: dict = Depends(verify_token),
 ):
     """Save Gmail search settings and cron schedule for the authenticated family."""
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    uid = user["uid"]
 
     updates: dict = {}
     if payload.gmail_sender_email is not None:
@@ -1313,13 +1081,9 @@ async def save_gmail_settings(
 
 
 @app.get("/api/settings/gmail")
-async def get_gmail_settings(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_gmail_settings(user: dict = Depends(verify_token)):
     """Return the current Gmail settings + connection status for the authenticated family."""
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    uid = user["uid"]
 
     profile = db_manager.get_family_profile(uid) or {}
     return {
@@ -1336,38 +1100,26 @@ async def get_gmail_settings(credentials: HTTPAuthorizationCredentials = Depends
     }
 
 @app.post("/api/settings/cron/update-stock-prices/run")
-async def trigger_manual_update_stock_prices(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def trigger_manual_update_stock_prices(user: dict = Depends(verify_token)):
+    uid = user["uid"]
 
     print(f"\n🚀 [APP] Manual stock price update triggered by user {uid}")
     res = await _perform_stock_prices_update(uid, source_label="USER-MANUAL-CRON")
     return {"status": "success", "result": res}
 
 @app.post("/api/settings/cron/weekly-stock-summary/run")
-async def trigger_manual_weekly_summary(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def trigger_manual_weekly_summary(user: dict = Depends(verify_token)):
+    uid = user["uid"]
 
     print(f"\n🚀 [APP] Manual weekly summary triggered by user {uid}")
     res = await _weekly_stock_summary_for_family(uid)
     return {"status": "success", "result": res}
 
 @app.delete("/api/settings/gmail")
-async def disconnect_gmail(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def disconnect_gmail(user: dict = Depends(verify_token)):
     """Removes the Gmail refresh token and associated member linkage."""
     from firebase_admin import firestore
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    uid = user["uid"]
 
     try:
         db_manager.update_family_field(uid, "gmail_refresh_token", firestore.DELETE_FIELD)
@@ -1378,13 +1130,9 @@ async def disconnect_gmail(credentials: HTTPAuthorizationCredentials = Depends(s
 
 
 @app.post("/api/settings/gmail/scan")
-async def trigger_manual_gmail_scan(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def trigger_manual_gmail_scan(user: dict = Depends(verify_token)):
     """Manually trigger the Gmail scan for the authenticated user and process new reports."""
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    uid = user["uid"]
 
     print(f"\n🚀 [APP] Manual Gmail scan triggered by user {uid}")
     result = await _process_family_emails(uid, bypass_schedule=True)
@@ -1732,8 +1480,6 @@ async def update_stock_prices_cron(request: Request):
     print(f"\n📈 [CRON] update-stock-prices — targeting {len(uids)} family/families")
     
     results = []
-    
-    results = []
     for uid in uids:
         profile = db_manager.get_family_profile(uid)
         if profile and profile.get("cron_stock_prices_enabled", True) is False:
@@ -1901,12 +1647,8 @@ async def cron_update_funder_yields(request: Request):
     return await _run_funder_yields_update()
 
 @app.post("/api/settings/cron/update-funder-yields/run")
-async def trigger_manual_funder_yields(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        decoded = auth.verify_id_token(credentials.credentials)
-        uid = decoded["uid"]
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def trigger_manual_funder_yields(user: dict = Depends(verify_token)):
+    uid = user["uid"]
 
     print(f"\n⚡ User {uid} triggered Funder Yields updater")
     return await _run_funder_yields_update()

@@ -13,7 +13,7 @@ import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../lib/api';
 
 type TabView = 'user' | 'spouse' | 'joint';
 

@@ -1,5 +1,6 @@
 import { X, TrendingUp, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
+import { formatCurrency } from '../../utils/format';
 
 interface Competitor {
   provider_name?: string;
@@ -23,8 +24,6 @@ export default function CompetitorModal({ isOpen, onClose, product, productType 
 
   const competitors: Competitor[] = product.top_competitors || product.competitors || [];
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose} dir="rtl">

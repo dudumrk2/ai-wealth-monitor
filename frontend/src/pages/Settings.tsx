@@ -8,7 +8,7 @@ import UploadSection from '../components/dashboard/UploadSection';
 import { useTheme } from '../context/ThemeContext';
 import clsx from 'clsx';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../lib/api';
 
 export default function Settings() {
   const navigate = useNavigate();

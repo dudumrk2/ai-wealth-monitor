@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   X,
   Shield,
@@ -15,6 +14,8 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import type { LeveragedPolicy } from '../../types/alternative';
+import { formatCurrency, formatPercent } from '../../utils/format';
+import { InfoCell } from '../ui/InfoCell';
 
 interface PolicyDetailsModalProps {
   policy: LeveragedPolicy;
@@ -23,16 +24,6 @@ interface PolicyDetailsModalProps {
   onEdit?: (policy: LeveragedPolicy) => void;
   onDelete?: (policy: LeveragedPolicy) => void;
 }
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('he-IL', {
-    style: 'currency',
-    currency: 'ILS',
-    maximumFractionDigits: 0,
-  }).format(amount);
-
-const formatPercent = (value: number) =>
-  `${value.toFixed(2)}%`;
 
 export default function PolicyDetailsModal({
   policy,
@@ -121,13 +112,13 @@ export default function PolicyDetailsModal({
               icon={<Wallet className="w-4 h-4" />}
               label="שווי קופה נוכחי"
               value={formatCurrency(policy.currentBalance)}
-              valueClass="text-slate-800 dark:text-slate-100 font-bold"
+              valueClassName="text-slate-800 dark:text-slate-100 font-bold"
             />
             <InfoCell
               icon={<TrendingDown className="w-4 h-4 text-red-500" />}
               label="הלוואת בלון"
               value={formatCurrency(loanAmount)}
-              valueClass="text-red-600 dark:text-red-400 font-bold"
+              valueClassName="text-red-600 dark:text-red-400 font-bold"
             />
             <InfoCell
               icon={<Calendar className="w-4 h-4" />}
@@ -138,7 +129,7 @@ export default function PolicyDetailsModal({
               icon={<Percent className="w-4 h-4" />}
               label="ריבית מינוף"
               value={marginLabel}
-              valueClass="text-indigo-600 dark:text-indigo-400 font-semibold"
+              valueClassName="text-indigo-600 dark:text-indigo-400 font-semibold"
             />
             {policy.funderLink && (
               <div className="col-span-2">
@@ -273,38 +264,7 @@ export default function PolicyDetailsModal({
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes modal-slide-up {
-          from { opacity: 0; transform: translateY(16px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .animate-modal-slide-up {
-          animation: modal-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-      ` }} />
-    </div>
-  );
-}
 
-// ── Small helper sub-component ──
-function InfoCell({
-  icon,
-  label,
-  value,
-  valueClass = 'text-slate-700 dark:text-slate-300 font-semibold',
-}: {
-  icon?: React.ReactNode;
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl px-4 py-3">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
-        {icon && <span className="text-slate-400">{icon}</span>}
-        {label}
-      </p>
-      <p className={`text-sm ${valueClass}`}>{value}</p>
     </div>
   );
 }

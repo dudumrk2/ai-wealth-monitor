@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../lib/api';
 
 interface PolicyUploadModalProps {
   isOpen: boolean;

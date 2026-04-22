@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   X,
   Building2,
@@ -14,6 +13,9 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import type { AltProject } from '../../types/alternative';
+import { formatCurrency, formatPercent } from '../../utils/format';
+import { getMonthsElapsed } from '../../utils/date';
+import { InfoCell } from '../ui/InfoCell';
 
 interface ProjectDetailsModalProps {
   project: AltProject;
@@ -22,29 +24,11 @@ interface ProjectDetailsModalProps {
   onDelete?: (project: AltProject) => void;
 }
 
-const formatCurrency = (amount: number, currency = 'ILS') =>
-  new Intl.NumberFormat('he-IL', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
-
-const formatPercent = (value: number) => `${value.toFixed(1)}%`;
-
 /** Add N months to a date string (YYYY-MM-DD or YYYY-MM), return YYYY-MM */
 function addMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr);
   d.setMonth(d.getMonth() + months);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthsElapsed(startDateStr: string): number {
-  const start = new Date(startDateStr);
-  const now = new Date();
-  return (
-    (now.getFullYear() - start.getFullYear()) * 12 +
-    (now.getMonth() - start.getMonth())
-  );
 }
 
 function formatMonthLabel(yyyyMm: string): string {
@@ -146,13 +130,13 @@ export default function ProjectDetailsModal({
               icon={<DollarSign className="w-4 h-4" />}
               label="סכום השקעה"
               value={formatCurrency(project.originalAmount, project.currency)}
-              valueClass="text-slate-800 dark:text-slate-100 font-bold"
+              valueClassName="text-slate-800 dark:text-slate-100 font-bold"
             />
             <InfoCell
               icon={<TrendingUp className="w-4 h-4 text-emerald-500" />}
               label="תשואה שנתית צפויה"
               value={formatPercent(project.expectedReturn)}
-              valueClass="text-emerald-600 dark:text-emerald-400 font-bold"
+              valueClassName="text-emerald-600 dark:text-emerald-400 font-bold"
             />
             <InfoCell
               icon={<Calendar className="w-4 h-4" />}
@@ -180,13 +164,13 @@ export default function ProjectDetailsModal({
                   icon={<TrendingUp className="w-4 h-4 text-indigo-500" />}
                   label="רווח צפוי (סה״כ)"
                   value={formatCurrency(totalExpectedProfit, project.currency)}
-                  valueClass="text-indigo-600 dark:text-indigo-400 font-bold"
+                  valueClassName="text-indigo-600 dark:text-indigo-400 font-bold"
                 />
                 <InfoCell
                   icon={<DollarSign className="w-4 h-4 text-blue-500" />}
                   label="שווי משוער (כולל צבירה)"
                   value={formatCurrency(estimatedCurrentValue, project.currency)}
-                  valueClass="text-blue-600 dark:text-blue-400 font-bold"
+                  valueClassName="text-blue-600 dark:text-blue-400 font-bold"
                 />
               </>
             )}
@@ -294,37 +278,7 @@ export default function ProjectDetailsModal({
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes modal-slide-up {
-          from { opacity: 0; transform: translateY(16px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .animate-modal-slide-up {
-          animation: modal-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-      ` }} />
-    </div>
-  );
-}
 
-function InfoCell({
-  icon,
-  label,
-  value,
-  valueClass = 'text-slate-700 dark:text-slate-300 font-semibold',
-}: {
-  icon?: React.ReactNode;
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl px-4 py-3">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
-        {icon && <span className="text-slate-400">{icon}</span>}
-        {label}
-      </p>
-      <p className={`text-sm ${valueClass}`}>{value}</p>
     </div>
   );
 }

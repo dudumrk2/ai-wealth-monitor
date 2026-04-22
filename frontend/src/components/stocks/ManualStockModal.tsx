@@ -3,6 +3,7 @@ import { X, Plus, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import type { StockHolding } from '../../types/stocks';
+import { API_URL } from '../../lib/api';
 
 interface Props {
   isOpen: boolean;
@@ -10,8 +11,6 @@ interface Props {
   onSuccess: () => void;
   initialData?: StockHolding | null;
 }
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function ManualStockModal({ isOpen, onClose, onSuccess, initialData }: Props) {
   const { user } = useAuth();

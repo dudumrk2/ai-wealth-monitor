@@ -4,7 +4,8 @@ import type { User } from 'firebase/auth';
 import { Upload, X, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../../lib/api';
+
 const MAX_FILES = 2;
 
 interface Props {

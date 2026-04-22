@@ -8,23 +8,9 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-function getMonthsElapsed(startDateStr: string): number {
-  if (!startDateStr) return 0;
-  const start = new Date(startDateStr);
-  const now = new Date();
-  const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  return Math.max(0, months);
-}
-
-const formatCurrency = (amount: number, currency: string = 'ILS') => {
-  return new Intl.NumberFormat('he-IL', {
-    style: 'currency',
-    currency: currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+import { API_URL } from '../lib/api';
+import { getMonthsElapsed } from '../utils/date';
+import { formatCurrency } from '../utils/format';
 
 export default function AltInvestmentsDashboard() {
   const [showExited, setShowExited] = useState(false);
@@ -474,10 +460,7 @@ export default function AltInvestmentsDashboard() {
           />
         )}
 
-        <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes fade-in-up { 0%{opacity:0;transform:translateY(10px)} 100%{opacity:1;transform:translateY(0)} }
-          .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
-        ` }} />
+
       </div>
     </DashboardLayout>
   );

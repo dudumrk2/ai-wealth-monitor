@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import CompetitorModal from './CompetitorModal';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { formatCurrency } from '../../utils/format';
 
 interface Fund {
   id: string;
@@ -37,9 +38,6 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
       </Card>
     );
   }
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
 
   const totalBalance = funds.reduce((s, f) => s + f.balance, 0);
 

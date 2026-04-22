@@ -17,11 +17,8 @@ import ActionItems from '../components/dashboard/ActionItems';
 import type { ActionItem } from '../types/portfolio';
 import { CopilotChat } from '../components/CopilotChat';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-const formatCurrency = (val: number) => 
-  new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
-
+import { API_URL } from '../lib/api';
+import { formatCurrency } from '../utils/format';
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -354,49 +351,7 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #334155;
-          border-radius: 10px;
-        }
-        @keyframes fade-in-up {
-          0% { opacity: 0; transform: translateY(10px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fade-in-right {
-          0% { opacity: 0; transform: translateX(10px); }
-          100% { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes fade-in-left {
-          0% { opacity: 0; transform: translateX(-10px); }
-          100% { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes swing {
-          20% { transform: rotate(15deg); }
-          40% { transform: rotate(-10deg); }
-          60% { transform: rotate(5deg); }
-          80% { transform: rotate(-5deg); }
-          100% { transform: rotate(0deg); }
-        }
-        .animate-fade-in-up {
-          animation: fade-in-up 0.6s ease-out forwards;
-        }
-        .animate-fade-in-right {
-          animation: fade-in-right 0.5s ease-out forwards;
-        }
-        .animate-fade-in-left {
-          animation: fade-in-left 0.5s ease-out forwards;
-        }
-        .animate-swing {
-          animation: swing 1s ease-in-out;
-        }
-      `}} />
+
     </DashboardLayout>
   );
 };
