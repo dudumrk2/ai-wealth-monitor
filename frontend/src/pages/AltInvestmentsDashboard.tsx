@@ -22,7 +22,7 @@ export default function AltInvestmentsDashboard() {
   const [projects, setProjects] = useState<AltProject[]>([]);
   const [policies, setPolicies] = useState<LeveragedPolicy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPrimeRate, setCurrentPrimeRate] = useState<number>(6.0);
+  const [currentPrimeRate] = useState<number>(6.0);
 
   const fetchAlternativeData = async (silent = false) => {
     if (!silent) setIsLoading(true);

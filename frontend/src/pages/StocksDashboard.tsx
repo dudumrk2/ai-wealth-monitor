@@ -143,7 +143,6 @@ const StocksDashboard: React.FC = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const user = auth.currentUser;
       if (!user) return;
       const token = await user.getIdToken();
       
@@ -163,7 +162,6 @@ const StocksDashboard: React.FC = () => {
   const handleDeleteStock = async (symbol: string) => {
     if (!window.confirm(`האם אתה בטוח שברצונך למחוק את ${symbol} מהתיק?`)) return;
     try {
-      const user = auth.currentUser;
       if (!user) return;
       const token = await user.getIdToken();
       
