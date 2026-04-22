@@ -13,34 +13,40 @@ import fitz # PyMuPDF
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from firebase_admin import auth
-import requests
-from bs4 import BeautifulSoup
+import re
+from services.prime_rate import fetch_israeli_prime_rate
+from services.stock_updater import _perform_stock_prices_update, _calculate_stock_summary_data
 
 import sys
 import time
 
-# --- LOG REDIRECTION TO FILE ---
-# This ensures that all 'print' statements and errors are written to app.log
-# which I can read here, while still showing in your terminal.
-class Logger(object):
-    def __init__(self, file_path, original_stream):
+# --- LOG REDIRECTION WITH ROTATION ---
+import logging
+from logging.handlers import RotatingFileHandler
+
+log_file_path = os.path.join(os.path.dirname(__file__), "app.log")
+file_handler = RotatingFileHandler(log_file_path, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8")
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(file_handler)
+
+class StreamToLogger(object):
+    def __init__(self, original_stream, logger_func):
         self.terminal = original_stream
-        self.log = open(file_path, "a", encoding="utf-8")
+        self.logger_func = logger_func
 
     def write(self, message):
         self.terminal.write(message)
-        self.log.write(message)
-        self.log.flush()
         self.terminal.flush()
+        if message.rstrip():
+            self.logger_func(message.rstrip())
 
     def flush(self):
         self.terminal.flush()
-        self.log.flush()
 
-# Define the log path in the backend directory
-log_file_path = os.path.join(os.path.dirname(__file__), "app.log")
-sys.stdout = Logger(log_file_path, sys.stdout)
-sys.stderr = Logger(log_file_path, sys.stderr)
+sys.stdout = StreamToLogger(sys.stdout, logging.info)
+sys.stderr = StreamToLogger(sys.stderr, logging.error)
 # -------------------------------
 
 # Try loading from current dir, then from parent dir (project root)
@@ -68,107 +74,7 @@ from report_utils import (
 
 
 
-# --- STOCK SCRAPING HELPERS ---
-import re
-import json
-
-def fetch_bizportal_fund_data(ticker: str) -> Optional[dict]:
-    """
-    Fetches the latest price for an Israeli mutual fund or ETF from Bizportal.
-    Target URL: https://www.bizportal.co.il/mutualfunds/quote/generalview/{ticker}
-    Returns a dict with 'current_price' and 'previous_close'.
-    """
-    url = f"https://www.bizportal.co.il/mutualfunds/quote/generalview/{ticker}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code != 200:
-            print(f"⚠️ [BIZPORTAL] HTTP {response.status_code} for fund {ticker}")
-            return None
-            
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Extract Current Price
-        # Bizportal stores prices inside `<div class="num">`
-        num_divs = soup.find_all('div', class_='num')
-        if not num_divs:
-            print(f"❌ [BIZPORTAL] Could not find price container (.num) for fund {ticker}")
-            return None
-        
-        current_price_str = num_divs[0].get_text().strip().replace(",", "")
-        current_price_agorot = float(current_price_str)
-        
-        # Bizportal prices are in AGOROT (1/100 of NIS), convert to NIS
-        current_price = current_price_agorot / 100.0
-        
-        # Extract Daily PCT Change
-        # Bizportal stores pct change in `<span class="num percent rise">` or `<span class="num percent drop">`
-        pct_change = 0.0
-        rise_span = soup.select_one('.num.percent.rise')
-        drop_span = soup.select_one('.num.percent.drop')
-        
-        if rise_span:
-            pct_str = rise_span.get_text().strip().replace("%", "").replace(",", "")
-            pct_change = float(pct_str)
-        elif drop_span:
-            pct_str = drop_span.get_text().strip().replace("%", "").replace(",", "")
-            # Bizportal includes the minus sign in the string, so we just convert it
-            pct_change = float(pct_str)
-            
-        # Calculate Previous Close
-        # formula: current_price = previous_close * (1 + pct_change/100) -> previous_close = current_price / (1 + pct_change/100)
-        if pct_change != -100.0:
-            previous_close = current_price / (1 + (pct_change / 100))
-        else:
-            previous_close = current_price # Fallback to prevent division by zero edge-cases
-            
-        print(f"🔍 [BIZPORTAL] Scraped {ticker}: Price={current_price}, Pct={pct_change}%, CalculatedPrev={previous_close}")
-        return {
-            "current_price": current_price,
-            "previous_close": previous_close,
-            "pct_change": pct_change
-        }
-
-    except Exception as e:
-        print(f"❌ [BIZPORTAL] Failed to scrape Bizportal for fund {ticker}: {e}")
-        return None
-
 # --- DATABASE HELPERS ---
-
-def fetch_israeli_prime_rate() -> float:
-    """
-    Fetch the current Israeli Prime Rate.
-    Strategy: GET the Bank of Israel official JSON/XML API for the base rate, then add 1.5%.
-    Falls back to 6.0 on any error.
-    """
-    FALLBACK_RATE = 6.0
-    try:
-        # BOI publishes base rate at this endpoint (returns JSON)
-        url = "https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/BOI_REPO_RATE/1.0/REPO_RATE?format=sdmx-compact-2.1&startperiod=2024-01-01&endperiod=9999-01-01"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            # Parse XML: <Obs TIME_PERIOD="2025-01" OBS_VALUE="4.5" />
-            soup = BeautifulSoup(resp.content, "xml")
-            obs_tags = soup.find_all("Obs")
-            if obs_tags:
-                # Last entry is the most recent
-                latest = obs_tags[-1]
-                boi_rate = float(latest.get("OBS_VALUE", 4.5))
-                prime_rate = round(boi_rate + 1.5, 2)
-                print(f"✅ [PRIME_RATE] BOI base rate: {boi_rate}% -> Prime rate: {prime_rate}%")
-                return prime_rate
-    except Exception as e:
-        print(f"⚠️ [PRIME_RATE] BOI XML fetch failed: {e}")
-
-    print(f"ℹ️ [PRIME_RATE] Using fallback prime rate: {FALLBACK_RATE}%")
-    return FALLBACK_RATE
 
 app = FastAPI(title="AI Family Pension & Wealth Monitor API")
 
@@ -204,10 +110,12 @@ from routers import dashboard_chat
 from routers import documents
 from routers import insurance
 from routers import alternatives
+from routers import portfolio
 app.include_router(dashboard_chat.router)
 app.include_router(documents.router)
 app.include_router(insurance.router)
 app.include_router(alternatives.router)
+app.include_router(portfolio.router)
 
 @app.on_event("startup")
 async def startup_event():
@@ -226,356 +134,6 @@ async def log_requests(request: Request, call_next):
     return response
 
 from auth import verify_token
-@app.delete("/api/portfolio/fund/{fund_id}")
-async def delete_fund(fund_id: str, user: dict = Depends(verify_token)):
-    uid = user.get("uid")
-    portfolio_doc = db_manager.get_processed_portfolio(uid)
-    if not portfolio_doc:
-        raise HTTPException(status_code=404, detail="תיק נתונים לא נמצא")
-        
-    portfolios = portfolio_doc.get("portfolios", {})
-    deleted = False
-    
-    for owner_key in ["user", "spouse"]:
-        owner_data = portfolios.get(owner_key, {})
-        funds = owner_data.get("funds", [])
-        if not funds: continue
-        
-        new_funds = [f for f in funds if f.get("id") != fund_id]
-        if len(new_funds) < len(funds):
-            owner_data["funds"] = new_funds
-            deleted = True
-            
-    if not deleted:
-        raise HTTPException(status_code=404, detail="הפוליסה לא נמצאה או שכבר נמחקה")
-        
-    db_manager.save_processed_portfolio(uid, portfolio_doc)
-    return {"status": "ok", "message": "הפוליסה הוסרה בהצלחה"}
-
-@app.get("/api/portfolio/fx-rate")
-async def get_fx_rate(user: dict = Depends(verify_token)):
-    """
-    Get the global USD/ILS exchange rate. Uses Firestore cache (config/fx_rates) with 12 hour TTL.
-    """
-    import aiohttp
-    import datetime
-    
-    # 1. Check cache first
-    cached = db_manager.get_fx_rate()
-    if cached:
-        print(f"💰 [APP] Returning cached FX rate: {cached['rate']} from {cached['date']}")
-        return {"rate": cached["rate"], "date": cached["date"], "is_fallback": False, "cached": True}
-        
-    # 2. Fetch fresh if no cache or stale
-    print(f"💰 [APP] Fetching fresh FX rate from API...")
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get('https://api.frankfurter.app/latest?from=USD&to=ILS', timeout=5) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    rate = data['rates']['ILS']
-                    date_str = data['date']
-                    
-                    # Ensure it is a float
-                    rate = float(rate)
-                    
-                    # Save to cache
-                    db_manager.save_fx_rate(rate, date_str)
-                    
-                    return {"rate": rate, "date": date_str, "is_fallback": False, "cached": False}
-                else:
-                    print(f"⚠️ [APP] frankfurter.app returned status {response.status}")
-    except Exception as e:
-        print(f"💥 [APP] Error fetching FX rate: {e}")
-        
-    # 3. Fallback
-    fallback_rate = 3.70
-    fallback_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    print(f"💰 [APP] Using fallback FX rate: {fallback_rate}")
-    return {"rate": fallback_rate, "date": fallback_date, "is_fallback": True, "cached": False}
-
-def _calculate_stock_summary_data(stocks: list, fx_rate: float) -> dict:
-    """Calculate aggregate totals for the stock portfolio in ILS."""
-    if not stocks:
-        return {"total_value": 0, "daily_return": 0, "total_return": 0}
-        
-    total_value_ils = 0.0
-    total_daily_pnl_ils = 0.0
-    total_pnl_ils = 0.0
-    total_invested_ils = 0.0
-
-    for stock in stocks:
-        symbol = stock.get("symbol")
-        if not symbol: continue
-        
-        currency = stock.get("currency", "USD")
-        r = fx_rate if currency == "USD" else 1.0
-        
-        # Prefer new naming from scraper, fallback to Excel naming
-        v_orig = stock.get("totalValueOriginal", stock.get("value", 0.0))
-        dp_orig = stock.get("dailyPnlOriginal", stock.get("dailyPnl", 0.0))
-        tp_orig = stock.get("totalPnlOriginal", stock.get("totalPnl", 0.0))
-        
-        val_ils = v_orig * r
-        total_value_ils += val_ils
-        total_daily_pnl_ils += dp_orig * r
-        total_pnl_ils += tp_orig * r
-        total_invested_ils += (val_ils - (tp_orig * r))
-
-    daily_base = total_value_ils - total_daily_pnl_ils
-    daily_return_pct = (total_daily_pnl_ils / daily_base * 100) if daily_base > 0 else 0.0
-    total_return_pct = (total_pnl_ils / total_invested_ils * 100) if total_invested_ils > 0 else 0.0
-    
-    return {
-        "total_value": total_value_ils,
-        "daily_return": daily_return_pct,
-        "total_return": total_return_pct
-    }
-
-@app.get("/api/portfolio")
-async def get_portfolio(
-    refresh_market: bool = False,
-    refresh_ai: bool = False,
-    user: dict = Depends(verify_token)
-):
-    uid = user.get("uid")
-    print(f"🔍 [APP] GET /api/portfolio - Fetching for {uid} (refresh_market={refresh_market}, refresh_ai={refresh_ai})")
-    portfolio_doc = db_manager.get_processed_portfolio(uid)
-    
-    if portfolio_doc:
-        portfolios = portfolio_doc.get("portfolios", {})
-        action_items = portfolio_doc.get("action_items", [])
-        last_updated = portfolio_doc.get("last_updated")
-        
-        needs_save = False
-        
-        # 1. Explicit AI Refresh
-        if refresh_ai:
-            print(f"🤖 [APP] Explicit AI refresh requested for {uid}")
-            family_profile = db_manager.get_family_profile(uid)
-            f_profile = family_profile.get("financial_profile", {}) if family_profile else {}
-            
-            # AI always needs fresh market context to be accurate
-            live_market_data = await _collect_market_data_async(portfolios)
-            _attach_competitors_to_funds(portfolios, live_market_data)
-            
-            # Generate action items using the unified Gemini-based advisor
-            try:
-                action_items = ai_advisor.generate_action_items(portfolios, live_market_data, f_profile)
-                print(f"✅ [APP] Advisory refresh complete: generated {len(action_items)} action items.")
-            except Exception as ai_e:
-                print(f"⚠️ [APP] Advisory failed during refresh: {ai_e}. Keeping existing items.")
-                action_items = portfolio_doc.get("action_items", [])
-
-            portfolio_doc["action_items"] = action_items
-            last_updated = datetime.datetime.now().isoformat()
-            portfolio_doc["last_updated"] = last_updated
-            needs_save = True
-
-
-        # 2. Explicit Market Refresh (if AI refresh wasn't already doing it)
-        elif refresh_market:
-            print(f"📊 [APP] Explicit market data refresh requested for {uid}")
-            live_market_data = await _collect_market_data_async(portfolios)
-            _attach_competitors_to_funds(portfolios, live_market_data)
-            needs_save = True
-
-        if needs_save:
-            print(f"☁️ [APP] Saving updated portfolio after refresh...")
-            db_manager.save_processed_portfolio(uid, portfolio_doc)
-
-        # Get FX rate
-        fx_rate_data = db_manager.get_fx_rate()
-        fx_rate = fx_rate_data.get("rate", 3.70) if fx_rate_data else 3.70
-
-        # ALWAYS calculate fresh summary for the dashboard
-        stocks_list = portfolio_doc.get("stocks", [])
-        stock_summary = _calculate_stock_summary_data(stocks_list, fx_rate)
-
-        return {
-            "last_updated": last_updated,
-            "portfolios": portfolios,
-            "action_items": action_items,
-            "stocks": stocks_list,
-            "stock_portfolio_summary": stock_summary,
-            "fx_rate": fx_rate
-        }
-    
-    print(f"⚠️ [APP] Portfolio not found in Firestore for {uid}. Falling back to mock data.")
-    return {
-        "last_updated": MOCK_DATA["last_updated"],
-        "portfolios": MOCK_DATA["portfolios"],
-        "action_items": MOCK_DATA["action_items"],
-        "stocks": []
-    }
-
-
-async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") -> dict:
-    """
-    Unified logic to refresh stock prices and FX rates for a specific user.
-    Called both by manual refresh and automated cron jobs.
-    """
-    # 1. Refresh USD/ILS FX Rate first
-    fx_prev_close = 1.0
-    new_rate = 1.0
-    try:
-        fx_ticker = yf.Ticker("USDILS=X")
-        fx_data = fx_ticker.history(period="5d")
-        if not fx_data.empty:
-            new_rate = float(fx_data['Close'].iloc[-1])
-            fx_prev_close = float(fx_data['Close'].iloc[-2]) if len(fx_data) > 1 else new_rate
-            db_manager.save_fx_rate(new_rate, datetime.datetime.now().strftime("%Y-%m-%d"))
-            print(f"💰 [{source_label}] Updated FX Rate: {new_rate} (Prev: {fx_prev_close})")
-    except Exception as e:
-        print(f"⚠️ [{source_label}] Failed to update FX rate: {e}")
-
-    # 2. Identify stocks to update
-    portfolio_doc = db_manager.get_processed_portfolio(uid)
-    if not portfolio_doc:
-        return {"updated": 0, "message": "No portfolio found"}
-        
-    stocks = portfolio_doc.get("stocks", [])
-    if not stocks:
-        return {"updated": 0, "message": "No holdings found"}
-        
-    total_value = 0.0
-    total_daily_return_value = 0.0
-    total_invested = 0.0
-    updated_count = 0
-    
-    print(f"🔄 [{source_label}] Starting refresh for UID: {uid} ({len(stocks)} symbols)")
-    
-    for holding in stocks:
-        symbol = holding.get("symbol")
-        if not symbol: continue
-        
-        is_cash = holding.get("is_cash", False)
-        
-        try:
-            current_price = None
-            previous_close = None
-            method_label = "yfinance"
-
-            if is_cash:
-                current_price = 1.0
-                currency = holding.get("currency", "USD")
-                if currency == "USD" and fx_prev_close > 0:
-                    # To reflect FX change in Daily P&L, previous native price should be:
-                    # previous_native = 1.0 / (new_rate / fx_prev_close)
-                    previous_close = 1.0 * (fx_prev_close / new_rate)
-                else:
-                    previous_close = 1.0
-                method_label = "cash"
-            else:
-                # Normalize: if numeric, append .TA for Yahoo Finance
-                ticker = str(symbol).strip()
-        
-                if ticker.isdigit():
-                    # Israeli Mutual Fund / ETF - Use Bizportal
-                    method_label = "Bizportal"
-                    fund_data = fetch_bizportal_fund_data(ticker)
-                    if fund_data:
-                        current_price = fund_data["current_price"]
-                        previous_close = fund_data["previous_close"]
-                    else:
-                        print(f"⚠️ [{source_label}] Bizportal fetch failed for {ticker}, skipping price update.")
-                else:
-                    # US/Other Stock - Use yfinance
-                    try:
-                        t = yf.Ticker(ticker)
-                        hist = t.history(period="5d")
-                        if not hist.empty:
-                            current_price = float(hist['Close'].iloc[-1])
-                            previous_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
-                        else:
-                            print(f"⚠️ [{source_label}] No yfinance history found for ticker {ticker}")
-                    except Exception as yf_e:
-                        print(f"⚠️ [{source_label}] yfinance error for {ticker}: {yf_e}")
-        
-            old_price = holding.get("lastPrice", holding.get("current_price", 0.0))
-            
-            if current_price is None:
-                # Fallback to existing calculations if fetch failed
-                shares = float(holding.get("qty", holding.get("shares", 0.0)))
-                holding_value = shares * float(old_price)
-                avg_cost = float(holding.get("avgCostPrice", holding.get("average_cost", old_price)))
-                total_value += holding_value
-                total_invested += shares * avg_cost
-                total_daily_return_value += float(holding.get("dailyPnlOriginal", 0.0))
-                continue
-                
-            # Extract shares for log
-            shares_for_log = float(holding.get("qty", holding.get("shares", 0.0)))
-    
-            # Compute aggregations for THIS stock
-            shares = float(holding.get("qty", holding.get("shares", 0.0)))
-            avg_cost = float(holding.get("avgCostPrice", holding.get("average_cost", current_price)))
-            
-            holding_value = shares * current_price
-            holding_invested = shares * avg_cost
-            
-            # Daily delta
-            daily_delta = current_price - previous_close
-            daily_pnl = shares * daily_delta
-            total_pnl = holding_value - holding_invested
-                
-            # 1. Update the stock object for `portfolios` doc (the UI view)
-            calc_daily_pct = (daily_delta / previous_close * 100) if previous_close > 0 else 0.0
-            
-            # Print the correct stats to matches what is saved
-            print(f"📊 [{source_label}] {symbol} ({shares_for_log:,.2f} units) via {method_label}: Prev={previous_close:.2f} -> Curr={current_price:.2f} (Daily Δ: {daily_delta:+.2f}, {calc_daily_pct:+.2f}%)")
-            
-            holding["lastPrice"] = current_price
-            holding["qty"] = shares  # Ensure qty is saved for the frontend
-            
-            holding["dailyChangePercent"] = calc_daily_pct
-            holding["dailyPnlOriginal"] = daily_pnl
-            holding["totalPnlOriginal"] = total_pnl
-            holding["totalValueOriginal"] = holding_value
-            holding["totalReturnPercent"] = (total_pnl / holding_invested * 100) if holding_invested > 0 else 0.0
-            holding["last_updated"] = datetime.datetime.now().isoformat()
-            
-            if method_label == "Bizportal":
-                print(f"🎯 [DEBUG-IL] {ticker} -> Price: {current_price}, Prev: {previous_close}, DailyDelta: {daily_delta:+.2f}, DailyChange%: {calc_daily_pct:+.2f}%")
-    
-            # 2. Update the `families/{uid}/holdings` subcollection for cron job sync
-            updates_for_subcol = {
-                "current_price": current_price,
-                "shares": shares,
-                "average_cost": avg_cost,
-                "last_updated": datetime.datetime.now().isoformat(),
-                "name": holding.get("name", ""),
-                "currency": holding.get("currency", "USD")
-            }
-            db_manager.update_family_holding(uid, symbol, updates_for_subcol)
-            
-            updated_count += 1
-            total_value += holding_value
-            total_invested += holding_invested
-            total_daily_return_value += daily_pnl
-                    
-        except Exception as e:
-            print(f"⚠️ [{source_label}] Error updating {symbol}: {e}")
-            shares = float(holding.get("qty", 0.0))
-            total_value += shares * float(old_price)
-            avg_cost = float(holding.get("avgCostPrice", holding.get("average_cost", old_price)))
-            total_invested += shares * avg_cost
-            total_daily_return_value += float(holding.get("dailyPnlOriginal", 0.0))
-    
-    if updated_count > 0:
-        # Recalculate summary using the clean helper
-        fx_rate_data = db_manager.get_fx_rate()
-        fx_rate = fx_rate_data.get("rate", 3.70) if fx_rate_data else 3.70
-        summary = _calculate_stock_summary_data(stocks, fx_rate)
-        
-        # Save back the whole portfolio doc to update the UI
-        db_manager.save_processed_portfolio(uid, portfolio_doc)
-
-        # Update the summary too
-        db_manager.update_portfolio_summary(uid, summary["total_value"], summary["daily_return"], summary["total_return"])
-        print(f"✅ [{source_label}] Completed. {updated_count} stocks updated. Total Value: {summary['total_value']:,.0f}")
-
-    return {"updated": updated_count}
 
 @app.post("/api/portfolio/update-prices")
 async def user_update_stock_prices(user: dict = Depends(verify_token)):
@@ -1178,19 +736,6 @@ def _get_or_create_label(service, label_name: str) -> str:
     return created["id"]
 
 
-def _extract_pdf_url(html_body: str, text_body: str) -> str | None:
-    """Extract a surense.com download URL from an email body."""
-    import re as _re
-    pattern = r"https://(?:u|api)\.surense\.com/[^\s\"'<>]+"
-    for body in (html_body, text_body):
-        if not body:
-            continue
-        match = _re.search(pattern, body)
-        if match:
-            return match.group(0)
-    return None
-
-
 # ── /api/cron/fetch-emails endpoint ──────────────────────────────────────────
 
 @app.post("/api/cron/fetch-emails")
@@ -1202,7 +747,6 @@ async def fetch_emails_from_gmail(request: Request, uid: Optional[str] = None):
     Secured via X-Cron-Secret header.
     """
     import base64 as _base64
-    import re as _re
     import httpx as _httpx
 
     # ── 1. Auth ───────────────────────────────────────────────────────────────
@@ -1249,7 +793,6 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     - If no new funds are extracted, existing Firestore data is NOT overwritten.
     """
     import base64 as _base64
-    import re as _re
     import httpx as _httpx
 
 
