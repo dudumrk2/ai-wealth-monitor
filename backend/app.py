@@ -142,6 +142,35 @@ def fetch_bizportal_fund_data(ticker: str) -> Optional[dict]:
 
 # --- DATABASE HELPERS ---
 
+def fetch_israeli_prime_rate() -> float:
+    """
+    Fetch the current Israeli Prime Rate.
+    Strategy: GET the Bank of Israel official JSON/XML API for the base rate, then add 1.5%.
+    Falls back to 6.0 on any error.
+    """
+    FALLBACK_RATE = 6.0
+    try:
+        # BOI publishes base rate at this endpoint (returns JSON)
+        url = "https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/BOI_REPO_RATE/1.0/REPO_RATE?format=sdmx-compact-2.1&startperiod=2024-01-01&endperiod=9999-01-01"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            # Parse XML: <Obs TIME_PERIOD="2025-01" OBS_VALUE="4.5" />
+            soup = BeautifulSoup(resp.content, "xml")
+            obs_tags = soup.find_all("Obs")
+            if obs_tags:
+                # Last entry is the most recent
+                latest = obs_tags[-1]
+                boi_rate = float(latest.get("OBS_VALUE", 4.5))
+                prime_rate = round(boi_rate + 1.5, 2)
+                print(f"✅ [PRIME_RATE] BOI base rate: {boi_rate}% -> Prime rate: {prime_rate}%")
+                return prime_rate
+    except Exception as e:
+        print(f"⚠️ [PRIME_RATE] BOI XML fetch failed: {e}")
+
+    print(f"ℹ️ [PRIME_RATE] Using fallback prime rate: {FALLBACK_RATE}%")
+    return FALLBACK_RATE
+
 app = FastAPI(title="AI Family Pension & Wealth Monitor API")
 
 # Setup directories for local drop-folder processing
@@ -175,10 +204,11 @@ app.add_middleware(
 from routers import dashboard_chat
 from routers import documents
 from routers import insurance
-
+from routers import alternatives
 app.include_router(dashboard_chat.router)
 app.include_router(documents.router)
 app.include_router(insurance.router)
+app.include_router(alternatives.router)
 
 @app.on_event("startup")
 async def startup_event():
@@ -1855,6 +1885,97 @@ async def weekly_stock_summary_cron(request: Request):
 
     return {"status": "success", "families_processed": len(uids), "results": results}
 
+
+@app.post("/api/cron/update-funder-yields")
+async def cron_update_funder_yields(request: Request):
+    """
+    Monthly Cron to update leveraged policy balances based on Funder.
+    Secured via X-Cron-Secret header.
+    """
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    print("\n⏰ [CRON] Starting Funder Yields updater...")
+    return await _run_funder_yields_update()
+
+@app.post("/api/settings/cron/update-funder-yields/run")
+async def trigger_manual_funder_yields(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        uid = decoded["uid"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    print(f"\n⚡ User {uid} triggered Funder Yields updater")
+    return await _run_funder_yields_update()
+
+async def _run_funder_yields_update():
+    uids = db_manager.get_all_family_uids_for_holdings()
+    from funder_scraper import fetch_funder_yields
+    
+    total_updated = 0
+    for uid in uids:
+        policies = db_manager.get_leveraged_policies(uid)
+        for p in policies:
+            link = p.get("funderLink")
+            if not link:
+                continue
+                
+            base_month = p.get("baseMonth", "")
+            if not base_month:
+                continue
+                
+            yields = await fetch_funder_yields(link)
+            if not yields:
+                continue
+                
+            missing = []
+            for y_data in yields:
+                if y_data["period"] > base_month:
+                    missing.append(y_data)
+                else:
+                    break
+                    
+            if not missing:
+                continue
+                
+            missing.reverse()
+            
+            current_balance = float(p.get("currentBalance", 0.0))
+            for m in missing:
+                y_pct = float(m["yield"])
+                current_balance = current_balance * (1 + (y_pct / 100))
+                
+            p["currentBalance"] = round(current_balance, 2)
+            p["baseMonth"] = missing[-1]["period"]
+            
+            db_manager.add_leveraged_policy(uid, p)
+            print(f"✅ Updated policy {p.get('name')} for family {uid} to {p['baseMonth']} balance {p['currentBalance']}")
+            total_updated += 1
+
+    # --- Update Israeli Prime Rate as part of this monthly cron ---
+    print("\n📊 [CRON] Fetching latest Israeli Prime Rate...")
+    prime_rate = fetch_israeli_prime_rate()
+    db_manager.save_prime_rate(prime_rate)
+    print(f"✅ [CRON] Prime rate updated: {prime_rate}%")
+            
+    return {"status": "success", "updatedPolices": total_updated, "prime_rate": prime_rate}
+
+
+@app.get("/api/settings/prime-rate")
+async def get_prime_rate_endpoint(user: dict = Depends(verify_token)):
+    """
+    Get the current Israeli Prime Rate stored in Firestore.
+    Frontend can call this as an alternative to a direct Firestore read.
+    """
+    stored_rate = db_manager.get_prime_rate()
+    if stored_rate is not None:
+        return {"current_prime_rate": stored_rate, "source": "firestore"}
+    # Fallback: fetch live
+    live_rate = fetch_israeli_prime_rate()
+    return {"current_prime_rate": live_rate, "source": "live"}
 
 if __name__ == "__main__":
     import uvicorn

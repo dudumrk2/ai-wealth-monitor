@@ -9,6 +9,7 @@ import Pension from './pages/Pension';
 import InsurancePage from './pages/InsurancePage';
 import Settings from './pages/Settings';
 import StocksDashboard from './pages/StocksDashboard';
+import AltInvestmentsDashboard from './pages/AltInvestmentsDashboard';
 
 /**
  * Route Guard: only for authenticated users.
@@ -97,6 +98,16 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <StocksDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected: Alternative Investments (requires auth + onboarding) */}
+        <Route
+          path="/alternative"
+          element={
+            <ProtectedRoute>
+              <AltInvestmentsDashboard />
             </ProtectedRoute>
           }
         />

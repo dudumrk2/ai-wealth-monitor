@@ -494,3 +494,94 @@ def get_chat_history(uid: str, limit: int = 50) -> list:
              return []
 
 
+# ==========================================
+# Alternative Investments (Firestore)
+# ==========================================
+
+def add_alt_project(uid: str, project_data: dict) -> str | None:
+    """Add a new alternative investment project to the family's alt_projects subcollection."""
+    if db is None:
+        return None
+    try:
+        if 'id' in project_data and project_data['id']:
+            doc_ref = db.collection("families").document(uid).collection("alt_projects").document(project_data['id'])
+            doc_ref.set(project_data)
+        else:
+            _, doc_ref = db.collection("families").document(uid).collection("alt_projects").add(project_data)
+        return doc_ref.id
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error adding alt project for {uid}: {e}")
+        return None
+
+def get_alt_projects(uid: str) -> list:
+    """Fetch all alternative investment projects for the family."""
+    if db is None:
+        return []
+    try:
+        docs = db.collection("families").document(uid).collection("alt_projects").stream()
+        return [doc.to_dict() | {"id": doc.id} for doc in docs]
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching alt projects for {uid}: {e}")
+        return []
+
+def add_leveraged_policy(uid: str, policy_data: dict) -> str | None:
+    """Add a new leveraged policy to the family's leveraged_policies subcollection."""
+    if db is None:
+        return None
+    try:
+        if 'id' in policy_data and policy_data['id']:
+            doc_ref = db.collection("families").document(uid).collection("leveraged_policies").document(policy_data['id'])
+            doc_ref.set(policy_data)
+        else:
+            _, doc_ref = db.collection("families").document(uid).collection("leveraged_policies").add(policy_data)
+        return doc_ref.id
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error adding leveraged policy for {uid}: {e}")
+        return None
+
+def get_leveraged_policies(uid: str) -> list:
+    """Fetch all leveraged policies for the family."""
+    if db is None:
+        return []
+    try:
+        docs = db.collection("families").document(uid).collection("leveraged_policies").stream()
+        return [doc.to_dict() | {"id": doc.id} for doc in docs]
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching leveraged policies for {uid}: {e}")
+        return []
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Israeli Prime Rate Cache
+# Collection: settings / Document ID: financials
+# ──────────────────────────────────────────────────────────────────────────────
+
+def save_prime_rate(rate: float) -> bool:
+    """Save the current Israeli Prime Rate to Firestore under settings/financials."""
+    if db is None:
+        return False
+    try:
+        doc_ref = db.collection("settings").document("financials")
+        doc_ref.set({
+            "current_prime_rate": rate,
+            "last_updated": firestore.SERVER_TIMESTAMP
+        }, merge=True)
+        print(f"✅ [DB_MANAGER] Israeli Prime Rate saved: {rate}%")
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving prime rate: {e}")
+        return False
+
+def get_prime_rate() -> float | None:
+    """Get the current Israeli Prime Rate from Firestore."""
+    if db is None:
+        return None
+    try:
+        doc_ref = db.collection("settings").document("financials")
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict().get("current_prime_rate")
+        return None
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching prime rate: {e}")
+        return None
+

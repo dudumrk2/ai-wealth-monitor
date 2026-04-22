@@ -61,6 +61,7 @@ export default function Settings() {
 
   const [runningStockPrices, setRunningStockPrices] = useState(false);
   const [runningWeeklySummary, setRunningWeeklySummary] = useState(false);
+  const [runningFunderYields, setRunningFunderYields] = useState(false);
   const [cronRunMsg, setCronRunMsg] = useState<string | null>(null);
 
   const updateCronStatus = async (key: string, value: boolean) => {
@@ -237,6 +238,27 @@ export default function Settings() {
       setCronRunMsg('❌ שגיאה בהפקת הדוח השבועי: ' + err.message);
     } finally {
       setRunningWeeklySummary(false);
+    }
+  };
+
+  const handleRunFunderYields = async () => {
+    if (!user) return;
+    setRunningFunderYields(true);
+    setCronRunMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/cron/update-funder-yields/run`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      if (!res.ok) throw new Error('שגיאה בשרת');
+      const data = await res.json();
+      const updatedCount = data?.updatedPolices ?? 0;
+      setCronRunMsg(`✅ יתרות אלטרנטיביות (פאנדר) עודכנו. ${updatedCount} פוליסות התעדכנו.`);
+    } catch (err: any) {
+      setCronRunMsg('❌ שגיאה בעדכון תשואות פאנדר: ' + err.message);
+    } finally {
+      setRunningFunderYields(false);
     }
   };
 
@@ -695,6 +717,24 @@ export default function Settings() {
                   className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
                 >
                   {runningWeeklySummary ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-blue-500" />}
+                  הרץ עכשיו
+                </button>
+              </div>
+            </div>
+
+            {/* Cron 4: Funder Yields */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="flex-1">
+                <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">עדכון תשואות חודשיות (Funder)</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">סריקתו של אתר פאנדר לעדכון ריבית דריבית בפוליסות ומשאבי השקעה אלטרנטיביים</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={handleRunFunderYields}
+                  disabled={runningFunderYields}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  {runningFunderYields ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-blue-500" />}
                   הרץ עכשיו
                 </button>
               </div>
