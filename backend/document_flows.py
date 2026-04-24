@@ -300,12 +300,19 @@ class PensionFlow(BaseDocumentFlow):
         
         if target_key not in existing_doc["portfolios"]:
             existing_doc["portfolios"][target_key] = {"funds": []}
-        
+
         prev_count = len(existing_doc["portfolios"][target_key].get("funds", []))
-        # A pension report is a complete snapshot — replace all existing funds for this owner
+        # A pension report is a complete snapshot - replace all existing funds for this owner
         existing_doc["portfolios"][target_key]["funds"] = final_data
-        print(f"💾 [FLOW] Replaced {prev_count} old funds → {len(final_data)} new funds for portfolios.{target_key}")
-        
+        print(f"[FLOW] Replaced {prev_count} old funds with {len(final_data)} new funds for portfolios.{target_key}")
+
+        # Also stamp ownerName at the root of this slot so the AI Copilot knows who owns these assets
+        member_key = "member1" if target_key == "user" else "member2"
+        owner_name = self.f_profile.get("pii_data", {}).get(member_key, {}).get("name", "")
+        if owner_name:
+            existing_doc["portfolios"][target_key]["ownerName"] = owner_name
+            print(f"[FLOW] Set portfolios.{target_key}.ownerName = '{owner_name}'")
+
         # Replace (rather than append) pension action items to avoid duplicates
         existing_items = existing_doc.get("action_items", [])
         # Filter out any old items starting with 'pension_'

@@ -135,7 +135,25 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
         "profile": f_profile,
         "relevant_funds": filtered_funds
     }
-    
+
+    # Build owner name map from portfolio root ownerName fields (set by PensionFlow / migration script)
+    user_owner_name   = portfolios.get("user",   {}).get("ownerName", "משתמש ראשי")
+    spouse_owner_name = portfolios.get("spouse", {}).get("ownerName", "בן/בת הזוג")
+
+    system_prompt = f"""You are an expert family wealth advisor (Copilot).
+Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
+If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
+
+OWNER IDENTIFICATION — VERY IMPORTANT:
+The financial data is organized hierarchically under "user" and "spouse" objects.
+- The "user" object belongs to: {user_owner_name}
+- The "spouse" object belongs to: {spouse_owner_name}
+When the user asks about a specific person (e.g. "Does {user_owner_name} have a pension?"),
+look for funds inside the object whose ownerName matches that person's name.
+
+Data: {json.dumps(context_data, ensure_ascii=False)}
+"""
+
     def read_full_policy(policy_id: str) -> str:
         """Call this tool to read the full text of a specific policy PDF document to answer deep contractual questions.
         Args:
@@ -147,34 +165,25 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
             if f.get("id") == policy_id or f.get("policy_number") == policy_id:
                 url = f.get("source_document_url")
                 break
-                
+
         if not url:
-             return f"Error: No source document URL found for policy {policy_id}. Cannot read document."
-             
+            return f"Error: No source document URL found for policy {policy_id}. Cannot read document."
+
         try:
-            # Use synchronous httpx for tool calling (SDK requirement)
             resp = httpx.get(url, timeout=30.0)
             resp.raise_for_status()
             pdf_bytes = resp.content
-            
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             text_content = ""
             for page in doc:
                 text_content += page.get_text()
-                
             doc.close()
-            # Limit returned text to avoid exceeding token limits
             if len(text_content) > 35000:
                 print(f"⚠️ [TOOL] Document text truncated (original length: {len(text_content)})")
                 return "[DOCUMENT TRUNCATED DUE TO LENGTH]\n" + text_content[:35000]
             return text_content
         except Exception as e:
             return f"Error reading document: {str(e)}"
-    system_prompt = f"""You are an expert family wealth advisor (Copilot).
-Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
-If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
-Data: {json.dumps(context_data, ensure_ascii=False)}
-"""
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:

@@ -10,6 +10,17 @@ export type FundCategory =
   | 'stocks'               // תיק מניות
   | 'alternative';         // השקעות אלטרנטיביות
 
+/**
+ * Root-level owner object under portfolios.user / portfolios.spouse.
+ * ownerName is used by the AI Copilot to identify asset ownership by name
+ * (e.g. "Does Dudu have a pension?"). Set automatically during PDF ingestion.
+ */
+export interface PortfolioOwner {
+  ownerName?: string;
+  funds?: Fund[];
+  alternative_investments?: AlternativeInvestment[];
+}
+
 export interface Fund {
   id: string;
   category: FundCategory;

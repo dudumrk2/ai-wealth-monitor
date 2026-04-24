@@ -411,8 +411,8 @@ def get_all_family_uids_for_holdings() -> list:
     if db is None:
         return []
     try:
-        # We use select([]) to only fetch document IDs to save bandwidth
-        docs = db.collection("families").select([]).stream()
+        # We use select(['__name__']) to only fetch document IDs to save bandwidth
+        docs = db.collection("families").select(['__name__']).stream()
         return [doc.id for doc in docs if doc.id != config.DEMO_UID]
     except Exception as e:
         print(f"💥 [DB_MANAGER] Error fetching all family UIDs: {e}")

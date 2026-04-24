@@ -49,8 +49,15 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
     # 1. Refresh USD/ILS FX Rate first
     fx_prev_close = 1.0
     new_rate = 1.0
+    # Use a custom session with User-Agent to bypass cloud IP blocking by Yahoo Finance
+    import requests
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+
     try:
-        fx_ticker = yf.Ticker("USDILS=X")
+        fx_ticker = yf.Ticker("USDILS=X", session=session)
         fx_data = fx_ticker.history(period="5d")
         if not fx_data.empty:
             new_rate = float(fx_data['Close'].iloc[-1])
@@ -113,7 +120,7 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
                 else:
                     # US/Other Stock - Use yfinance
                     try:
-                        t = yf.Ticker(ticker)
+                        t = yf.Ticker(ticker, session=session)
                         hist = t.history(period="5d")
                         if not hist.empty:
                             current_price = float(hist['Close'].iloc[-1])

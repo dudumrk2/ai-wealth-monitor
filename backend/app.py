@@ -53,7 +53,8 @@ sys.stderr = StreamToLogger(sys.stderr, logging.error)
 if not load_dotenv():
     load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
-print(f"ANTHROPIC_API_KEY loaded: {'Yes (starts with ' + os.environ.get('ANTHROPIC_API_KEY')[:10] + '...)' if os.environ.get('ANTHROPIC_API_KEY') else 'No'}")
+print(f"ANTHROPIC_API_KEY loaded: {'Yes' if os.environ.get('ANTHROPIC_API_KEY') else 'No'}")
+print(f"GEMINI_API_KEY loaded: {'Yes' if os.environ.get('GEMINI_API_KEY') else 'No'}")
 sys.stdout.flush()
 
 import asyncio
@@ -715,6 +716,39 @@ async def trigger_manual_gmail_scan(user: dict = Depends(verify_token)):
 
 # ── Gmail Fetcher Helpers ─────────────────────────────────────────────────────
 
+def _extract_pdf_url(html_body: str, text_body: str) -> str | None:
+    """Extract a PDF download URL from the email body (HTML or text)."""
+    import re
+    # Patterns for Surense download links (common in these reports)
+    patterns = [
+        r'https?://u\.surense\.com/[^\s<>"]+',                           # Surense shortlink
+        r'https?://[^\s<>"]+?\.pdf',                                     # Direct PDF link
+        r'https?://(?:www\.)?surense\.com/api/v1/download/[^\s<>"]+',    # Surense API download
+        r'https?://(?:www\.)?surense\.com/download[^\s<>"]+',           # Surense generic download
+        r'https?://app\.surense\.com/download/[^\s<>"]+',                # Surense app download
+    ]
+    
+    # Search in HTML first
+    for pattern in patterns:
+        matches = re.findall(pattern, html_body)
+        if matches:
+            return matches[0]
+            
+    # Search in text body as fallback
+    for pattern in patterns:
+        matches = re.findall(pattern, text_body)
+        if matches:
+            return matches[0]
+            
+    # Final generic fallback for any "download" link
+    generic_download = r'https?://[^\s<>"]+?/download/[^\s<>"]+'
+    matches = re.findall(generic_download, html_body) or re.findall(generic_download, text_body)
+    if matches:
+        return matches[0]
+        
+    return None
+
+
 
 
 def _get_gmail_service(refresh_token: str):
@@ -959,11 +993,15 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             from flow_utils import prepare_pdf_for_vision
             doc, _, authenticated_id = prepare_pdf_for_vision(pdf_bytes, family_profile)
             
-            # Guess owner (first ID in member_id_numbers -> user, otherwise spouse)
+            # Identify owner by the authenticated ID number
             detected_owner = "user"
-            if authenticated_id and len(member_id_numbers) > 1:
-                if authenticated_id == member_id_numbers[1]:
+            if authenticated_id:
+                m2_id = family_profile.get("pii_data", {}).get("member2", {}).get("idNumber", "")
+                if authenticated_id == m2_id:
                     detected_owner = "spouse"
+            else:
+                # If not encrypted, we fallback to user but log a warning
+                print(f"⚠️ [CRON] PDF was not encrypted or no ID matched. Defaulting owner to 'user'.")
             
             # Close the doc used for identification (PensionFlow will open its own)
             doc.close()
@@ -1064,15 +1102,20 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
     try:
         gemini_api_key = os.environ.get("GEMINI_API_KEY")
         if not gemini_api_key:
+            print("❌ [CRON] GEMINI_API_KEY not found in environment variables!")
             return {"status": "error", "reason": "GEMINI_API_KEY not configured."}
+        
+        print(f"🤖 [CRON-AI] Initializing Gemini client with model: {config.GEMINI_PRO_MODEL_NAME}")
         client = genai.Client(api_key=gemini_api_key)
         
         family_profile = db_manager.get_family_profile(uid)
         if not family_profile: 
+            print(f"⚠️ [CRON] No family profile found for {uid}")
             return {"status": "error", "reason": "no_family_profile"}
         
         refresh_token = family_profile.get("gmail_refresh_token")
         if not refresh_token: 
+            print(f"⚠️ [CRON] No gmail_refresh_token for {uid}")
             return {"status": "error", "reason": "no_gmail_refresh_token"}
         
         email_addr = family_profile.get("pii_data", {}).get("member1", {}).get("email")
@@ -1082,7 +1125,10 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
 
         holdings = db_manager.get_family_holdings(uid)
         if not holdings:
+            print(f"⚠️ [CRON] No holdings found for {uid}")
             return {"status": "error", "reason": "no_stock_holdings_found"}
+            
+        print(f"📊 [CRON] Found {len(holdings)} holdings for {uid}. Proceeding to AI summary...")
             
         # Build portfolio data string
         portfolio_strings = []
