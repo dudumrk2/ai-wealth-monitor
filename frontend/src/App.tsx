@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { STORAGE_KEYS } from './lib/storageKeys';
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import DashboardPage from './pages/DashboardPage';
