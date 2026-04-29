@@ -195,7 +195,7 @@ const DashboardPage: React.FC = () => {
               </div>
             </Link>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-emerald-500/30 group flex-1">
+            <Link to="/stocks" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-emerald-500/30 group cursor-pointer flex-1">
               <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center text-emerald-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
                 <LineChart className="w-5 h-5 md:w-7 md:h-7" />
               </div>
@@ -213,7 +213,7 @@ const DashboardPage: React.FC = () => {
                 </div>
                 <h3 className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{formatCurrency(totals.market)}</h3>
               </div>
-            </div>
+            </Link>
 
             <Link to="/alternative" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-indigo-500/30 group cursor-pointer flex-1">
               <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center text-indigo-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
@@ -225,7 +225,7 @@ const DashboardPage: React.FC = () => {
               </div>
             </Link>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-violet-500/30 group flex-1">
+            <Link to="/insurance" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-violet-500/30 group cursor-pointer flex-1">
               <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center text-violet-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
                 <Shield className="w-5 h-5 md:w-7 md:h-7" />
               </div>
@@ -233,7 +233,7 @@ const DashboardPage: React.FC = () => {
                 <p className="text-slate-500 text-[10px] md:text-sm font-bold mb-0.5 md:mb-1">ביטוחים</p>
                 <h3 className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{formatCurrency(totals.insuranceMonthly)} <span className="text-[10px] md:text-xs font-normal text-slate-500">/ חודש</span></h3>
               </div>
-            </div>
+            </Link>
           </div>
 
           {/* Center Column: Asset Allocation — Hidden on mobile, Order 2 on desktop */}
@@ -347,8 +347,10 @@ const DashboardPage: React.FC = () => {
         <div className="pt-2 md:pt-4">
           <ActionItems 
             items={portfolioData?.action_items as ActionItem[]} 
-            title="התראות פנסיה וביטוח"
+            title="התראות והמלצות לשיפור התיק"
             onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
+            member1Name={portfolioData?.portfolios?.user?.ownerName || "משתמש"}
+            member2Name={portfolioData?.portfolios?.spouse?.ownerName || "בן/בת זוג"}
           />
         </div>
       </div>

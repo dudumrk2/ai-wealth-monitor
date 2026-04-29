@@ -151,30 +151,31 @@ export default function AltInvestmentsDashboard() {
     <DashboardLayout onRefresh={() => fetchAlternativeData(false)} isRefreshing={isLoading}>
       <div className="max-w-7xl mx-auto w-full space-y-6 md:space-y-8" dir="rtl">
         {/* --- TOP BAR --- */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 dark:from-blue-400 dark:to-indigo-300">
+            <h1 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 dark:from-blue-400 dark:to-indigo-300">
               השקעות אלטרנטיביות
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">תיק השקעות ריאלי, מינופים ופוליסות חיסכון</p>
+            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm md:text-base">תיק השקעות ריאלי, מינופים ופוליסות חיסכון</p>
           </div>
           
-          <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center gap-2 md:gap-4 bg-white dark:bg-slate-900 p-1 md:p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full md:w-auto">
             <label
               onClick={() => setShowExited(v => !v)}
-              className="flex items-center gap-3 cursor-pointer select-none px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="flex items-center justify-between md:justify-start gap-2 md:gap-3 cursor-pointer select-none px-2 md:px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors flex-1 md:flex-initial"
             >
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">הצג השקעות שהסתיימו</span>
-              <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showExited ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showExited ? '-translate-x-6' : '-translate-x-1'}`} />
+              <span className="text-[11px] md:text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">הצג הסתיימו</span>
+              <div className={`relative inline-flex h-5 w-9 md:h-6 md:w-11 items-center rounded-full transition-colors ${showExited ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition-transform ${showExited ? '-translate-x-5 md:-translate-x-6' : '-translate-x-1'}`} />
               </div>
             </label>
-            <div className="w-px h-6 bg-slate-200 dark:bg-slate-800 mx-1"></div>
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-800 mx-0.5"></div>
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all focus:ring-4 focus:ring-indigo-500/20 active:scale-95"
+              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-[11px] md:text-sm transition-all focus:ring-4 focus:ring-indigo-500/20 active:scale-95 whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" /> הוסף נכס
+              <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span>הוסף נכס</span>
             </button>
           </div>
         </div>
@@ -187,44 +188,44 @@ export default function AltInvestmentsDashboard() {
         ) : (
           <div className="space-y-8 animate-fade-in-up">
             {/* --- TIER 1: MACRO SUMMARY --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">סך נכסים פעילים (AUM)</p>
-                  <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(totalActiveAssets)}</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center group transition-all hover:border-blue-500/30">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 ml-3 md:ml-4 shrink-0 group-hover:scale-110 transition-transform">
+                  <Wallet className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
-                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  <Wallet className="w-6 h-6" />
+                <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">נכסים פעילים</p>
+                  <p className="text-base md:text-2xl font-bold text-slate-800 dark:text-slate-100 truncate">{formatCurrency(totalActiveAssets)}</p>
                 </div>
               </div>
               
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">התחייבויות (מינוף)</p>
-                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totalLiabilities)}</p>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center group transition-all hover:border-red-500/30">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-red-50 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-red-600 dark:text-red-400 ml-3 md:ml-4 shrink-0 group-hover:scale-110 transition-transform">
+                  <AlertTriangle className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
-                <div className="w-12 h-12 bg-red-50 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-red-600 dark:text-red-400">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">הון עצמי (Net Equity)</p>
-                  <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(netEquity)}</p>
-                </div>
-                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Building2 className="w-6 h-6" />
+                <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">התחייבויות</p>
+                  <p className="text-base md:text-2xl font-bold text-red-600 dark:text-red-400 truncate">{formatCurrency(totalLiabilities)}</p>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">רווח ממומש (Realized)</p>
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">+{formatCurrency(realizedProfit)}</p>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center group transition-all hover:border-indigo-500/30">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 ml-3 md:ml-4 shrink-0 group-hover:scale-110 transition-transform">
+                  <Building2 className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
-                <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <TrendingUp className="w-6 h-6" />
+                <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">הון עצמי</p>
+                  <p className="text-base md:text-2xl font-bold text-indigo-600 dark:text-indigo-400 truncate">{formatCurrency(netEquity)}</p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center group transition-all hover:border-emerald-500/30">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 ml-3 md:ml-4 shrink-0 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">רווח ממומש</p>
+                  <p className="text-base md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 truncate">+{formatCurrency(realizedProfit)}</p>
                 </div>
               </div>
             </div>

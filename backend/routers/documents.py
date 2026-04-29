@@ -437,6 +437,7 @@ async def upload_document(
     uid: str = Form(...),
     document_type: str = Form(...),
     policy_id: Optional[str] = Form(None),
+    skip_advisory: bool = Form(False),
     user: dict = Depends(verify_token)
 ):
     """
@@ -451,7 +452,7 @@ async def upload_document(
     if uid == config.DEMO_UID:
         raise HTTPException(status_code=403, detail="העלאת מסמכים חסומה בסביבת הדמו. תוכלו להתרשם מהנתונים הקיימים בתיק.")
 
-    print(f"\n🚀 [DOCUMENTS] INCOMING REQUEST: /api/documents/upload for uid={uid}, type={document_type}, policy_id={policy_id}")
+    print(f"\n🚀 [DOCUMENTS] INCOMING REQUEST: /api/documents/upload for uid={uid}, type={document_type}, policy_id={policy_id}, skip_advisory={skip_advisory}")
     
     from report_utils import (
         _redact_and_render_pdf,
@@ -474,23 +475,33 @@ async def upload_document(
             if document_type == "pension_report":
                 from document_flows import PensionFlow
                 flow = PensionFlow(f_profile=family_profile)
-                return await flow.process(file_bytes, file.filename, uid)
+                # Always skip in-flow advisory — use shared run_family_advisory instead
+                result = await flow.process(file_bytes, file.filename, uid, skip_advisory=True)
+                
+                if not skip_advisory:
+                    # This is the last (or only) file — run family-level advisory once
+                    from ai_advisor import run_family_advisory
+                    advisory_result = await run_family_advisory(uid, family_profile)
+                    result["advisory_result"] = advisory_result
+                    result["action_items_count"] = advisory_result.get("action_items_count", 0) if advisory_result else 0
+                
+                return result
                 
             elif document_type in ("har_bituach", "specific_policy"):
                 from document_flows import InsuranceFlow
                 is_spreadsheet = filename_lower.endswith('.csv') or filename_lower.endswith('.xlsx') or filename_lower.endswith('.xls')
                 flow = InsuranceFlow(filename=file.filename, is_spreadsheet=is_spreadsheet, f_profile=family_profile, target_policy_id=policy_id)
-                return await flow.process(file_bytes, file.filename, uid)
+                return await flow.process(file_bytes, file.filename, uid, skip_advisory=skip_advisory)
                 
             elif document_type == "alternative_investment":
                 from document_flows import AlternativeInvestmentFlow
                 flow = AlternativeInvestmentFlow(f_profile=family_profile)
-                return await flow.process(file_bytes, file.filename, uid)
+                return await flow.process(file_bytes, file.filename, uid, skip_advisory=skip_advisory)
                 
             elif document_type == "stocks_portfolio":
                 from document_flows import StocksFlow
                 flow = StocksFlow(f_profile=family_profile)
-                return await flow.process(file_bytes, file.filename, uid)
+                return await flow.process(file_bytes, file.filename, uid, skip_advisory=skip_advisory)
                 
     except Exception as e:
         print(f"💥 [DOCUMENTS] Error in modular flow routing: {e}")
@@ -778,7 +789,7 @@ async def upload_document(
                 new_action_items = ai_advisor.generate_action_items(
                     family_portfolio=filtered_portfolios,
                     market_data=live_market_data,
-                    financial_profile=f_profile,
+                    family_profile=family_profile,
                 )
         except Exception as ai_e:
             print(f"💥 [DOCUMENTS] AI Generation failed, but proceeding to save funds: {ai_e}")

@@ -10,6 +10,8 @@ import { CATEGORY_LABELS } from '../types/portfolio';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { Info } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
@@ -59,6 +61,9 @@ export default function Pension() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>('loading');
   const [processingResultsSummary, setProcessingResultsSummary] = useState<any>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
+
+  const [chartTab, setChartTab] = useState<'assets' | 'providers'>('assets');
+  const [summaryTab, setSummaryTab] = useState<'balance' | 'monthly'>('balance');
 
   // Guard to prevent auto-scan from firing more than once per session
   const autoScanFiredRef = useRef(false);
@@ -250,8 +255,42 @@ export default function Pension() {
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <PortfolioSummaryCard title={`סך החשבון שצברת`} rows={balanceRows} variant="balance" />
-              <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+              {/* Mobile Tabbed View */}
+              <div className="lg:hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 m-4 rounded-xl w-fit">
+                  <button
+                    onClick={() => setSummaryTab('balance')}
+                    className={clsx(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    סיכום צבירה
+                  </button>
+                  <button
+                    onClick={() => setSummaryTab('monthly')}
+                    className={clsx(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    הפקדות חודשיות
+                  </button>
+                </div>
+                {summaryTab === 'balance' ? (
+                  <PortfolioSummaryCard title={`סך החשבון שצברת`} rows={balanceRows} variant="balance" />
+                ) : (
+                  <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+                )}
+              </div>
+
+              {/* Desktop Side-by-Side View */}
+              <div className="hidden lg:block h-full">
+                <PortfolioSummaryCard title={`סך החשבון שצברת`} rows={balanceRows} variant="balance" />
+              </div>
+              <div className="hidden lg:block h-full">
+                <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+              </div>
             </div>
             {categories.map(cat => (
               <AssetTable key={cat} title={CATEGORY_LABELS[cat]} funds={userFunds.filter(f => f.category === cat)} />
@@ -267,8 +306,42 @@ export default function Pension() {
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <PortfolioSummaryCard title="סך החשבון שצברת" rows={balanceRows} variant="balance" />
-              <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+              {/* Mobile Tabbed View */}
+              <div className="lg:hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 m-4 rounded-xl w-fit">
+                  <button
+                    onClick={() => setSummaryTab('balance')}
+                    className={clsx(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    סיכום צבירה
+                  </button>
+                  <button
+                    onClick={() => setSummaryTab('monthly')}
+                    className={clsx(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    הפקדות חודשיות
+                  </button>
+                </div>
+                {summaryTab === 'balance' ? (
+                  <PortfolioSummaryCard title="סך החשבון שצברת" rows={balanceRows} variant="balance" />
+                ) : (
+                  <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+                )}
+              </div>
+
+              {/* Desktop Side-by-Side View */}
+              <div className="hidden lg:block h-full">
+                <PortfolioSummaryCard title="סך החשבון שצברת" rows={balanceRows} variant="balance" />
+              </div>
+              <div className="hidden lg:block h-full">
+                <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+              </div>
             </div>
             {categories.map(cat => (
               <AssetTable key={cat} title={CATEGORY_LABELS[cat]} funds={spouseFunds.filter(f => f.category === cat)} />
@@ -287,14 +360,50 @@ export default function Pension() {
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
-              <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
+              {/* Mobile Tabbed View */}
+              <div className="lg:hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 m-4 rounded-xl w-fit">
+                  <button
+                    onClick={() => setSummaryTab('balance')}
+                    className={clsx(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    סיכום משפחתי
+                  </button>
+                  <button
+                    onClick={() => setSummaryTab('monthly')}
+                    className={clsx(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    הפקדות חודשיות
+                  </button>
+                </div>
+                {summaryTab === 'balance' ? (
+                  <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
+                ) : (
+                  <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
+                )}
+              </div>
+
+              {/* Desktop Side-by-Side View */}
+              <div className="hidden lg:block h-full">
+                <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
+              </div>
+              <div className="hidden lg:block h-full">
+                <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
+              </div>
             </div>
             <ActionItems 
               items={(portfolioData.action_items as ActionItem[] || []).filter(item => 
                 ['פנסיה', 'בורסה', 'כללי', 'equity', 'מניות'].includes(item.category || 'כללי')
               )} 
               onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
+              member1Name={member1Name}
+              member2Name={member2Name}
             />
             {categories.map(cat => {
               const catFunds = [...jointUserFunds.filter(f => f.category === cat), ...jointSpouseFunds.filter(f => f.category === cat)];
@@ -303,8 +412,117 @@ export default function Pension() {
             })}
             {jointStocks.length > 0 && <AssetTable title="תיק מניות משפחתי" funds={jointStocks} />}
             {altInvest.length > 0 && <AlternativeInvestmentsTable items={altInvest} />}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+            
+            {/* Bottom Analysis Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Mobile Tabbed Analysis View */}
+              <div className="lg:hidden bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:border-slate-300 dark:hover:border-slate-700">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                    <button
+                      onClick={() => setChartTab('assets')}
+                      className={clsx(
+                        "px-4 py-2 text-xs md:text-sm font-bold rounded-lg transition-all duration-200",
+                        chartTab === 'assets'
+                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                      )}
+                    >
+                      פיזור נכסים
+                    </button>
+                    <button
+                      onClick={() => setChartTab('providers')}
+                      className={clsx(
+                        "px-4 py-2 text-xs md:text-sm font-bold rounded-lg transition-all duration-200",
+                        chartTab === 'providers'
+                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                      )}
+                    >
+                      חשיפה לספקים
+                    </button>
+                  </div>
+                  <Info className="w-5 h-5 text-slate-400 hidden sm:block" />
+                </div>
+
+                {chartTab === 'assets' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="relative h-[220px] md:h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: 'מניות', value: joint.asset_allocation_percentages?.stocks ?? 0, color: '#3b82f6' },
+                              { name: 'אג״ח', value: joint.asset_allocation_percentages?.bonds ?? 0, color: '#10b981' },
+                              { name: 'מזומן', value: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: '#f59e0b' },
+                            ].filter(d => d.value > 0)}
+                            cx="50%" cy="50%"
+                            innerRadius="60%" outerRadius="85%"
+                            paddingAngle={5}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {[
+                              { color: '#3b82f6' },
+                              { color: '#10b981' },
+                              { color: '#f59e0b' }
+                            ].map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              borderRadius: '12px', 
+                              border: 'none', 
+                              boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                              direction: 'rtl'
+                            }} 
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">פיזור</span>
+                        <span className="text-xl md:text-2xl font-black text-slate-800 dark:text-white">נכסים</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {[
+                        { label: 'מניות', pct: joint.asset_allocation_percentages?.stocks ?? 0, color: 'bg-blue-600' },
+                        { label: 'אג״ח', pct: joint.asset_allocation_percentages?.bonds ?? 0, color: 'bg-emerald-500' },
+                        { label: 'מזומן ושווי מזומן', pct: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: 'bg-amber-400' },
+                      ].map(({ label, pct, color }) => (
+                        <div key={label} className="group">
+                          <div className="flex justify-between text-sm font-bold mb-1.5">
+                            <span className="text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">{label}</span>
+                            <span className="text-slate-900 dark:text-slate-100">{pct}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                            <div className={clsx(color, "h-2 rounded-full transition-all duration-1000 shadow-sm")} style={{ width: `${pct}%` }}></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Object.entries(joint.provider_exposure || {}).map(([provider, value]) => (
+                      <div key={provider} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800/60 hover:border-blue-500/30 transition-all group">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white dark:bg-slate-700 rounded-lg flex items-center justify-center font-black text-[10px] text-slate-400 border border-slate-100 dark:border-slate-600 group-hover:text-blue-500 transition-colors">
+                            {provider.slice(0, 1)}
+                          </div>
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{provider}</span>
+                        </div>
+                        <span className="text-sm font-black text-slate-900 dark:text-slate-100">{value as number}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Separate Analysis View */}
+              <div className="hidden lg:block h-full bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">פיזור נכסים</h3>
                 <div className="space-y-4">
                   {[
@@ -319,7 +537,7 @@ export default function Pension() {
                   ))}
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="hidden lg:block h-full bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">חשיפה לספקים</h3>
                 <div className="space-y-3">
                   {Object.entries(joint.provider_exposure || {}).map(([provider, value]) => (

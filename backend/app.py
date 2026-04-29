@@ -438,7 +438,7 @@ async def process_reports(
         action_items = ai_advisor.generate_action_items(
             family_portfolio=accumulated_portfolios,
             market_data=live_market_data,
-            financial_profile=f_profile,
+            family_profile=family_profile,
         )
     else:
         print("\n⚠️ [APP] No funds extracted — skipping action items.")
@@ -494,7 +494,7 @@ def test_reprocess_advisory(user: dict = Depends(verify_token)):
     action_items = ai_advisor.generate_action_items(
         family_portfolio=saved_portfolios,
         market_data=live_market_data,
-        financial_profile=f_profile
+        family_profile=family_profile
     )
     
     # 4. Consolidate and Save
@@ -1015,10 +1015,10 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             # Mark this owner as processed
             owners_processed.add(detected_owner)
             
-            # --- Use PensionFlow to process the report ---
+            # --- Phase A: Use PensionFlow to extract and save funds only ---
             from document_flows import PensionFlow
             flow = PensionFlow(f_profile=family_profile)
-            flow_result = await flow.process(pdf_bytes, f"{detected_owner}_gmail_report.pdf", uid)
+            flow_result = await flow.process(pdf_bytes, f"{detected_owner}_gmail_report.pdf", uid, skip_advisory=True)
             
             results.append({
                 "msg_id": msg_id, 
@@ -1049,6 +1049,10 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     processed_count = len([r for r in results if r.get("status") == "success"])
     if processed_count > 0:
         db_manager.update_family_field(uid, "last_fetched_at", datetime.datetime.now().isoformat())
+        
+        # --- Phase B: Run Family Advisory once for the whole family ---
+        from ai_advisor import run_family_advisory
+        await run_family_advisory(uid, family_profile)
     
     print(f"\n🏁 [CRON] fetch-emails COMPLETE — {processed_count}/{len(messages)} processed.")
     return {

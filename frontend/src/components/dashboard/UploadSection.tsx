@@ -93,11 +93,16 @@ export default function UploadSection({ user, onSuccess }: Props) {
       // Oops, my documents.py handles `file` singly. Wait. UploadSection supports multiple!  If multiple files, we should call it multiple times or backend should support list.
       // Let's call /api/documents/upload one file at a time!
       let lastData: any = null;
-      for (const file of selectedFiles) {
+      for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i];
+          const isLast = i === selectedFiles.length - 1;
+          
           const singleFormData = new FormData();
           singleFormData.append('file', file);
           singleFormData.append('uid', user.uid);
           singleFormData.append('document_type', documentType);
+          // Skip the expensive AI advisory for all but the last file in a batch
+          singleFormData.append('skip_advisory', isLast ? 'false' : 'true');
           
           const res = await fetch(`${API_URL}/api/documents/upload`, {
             method: 'POST',

@@ -54,35 +54,48 @@ class BaseDocumentFlow(ABC):
     async def enrich_data(self, extracted_data: Any) -> Any:
         return extracted_data
         
-    @abstractmethod
-    async def analyze_and_advise(self, enriched_data: Any) -> list[dict]:
-        pass
+    async def analyze_and_advise(self, enriched_data: Any, uid: str) -> list[dict]:
+        """Optionally implemented by subclasses to run in-flow AI advisory."""
+        return []
         
     @abstractmethod
     async def save_to_db(self, uid: str, final_data: Any, action_items: list[dict]):
         pass
         
-    async def process(self, file_bytes: bytes, filename: str, uid: str) -> dict:
+    @abstractmethod
+    async def save_funds_to_db(self, uid: str, final_data: Any):
+        """Save only the extracted funds to the database without updating action items."""
+        pass
+        
+    async def process(self, file_bytes: bytes, filename: str, uid: str, skip_advisory: bool = False) -> dict:
         print(f"\n🚀 [FLOW] Starting {self.__class__.__name__} for {filename}")
         
-        print(f"🔄 [FLOW] Step 1/4: Extraction...")
+        print(f"🔄 [FLOW] Step 1/3: Extraction...")
         extracted_data = await self.extract_data(file_bytes, filename, uid)
         print(f"✅ [FLOW] Extraction completed successfully.")
         
-        print(f"🔄 [FLOW] Step 2/4: Data Enrichment...")
+        print(f"🔄 [FLOW] Step 2/3: Data Enrichment...")
         enriched_data = await self.enrich_data(extracted_data)
         print(f"✅ [FLOW] Data Enrichment completed successfully.")
         
-        print(f"🔄 [FLOW] Step 3/4: Analysis & Advisory...")
-        try:
-            action_items = await self.analyze_and_advise(enriched_data)
-            print(f"✅ [FLOW] Advisory completed. Generated {len(action_items)} action items.")
-        except Exception as e:
-            print(f"⚠️ [FLOW] Advisory failed (possibly AI Server overload): {e}. Proceeding without advisory.")
-            action_items = []
+        action_items = []
+        if skip_advisory:
+            # Batch mode: save only extracted funds, don't touch action items
+            print(f"⏭️ [FLOW] Skipping advisory (batch mode — not the last file).")
+            print(f"🔄 [FLOW] Step 3/3: Saving funds to Database...")
+            await self.save_funds_to_db(uid, enriched_data)
+        else:
+            print(f"🔄 [FLOW] Step 3/4: Analysis & Advisory...")
+            try:
+                action_items = await self.analyze_and_advise(enriched_data, uid)
+                print(f"✅ [FLOW] Advisory completed. Generated {len(action_items)} action items.")
+            except Exception as e:
+                print(f"⚠️ [FLOW] Advisory failed (possibly AI Server overload): {e}. Proceeding without advisory.")
+                action_items = []
+            
+            # Step 4/4: Saving everything to Database
+            await self.save_to_db(uid, enriched_data, action_items)
         
-        print(f"🔄 [FLOW] Step 4/4: Saving to Database...")
-        await self.save_to_db(uid, enriched_data, action_items)
         print(f"✅ [FLOW] Database update completed successfully. Flow {self.__class__.__name__} finished!\n")
         
         c = len(enriched_data) if isinstance(enriched_data, list) else 1
@@ -216,40 +229,9 @@ class PensionFlow(BaseDocumentFlow):
         report_utils._attach_competitors_to_funds(temp_portfolios, market_data)
         return temp_portfolios["user"]["funds"]
 
-    async def analyze_and_advise(self, enriched_data: list[dict]) -> list[dict]:
-        if not self.gemini_api_key or not enriched_data:
-            return []
-            
-        # Parse profile for prompt
-        s1_age = 2026 - int(self.f_profile.get("spouse_1_birth_year", 1980))
-        s2_age = 2026 - int(self.f_profile.get("spouse_2_birth_year", 1980)) if self.f_profile.get("spouse_2_birth_year") else "N/A"
-        children_ages = []
-        for child in self.f_profile.get("children", []):
-            if child.get("birth_year"):
-                children_ages.append(str(2026 - int(child["birth_year"])))
-                
-        sys_prompt = prompts.PENSION_ADVISORY_PROMPT.format(
-            spouse_1_age=s1_age,
-            spouse_2_age=s2_age,
-            children_ages=", ".join(children_ages) if children_ages else "None",
-            risk_tolerance=self.f_profile.get("risk_tolerance", "medium"),
-            investment_preference=self.f_profile.get("investment_preference", "growth")
-        )
-        
-        user_prompt = f"Portfolio: {json.dumps(enriched_data, ensure_ascii=False)}"
-        
-        action_items = call_gemini_json(self.gemini_api_key, sys_prompt, user_prompt)
-        
-        # Normalize returned items
-        items_list = action_items if isinstance(action_items, list) else action_items.get("action_items", [])
-        for item in items_list:
-             item["is_completed"] = False
-             if "id" not in item:
-                 item["id"] = f"pension_{uuid.uuid4().hex[:6]}"
-                 
-        return items_list
+    # analyze_and_advise is removed here and handled by run_family_advisory in the router for pension reports
 
-    async def save_to_db(self, uid: str, final_data: list[dict], action_items: list[dict]):
+    async def save_funds_to_db(self, uid: str, final_data: list[dict]):
         # Load existing
         existing_doc = db_manager.get_processed_portfolio(uid) or {
             "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}}, 
@@ -313,19 +295,28 @@ class PensionFlow(BaseDocumentFlow):
             existing_doc["portfolios"][target_key]["ownerName"] = owner_name
             print(f"[FLOW] Set portfolios.{target_key}.ownerName = '{owner_name}'")
 
-        # Replace (rather than append) pension action items to avoid duplicates
-        existing_items = existing_doc.get("action_items", [])
-        # Filter out any old items starting with 'pension_'
-        filtered_items = [item for item in existing_items if not str(item.get("id", "")).startswith("pension_")]
-        filtered_items.extend(action_items)
-        existing_doc["action_items"] = filtered_items
-        
         db_manager.save_processed_portfolio(uid, existing_doc)
         # Invalidate cache so next fetch returns fresh data
         db_manager.clear_cache_for_uid(uid)
         
         # Layer 3: Validate extracted data vs PDF summary
         self._validation_warnings = _validate_extraction(final_data, self.expected_summary)
+
+    async def save_to_db(self, uid: str, final_data: list[dict], action_items: list[dict]):
+        await self.save_funds_to_db(uid, final_data)
+        
+        existing_doc = db_manager.get_processed_portfolio(uid)
+        
+        # Replace all pension action items since we now generate them for the whole family
+        from ai_advisor import filter_pension_items
+        existing_items = existing_doc.get("action_items", [])
+        filtered_items = filter_pension_items(existing_items)
+        
+        filtered_items.extend(action_items)
+        existing_doc["action_items"] = filtered_items
+        
+        db_manager.save_processed_portfolio(uid, existing_doc)
+        db_manager.clear_cache_for_uid(uid)
 
 
 class InsuranceFlow(BaseDocumentFlow):
@@ -411,7 +402,7 @@ class InsuranceFlow(BaseDocumentFlow):
                 
         return enriched
 
-    async def analyze_and_advise(self, enriched_data: Any) -> list[dict]:
+    async def analyze_and_advise(self, enriched_data: Any, uid: str) -> list[dict]:
         # specific_policy does not generate advice directly
         if not self.is_spreadsheet or not self.gemini_api_key:
             return []
@@ -433,8 +424,8 @@ class InsuranceFlow(BaseDocumentFlow):
                  
         return items_list
 
-    async def save_to_db(self, uid: str, final_data: Any, action_items: list[dict]):
-        print(f"💾 [INSURANCE-FLOW] Saving to DB for UID: {uid}")
+    async def save_funds_to_db(self, uid: str, final_data: Any):
+        print(f"💾 [INSURANCE-FLOW] Saving funds to DB for UID: {uid}")
         existing_doc = db_manager.get_processed_portfolio(uid) or {
             "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}}, 
             "action_items": []
@@ -451,13 +442,9 @@ class InsuranceFlow(BaseDocumentFlow):
                     # Retain policies that were NOT uploaded via Har Bituach (e.g., manual or individual PDFs)
                     retained_funds = [f for f in existing_funds if f.get("source") != "har_bituach_upload"]
                     existing_doc["portfolios"][o_key]["funds"] = retained_funds + new_funds
-                
-            # Filter out old insurance action items so we don't duplicate alerts each Har Bituach upload
-            existing_items = existing_doc.get("action_items", [])
-            filtered_items = [item for item in existing_items if not str(item.get("id", "")).startswith("ins_")]
-            filtered_items.extend(action_items)
-            existing_doc["action_items"] = filtered_items
-            
+                    
+            db_manager.save_processed_portfolio(uid, existing_doc)
+            db_manager.clear_cache_for_uid(uid)
         else:
             # It's a specific policy JSON from Claude extraction
             # Robustness: Claude might return a list e.g. [{...}] if it's confused
@@ -516,6 +503,25 @@ class InsuranceFlow(BaseDocumentFlow):
         db_manager.clear_cache_for_uid(uid)
         print(f"🏁 [INSURANCE-FLOW] DB update complete.")
 
+    async def save_to_db(self, uid: str, final_data: Any, action_items: list[dict]):
+        await self.save_funds_to_db(uid, final_data)
+        
+        if self.is_spreadsheet and action_items:
+            existing_doc = db_manager.get_processed_portfolio(uid)
+            
+            existing_items = existing_doc.get("action_items", [])
+            filtered_items = [item for item in existing_items if not str(item.get("id", "")).startswith("ins_")]
+            
+            for item in action_items:
+                item["owner"] = "shared"
+                item["owner_name"] = "משותף"
+                
+            filtered_items.extend(action_items)
+            existing_doc["action_items"] = filtered_items
+            
+            db_manager.save_processed_portfolio(uid, existing_doc)
+            db_manager.clear_cache_for_uid(uid)
+
 
 class AlternativeInvestmentFlow(BaseDocumentFlow):
 
@@ -539,10 +545,10 @@ class AlternativeInvestmentFlow(BaseDocumentFlow):
         parsed_json["source_document_url"] = source_url
         return parsed_json
 
-    async def analyze_and_advise(self, enriched_data: dict) -> list[dict]:
+    async def analyze_and_advise(self, enriched_data: dict, uid: str) -> list[dict]:
         return [] # No AI advisor action items for alt investments directly
 
-    async def save_to_db(self, uid: str, final_data: dict, action_items: list[dict]):
+    async def save_funds_to_db(self, uid: str, final_data: dict):
         existing_doc = db_manager.get_processed_portfolio(uid) or {
             "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}}, 
             "action_items": []
@@ -555,15 +561,18 @@ class AlternativeInvestmentFlow(BaseDocumentFlow):
         existing_doc["portfolios"]["user"]["alternative_investments"].append(final_data)
         db_manager.save_processed_portfolio(uid, existing_doc)
         
+    async def save_to_db(self, uid: str, final_data: dict, action_items: list[dict]):
+        await self.save_funds_to_db(uid, final_data)
+        
 class StocksFlow(BaseDocumentFlow):
     async def extract_data(self, file_bytes: bytes, filename: str, uid: str) -> list[dict]:
         from routers.documents import _extract_stocks
         return _extract_stocks(file_bytes, filename)
 
-    async def analyze_and_advise(self, enriched_data: Any) -> list[dict]:
+    async def analyze_and_advise(self, enriched_data: Any, uid: str) -> list[dict]:
         return []
 
-    async def save_to_db(self, uid: str, final_data: list[dict], action_items: list[dict]):
+    async def save_funds_to_db(self, uid: str, final_data: list[dict]):
         existing_doc = db_manager.get_processed_portfolio(uid) or {
             "portfolios": {"user": {"funds": []}, "spouse": {"funds": []}}, 
             "action_items": []
@@ -625,3 +634,5 @@ class StocksFlow(BaseDocumentFlow):
         
         db_manager.update_portfolio_summary(uid, total_value_ils, daily_return_pct, total_return_pct)
 
+    async def save_to_db(self, uid: str, final_data: list[dict], action_items: list[dict]):
+        await self.save_funds_to_db(uid, final_data)

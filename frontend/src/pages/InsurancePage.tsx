@@ -13,7 +13,9 @@ import { API_URL } from '../lib/api';
 export default function InsurancePage() {
   const [activeTab, setActiveTab] = useState('רכב');
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, familyConfig } = useAuth();
+  const member1Name = familyConfig?.member1?.name?.split(' ')[0] || 'המבוטח הראשי';
+  const member2Name = familyConfig?.member2?.name?.split(' ')[0] || 'בן/בת הזוג';
   
   const [funds, setFunds] = useState<any[]>([]);
   const [actionItems, setActionItems] = useState<any[]>([]);
@@ -152,33 +154,44 @@ export default function InsurancePage() {
       <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
         
         {/* Page Header & Actions */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">ביטוחים</h1>
-            <p className="text-slate-400">ניהול פוליסות, מניעת כפל ביטוחי והעלאת מסמכים</p>
+            <h1 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 dark:from-blue-400 dark:to-indigo-300">
+              ביטוחים
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm md:text-base">ניהול פוליסות, מניעת כפל ביטוחי והעלאת מסמכים</p>
           </div>
           
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full xl:w-auto">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
-              <div className="bg-slate-800 px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 border border-slate-700 shadow-sm">
-                <span className="text-sm text-slate-400">סה״כ עלות חודשית:</span>
-                <span className="text-lg font-bold text-white">₪{totalCost.toLocaleString()}</span>
-              </div>
-              {actionItems.length > 0 && (
-                <div className="bg-orange-500/10 px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 border border-orange-500/20 text-orange-500 shadow-sm">
-                  <AlertCircle size={20} />
-                  <span className="text-sm font-medium">התראה אמיתית: קיימות המלצות AI חדשות לביצוע!</span>
-                </div>
-              )}
+          <button 
+            onClick={() => navigate('/settings')}
+            className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-5 py-2 rounded-lg font-bold text-[11px] md:text-sm transition-all shadow-lg hover:shadow-blue-500/20 w-full md:w-auto"
+          >
+            <UploadCloud className="w-3.5 h-3.5 md:w-4 md:h-4" />
+            <span>העלאת מסמך / הר ביטוח</span>
+          </button>
+        </div>
+
+        {/* Summary Card - Mobile Friendly */}
+        {/* Summary Card - Mobile Friendly */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center group transition-all hover:border-violet-500/30">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-violet-50 dark:bg-violet-900/30 rounded-xl flex items-center justify-center text-violet-600 dark:text-violet-400 ml-3 md:ml-4 shrink-0 group-hover:scale-110 transition-transform">
+              <ShieldAlert className="w-5 h-5 md:w-6 md:h-6" />
             </div>
-            
-            <button 
-              onClick={() => navigate('/settings')}
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm w-full md:w-auto mt-2 md:mt-0"
-            >
-              <UploadCloud size={20} />
-              <span>העלאת מסמך / הר ביטוח</span>
-            </button>
+            <div className="min-w-0">
+              <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">עלות חודשית כוללת</p>
+              <p className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">₪{totalCost.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center group transition-all hover:border-blue-500/30">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 ml-3 md:ml-4 shrink-0 group-hover:scale-110 transition-transform">
+              <FileText className="w-5 h-5 md:w-6 md:h-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">פוליסות פעילות</p>
+              <p className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{funds.length}</p>
+            </div>
           </div>
         </div>
 
@@ -187,6 +200,8 @@ export default function InsurancePage() {
             items={actionItems}
             onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
             title="התראות AI ופעולות לביצוע בתיק הביטוח"
+            member1Name={member1Name}
+            member2Name={member2Name}
         />
 
         {/* Tabs Navigation */}

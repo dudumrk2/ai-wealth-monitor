@@ -85,6 +85,8 @@ export interface ActionItem {
   severity: Severity;
   /** Domain category, e.g. 'פנסיה', 'ביטוח', 'בורסה', 'כללי' */
   category?: string;
+  owner?: 'user' | 'spouse' | 'shared';
+  owner_name?: string;
 }
 
 /** Human-readable Hebrew label for each fund category */

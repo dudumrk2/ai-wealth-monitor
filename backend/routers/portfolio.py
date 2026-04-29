@@ -98,7 +98,6 @@ async def get_portfolio(
         if refresh_ai:
             print(f"🤖 [PORTFOLIO-ROUTER] Explicit AI refresh requested for {uid}")
             family_profile = db_manager.get_family_profile(uid)
-            f_profile = family_profile.get("financial_profile", {}) if family_profile else {}
             
             # AI always needs fresh market context to be accurate
             live_market_data = await _collect_market_data_async(portfolios)
@@ -108,15 +107,25 @@ async def get_portfolio(
             try:
                 if uid == config.DEMO_UID:
                      print(f"⏭️  [PORTFOLIO-ROUTER] Skipping AI advisor for demo user.")
-                     action_items = portfolio_doc.get("action_items", [])
                 else:
-                     action_items = ai_advisor.generate_action_items(portfolios, live_market_data, f_profile)
-                     print(f"✅ [PORTFOLIO-ROUTER] Advisory refresh complete: generated {len(action_items)} action items.")
+                     new_action_items = ai_advisor.generate_action_items(portfolios, live_market_data, family_profile)
+                     
+                     # Ensure all refreshed items have owner field (default to shared)
+                     for item in new_action_items:
+                         if "owner" not in item:
+                             item["owner"] = "shared"
+                             item["owner_name"] = "משותף"
+                     
+                     # Replace only pension items, preserve insurance/alt items
+                     existing_items = portfolio_doc.get("action_items", [])
+                     filtered_items = ai_advisor.filter_pension_items(existing_items)
+                     action_items = filtered_items + new_action_items
+                     portfolio_doc["action_items"] = action_items
+                         
+                     print(f"✅ [PORTFOLIO-ROUTER] Advisory refresh complete: generated {len(new_action_items)} action items.")
             except Exception as ai_e:
                 print(f"⚠️ [PORTFOLIO-ROUTER] Advisory failed during refresh: {ai_e}. Keeping existing items.")
                 action_items = portfolio_doc.get("action_items", [])
-
-            portfolio_doc["action_items"] = action_items
             last_updated = datetime.datetime.now().isoformat()
             portfolio_doc["last_updated"] = last_updated
             needs_save = True

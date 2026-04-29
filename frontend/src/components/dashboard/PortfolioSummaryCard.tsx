@@ -1,6 +1,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import clsx from 'clsx';
 
 const fmt = (val: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
@@ -17,6 +18,7 @@ interface Props {
   totalLabel?: string;
   rows: SummaryRow[];
   variant?: 'balance' | 'monthly';
+  className?: string;
 }
 
 function DonutChart({ rows, variant = 'balance' }: { rows: SummaryRow[]; variant?: 'balance' | 'monthly' }) {
@@ -76,13 +78,13 @@ function DonutChart({ rows, variant = 'balance' }: { rows: SummaryRow[]; variant
   );
 }
 
-export default function PortfolioSummaryCard({ title, totalLabel, rows, variant = 'balance' }: Props) {
+export default function PortfolioSummaryCard({ title, totalLabel, rows, variant = 'balance', className }: Props) {
   const total = rows.reduce((s, r) => s + r.balance, 0);
   const activeRows = rows.filter(r => r.balance > 0);
   const isMonthly = variant === 'monthly';
 
   return (
-    <Card className="mb-0">
+    <Card className={clsx("mb-0 h-full flex flex-col", className)}>
       {/* Header */}
       <CardHeader className="flex flex-row items-center justify-between gap-4 p-4 md:p-6 border-b border-slate-100 dark:border-slate-800">
         <div className="min-w-0">
