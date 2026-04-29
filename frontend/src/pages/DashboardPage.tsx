@@ -181,16 +181,63 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Top Section - 3 Columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 min-h-[500px] lg:min-h-[620px]">
-          {/* Right Column: AI Chat */}
-          <div className="relative min-h-[450px] lg:min-h-0 h-full w-full">
-            <div className="absolute inset-0">
-              <CopilotChat />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:min-h-[620px]">
+
+          {/* Summary Cards — Order 1 on mobile (shown first), Order 3 on desktop (left column) */}
+          <div className="grid grid-cols-2 lg:flex lg:flex-col gap-3 md:gap-4 h-full order-1 lg:order-3">
+             <Link to="/pension" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-blue-500/30 group cursor-pointer flex-1">
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center text-blue-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                <Landmark className="w-5 h-5 md:w-7 md:h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-slate-500 text-[10px] md:text-sm font-bold mb-0.5 md:mb-1">יתרת פנסיה</p>
+                <h3 className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{formatCurrency(totals.pension)}</h3>
+              </div>
+            </Link>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-emerald-500/30 group flex-1">
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center text-emerald-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                <LineChart className="w-5 h-5 md:w-7 md:h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-0.5 md:mb-1">
+                  <p className="text-slate-500 text-[10px] md:text-sm font-bold">תיק בורסה</p>
+                  {totals.stockDailyReturnPct !== 0 && (
+                    <span className={clsx(
+                      "text-[9px] md:text-xs font-bold px-1 md:px-1.5 py-0.5 rounded-full flex items-center gap-0.5",
+                      totals.stockDailyReturnPct > 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                    )}>
+                      {totals.stockDailyReturnPct > 0 ? '+' : ''}{totals.stockDailyReturnPct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{formatCurrency(totals.market)}</h3>
+              </div>
+            </div>
+
+            <Link to="/alternative" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-indigo-500/30 group cursor-pointer flex-1">
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center text-indigo-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                <HandCoins className="w-5 h-5 md:w-7 md:h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-slate-500 text-[10px] md:text-sm font-bold mb-0.5 md:mb-1">השקעות אלטרנטיביות</p>
+                <h3 className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{formatCurrency(totals.alternative)}</h3>
+              </div>
+            </Link>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-violet-500/30 group flex-1">
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center text-violet-400 ml-3 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                <Shield className="w-5 h-5 md:w-7 md:h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-slate-500 text-[10px] md:text-sm font-bold mb-0.5 md:mb-1">ביטוחים</p>
+                <h3 className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{formatCurrency(totals.insuranceMonthly)} <span className="text-[10px] md:text-xs font-normal text-slate-500">/ חודש</span></h3>
+              </div>
             </div>
           </div>
 
-          {/* Center Column: Asset Allocation - TASE+ Style */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 md:p-6 flex flex-col relative h-full transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          {/* Center Column: Asset Allocation — Hidden on mobile, Order 2 on desktop */}
+          <div className="hidden lg:flex bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 md:p-6 flex-col relative h-full transition-all hover:border-slate-300 dark:hover:border-slate-700 order-2">
             {/* Tab Header */}
             <div className="flex items-center gap-1 mb-4 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 self-start">
               <button
@@ -287,58 +334,13 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Left Column: Summary Cards */}
-          <div className="flex flex-col gap-3 md:gap-4 h-full">
-             <Link to="/pension" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-blue-500/30 group cursor-pointer flex-1">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center text-blue-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                <Landmark className="w-6 h-6 md:w-7 md:h-7" />
-              </div>
-              <div className="flex-1">
-                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">יתרת פנסיה</p>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(totals.pension)}</h3>
-              </div>
-            </Link>
-
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-emerald-500/30 group flex-1">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center text-emerald-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                <LineChart className="w-6 h-6 md:w-7 md:h-7" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-slate-500 text-xs md:text-sm font-bold">תיק בורסה</p>
-                  {totals.stockDailyReturnPct !== 0 && (
-                    <span className={clsx(
-                      "text-[10px] md:text-xs font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5",
-                      totals.stockDailyReturnPct > 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
-                    )}>
-                      {totals.stockDailyReturnPct > 0 ? '+' : ''}{totals.stockDailyReturnPct.toFixed(2)}%
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(totals.market)}</h3>
-              </div>
-            </div>
-
-            <Link to="/alternative" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-indigo-500/30 group cursor-pointer flex-1">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center text-indigo-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                <HandCoins className="w-6 h-6 md:w-7 md:h-7" />
-              </div>
-              <div className="flex-1">
-                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">השקעות אלטרנטיביות</p>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(totals.alternative)}</h3>
-              </div>
-            </Link>
-
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex items-center transition-all hover:-translate-y-1 hover:border-violet-500/30 group flex-1">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center text-violet-400 ml-4 md:ml-5 shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                <Shield className="w-6 h-6 md:w-7 md:h-7" />
-              </div>
-              <div className="flex-1">
-                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">ביטוחים</p>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(totals.insuranceMonthly)} <span className="text-xs font-normal text-slate-500">/ חודש</span></h3>
-              </div>
+          {/* AI Chat — Order 3 on mobile (after summary), Order 1 on desktop (right column) */}
+          <div className="relative h-[400px] lg:h-full min-h-[350px] lg:min-h-0 w-full order-3 lg:order-1">
+            <div className="h-full lg:absolute lg:inset-0">
+              <CopilotChat />
             </div>
           </div>
+
         </div>
 
         {/* Bottom Section - Alerts & Actions */}
