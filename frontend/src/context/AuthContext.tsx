@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
       setUser(firebaseUser);
       if (firebaseUser) {
         await loadFamily(firebaseUser);
@@ -108,8 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       localStorage.removeItem('is_demo');
-      await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged will fire and call loadFamily automatically
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        await loadFamily(result.user);
+      }
+      // onAuthStateChanged will also fire, but loadFamily is idempotent/cached
     } catch (error) {
       console.error('Error signing in with Google', error);
       throw error;

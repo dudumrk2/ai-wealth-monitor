@@ -23,16 +23,16 @@ function ProtectedRoute({
   children: React.ReactNode;
   requireOnboarding?: boolean;
 }) {
-  const { user } = useAuth();
+  const { user, familyConfig } = useAuth();
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // If this is the Dashboard or Settings, ensure onboarding has been completed first
+  // If this is the Dashboard or Settings, ensure onboarding has been completed first.
+  // We use familyConfig as the source of truth (it's fetched from Firestore).
   if (!requireOnboarding) {
-    const onboardingDone = localStorage.getItem(STORAGE_KEYS.ONBOARDING_DONE);
-    if (!onboardingDone) {
+    if (!familyConfig) {
       return <Navigate to="/onboarding" replace />;
     }
   }
