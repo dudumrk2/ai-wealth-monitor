@@ -73,7 +73,7 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
 
               return (
                 <tr 
-                  key={fund.id} 
+                  key={fund.id || `${fund.provider_name}-${fund.track_name}`} 
                   className="hover:bg-slate-50/80 dark:hover:bg-slate-800 transition-colors group cursor-pointer hover:shadow-sm"
                   onClick={() => setSelectedFund(fund)}
                 >
@@ -100,7 +100,7 @@ export default function AssetTable({ title, funds, ownerColumn = false }: AssetT
                   </td>
 
                   {[fund.yield_1yr, fund.yield_3yr, fund.yield_5yr].map((y, i) => (
-                    <td key={i} className="p-4 text-left">
+                    <td key={`yield-${i}`} className="p-4 text-left">
                       <div className={clsx("inline-flex items-center gap-1 font-medium tabular-nums", y > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400")} dir="ltr">
                         {y > 0 && <TrendingUp className="w-3 h-3" />}
                         {y}%
