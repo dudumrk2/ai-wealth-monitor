@@ -46,3 +46,13 @@ backend/test_*.py
 backend/*.xlsx
 backend/*.csv
 backend/*.pdf
+
+# Test artifacts
+frontend/test_output.txt
+test_output.txt
+.coverage
+htmlcov/
+coverage/
+
+# VS Code - allow settings.json for shared team config
+!.vscode/settings.json

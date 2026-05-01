@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -91,7 +91,7 @@ const StocksDashboard: React.FC = () => {
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
 
   // ── Live Data Fetch ─────────────────────────────────────────────
-  const fetchPortfolioData = async (silent = false) => {
+  const fetchPortfolioData = useCallback(async (silent = false) => {
     if (!silent) {
       setDataLoading(true);
       setFxLoading(true);
@@ -112,7 +112,6 @@ const StocksDashboard: React.FC = () => {
 
       if (portRes.ok) {
         const portData = await portRes.json();
-        // Extract stocks array from backend (empty array fallback)
         setHoldings(portData.data?.stocks || portData.stocks || []);
       }
 
@@ -134,11 +133,11 @@ const StocksDashboard: React.FC = () => {
          setFxLoading(false);
       }
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchPortfolioData();
-  }, []);
+  }, [fetchPortfolioData]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

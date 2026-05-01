@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Building2, Shield, Plus, Calendar, ArrowUpRight, Clock, CheckCircle2, Wallet, TrendingUp, AlertTriangle } from 'lucide-react';
 import type { AltProject, LeveragedPolicy } from '../types/alternative';
 import AddAlternativeModal from '../components/dashboard/AddAlternativeModal';
@@ -24,7 +24,7 @@ export default function AltInvestmentsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPrimeRate] = useState<number>(6.0);
 
-  const fetchAlternativeData = async (silent = false) => {
+  const fetchAlternativeData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
       if (!user) return;
@@ -55,11 +55,11 @@ export default function AltInvestmentsDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchAlternativeData();
-  }, []);
+  }, [fetchAlternativeData]);
 
   const handleSaveAsset = async (data: AltProject | LeveragedPolicy, type: 'real_estate' | 'policy', file: File | null) => {
     try {

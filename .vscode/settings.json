@@ -1,0 +1,13 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "*.tsx": "${capture}.test.tsx, ${capture}.stories.tsx, ${capture}.spec.tsx",
+    "*.ts": "${capture}.test.ts, ${capture}.spec.ts",
+    "*.py": "${capture}_test.py, test_${capture}.py",
+    "vite.config.*": "vitest.config.*, vite.config.*.ts",
+    "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, .npmrc, .nvmrc",
+    "tsconfig.json": "tsconfig.*.json",
+    ".env": ".env.*"
+  }
+}
