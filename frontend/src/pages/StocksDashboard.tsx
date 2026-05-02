@@ -193,6 +193,9 @@ const StocksDashboard: React.FC = () => {
   const totalDailyILS  = holdings.reduce((s, h) => s + dailyILS(h, rate), 0);
   const totalPnlILS_val = holdings.reduce((s, h) => s + totalPnlILS(h, rate), 0);
 
+  const totalCashILS = holdings.filter(h => h.sector === 'cash').reduce((s, h) => s + toILS(h, rate), 0);
+  const totalInvestedILS = totalValueILS - totalCashILS;
+
   const dailyChangePct = totalValueILS > 0
     ? (totalDailyILS / (totalValueILS - totalDailyILS)) * 100
     : 0;
@@ -428,7 +431,17 @@ const StocksDashboard: React.FC = () => {
                         </div>
                       </div>
                       <p className="text-[13px] sm:text-base lg:text-3xl font-black text-slate-900 dark:text-white leading-tight">{formatILS(totalValueILS)}</p>
-                      <p className="hidden lg:block text-xs text-slate-400 mt-1">{holdings.length} ניירות ערך</p>
+                      <div className="hidden lg:flex flex-col gap-1 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center text-xs font-medium">
+                          <span className="text-slate-500 dark:text-slate-400">מושקע</span>
+                          <span className="text-slate-700 dark:text-slate-300">{formatILS(totalInvestedILS)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs font-medium">
+                          <span className="text-slate-500 dark:text-slate-400">מזומן</span>
+                          <span className="text-slate-700 dark:text-slate-300">{formatILS(totalCashILS)}</span>
+                        </div>
+                      </div>
+                      <p className="hidden lg:block text-[10px] text-slate-400 mt-2">{holdings.length} ניירות ערך</p>
                     </div>
 
                     {/* Card 2 — Daily Change */}
