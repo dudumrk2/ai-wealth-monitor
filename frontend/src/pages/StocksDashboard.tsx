@@ -519,9 +519,9 @@ const StocksDashboard: React.FC = () => {
                           onSort={handleSort} 
                           className="sticky right-0 z-20 bg-slate-50 dark:bg-slate-800/90 backdrop-blur-sm shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b] max-w-[160px] md:max-w-[300px]" 
                         />
-                        <SortableTh label="כמות"           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">שער אחרון</th>
                         <SortableTh label="שינוי יומי %"   sortKey="dailyChangePercent" current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">שער אחרון</th>
+                        <SortableTh label="כמות"           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="שווי (₪)"       sortKey="valueILS"           current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="רווח/הפסד יומי" sortKey="dailyPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="רווח/הפסד כולל" sortKey="totalPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -559,9 +559,17 @@ const StocksDashboard: React.FC = () => {
                                 </div>
                               </div>
                             </td>
-                            {/* Quantity */}
+                            {/* Daily % */}
                             <td className="px-4 py-3">
-                              <p className="font-medium text-slate-600 dark:text-slate-300">{(h.qty ?? h.shares ?? 0).toLocaleString()}</p>
+                              <span className={clsx(
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold',
+                                h.dailyChangePercent >= 0 
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                  : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                              )}>
+                                {h.dailyChangePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {formatPct(h.dailyChangePercent)}
+                              </span>
                             </td>
                             {/* Last Price */}
                             <td className="px-4 py-3">
@@ -575,17 +583,9 @@ const StocksDashboard: React.FC = () => {
                                     : '—'}
                               </p>
                             </td>
-                            {/* Daily % */}
+                            {/* Quantity */}
                             <td className="px-4 py-3">
-                              <span className={clsx(
-                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold',
-                                h.dailyChangePercent >= 0 
-                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                                  : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                              )}>
-                                {h.dailyChangePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                {formatPct(h.dailyChangePercent)}
-                              </span>
+                              <p className="font-medium text-slate-600 dark:text-slate-300">{(h.qty ?? h.shares ?? 0).toLocaleString()}</p>
                             </td>
                             {/* Value ILS */}
                             <td className="px-4 py-3">
