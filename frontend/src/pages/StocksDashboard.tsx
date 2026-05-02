@@ -517,7 +517,7 @@ const StocksDashboard: React.FC = () => {
                           current={sortKey} 
                           dir={sortDir} 
                           onSort={handleSort} 
-                          className="sticky right-0 z-20 bg-slate-50 dark:bg-slate-800/90 backdrop-blur-sm shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b]" 
+                          className="sticky right-0 z-20 bg-slate-50 dark:bg-slate-800/90 backdrop-blur-sm shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b] max-w-[160px] md:max-w-[300px]" 
                         />
                         <SortableTh label="כמות"           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
                         <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">שער אחרון</th>
@@ -540,7 +540,7 @@ const StocksDashboard: React.FC = () => {
                         return (
                           <tr key={h.id || h.symbol} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                             {/* Name / Symbol (Sticky Column) */}
-                            <td className="px-4 py-3 sticky right-0 z-10 bg-white dark:bg-slate-900 shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60 transition-colors">
+                            <td className="px-4 py-3 sticky right-0 z-10 bg-white dark:bg-slate-900 shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60 transition-colors max-w-[160px] md:max-w-[300px]">
                               <div className="flex items-center gap-3">
                                 <div 
                                   className="hidden md:flex w-8 h-8 rounded-lg items-center justify-center text-[11px] font-black text-white shrink-0" 
@@ -548,14 +548,14 @@ const StocksDashboard: React.FC = () => {
                                 >
                                   {h.sector === 'cash' ? <DollarSign className="w-4 h-4" /> : h.symbol.slice(0, 2)}
                                 </div>
-                                <div>
+                                <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <p className="font-bold text-slate-900 dark:text-slate-100 text-[13px] leading-tight">{h.name}</p>
+                                    <p className="font-bold text-slate-900 dark:text-slate-100 text-[13px] leading-tight truncate" title={h.name}>{h.name}</p>
                                     {h.source === 'manual' && (
-                                      <span className="bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[9px] font-black px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-800 uppercase tracking-tighter">ידני</span>
+                                      <span className="shrink-0 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[9px] font-black px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-800 uppercase tracking-tighter">ידני</span>
                                     )}
                                   </div>
-                                  <p className="text-slate-400 text-[11px] font-mono">{h.symbol} · {h.currency}</p>
+                                  <p className="text-slate-400 text-[11px] font-mono truncate">{h.symbol} · {h.currency}</p>
                                 </div>
                               </div>
                             </td>
