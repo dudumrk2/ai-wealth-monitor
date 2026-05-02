@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Settings from './Settings';
@@ -39,18 +39,19 @@ describe('Settings Component', () => {
       familyId: 'family123',
       familyConfig: {
         householdName: 'Test Family',
+        familyId: 'family123',
         member1: { name: 'User 1', email: 'u1@test.com' },
         member2: { name: 'User 2', email: 'u2@test.com' },
-        extraAuthorizedEmails: []
+        extraAuthorizedEmails: [],
+        completedAt: new Date().toISOString()
       },
       refreshFamily: vi.fn(),
       signInWithGoogle: vi.fn(),
       signInWithDemo: vi.fn(),
-      currentUser: mockUser as any,
       loading: false,
       logout: vi.fn(),
-      hasCompletedOnboarding: true,
-      completeOnboarding: vi.fn(),
+
+
     });
 
     // Mock Theme hook
@@ -60,7 +61,7 @@ describe('Settings Component', () => {
     });
 
     // Mock fetch
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({})
     });

@@ -3,8 +3,8 @@ import firebase_admin
 import datetime
 import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from schemas import ManualInvestment, ManualStockRequest, GmailSettingsPayload
 import os
 import shutil
 import base64
@@ -171,16 +171,7 @@ def get_action_items(user: dict = Depends(verify_token)):
         return portfolio_doc.get("action_items", [])
     return MOCK_DATA["action_items"]
 
-class ManualInvestment(BaseModel):
-    id: str
-    name: str
-    description: str
-    balance: float
-    monthly_deposit: float
-    expected_yearly_yield: float
-    start_date: str
-    end_date: str
-    owner: str = "user" 
+
 
 @app.post("/api/manual-investment", status_code=status.HTTP_201_CREATED)
 def add_manual_investment(investment: ManualInvestment, user: dict = Depends(verify_token)):
@@ -188,13 +179,7 @@ def add_manual_investment(investment: ManualInvestment, user: dict = Depends(ver
 
 # ── MANUAL STOCK ENTRY ────────────────────────────────────────────────────────
 
-class ManualStockRequest(BaseModel):
-    symbol: str
-    name: str
-    qty: float
-    avgCostPrice: float
-    currency: str = "USD"
-    is_cash: Optional[bool] = False
+
 
 @app.post("/api/portfolio/stock/manual")
 async def add_manual_stock(stock_req: ManualStockRequest, user: dict = Depends(verify_token)):
@@ -612,14 +597,7 @@ async def gmail_oauth_callback(code: str = None, state: str = None, error: str =
     return RedirectResponse(url=f"{frontend_url}/settings?gmail={'connected' if saved else 'error'}")
 
 
-class GmailSettingsPayload(BaseModel):
-    gmail_sender_email: Optional[str] = None
-    gmail_subject: Optional[str] = None
-    cron_day: Optional[int] = None
-    cron_frequency_months: Optional[int] = None
-    cron_fetch_emails_enabled: Optional[bool] = None
-    cron_stock_prices_enabled: Optional[bool] = None
-    cron_weekly_summary_enabled: Optional[bool] = None
+
 
 
 @app.put("/api/settings/gmail")

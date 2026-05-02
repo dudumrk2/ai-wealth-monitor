@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  UploadCloud, AlertCircle, Car, HeartPulse, Home, FileText, ShieldAlert, MessageCircle, X, Loader2, Trash2, Upload
+  UploadCloud, Car, HeartPulse, Home, FileText, ShieldAlert, MessageCircle, X, Loader2, Trash2, Upload
 } from 'lucide-react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
