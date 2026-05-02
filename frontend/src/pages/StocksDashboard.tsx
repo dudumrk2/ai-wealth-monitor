@@ -500,6 +500,7 @@ const StocksDashboard: React.FC = () => {
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                         <SortableTh label="שם / סימבול"    sortKey="name"               current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="כמות"           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">שער אחרון</th>
                         <SortableTh label="שינוי יומי %"   sortKey="dailyChangePercent" current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="שווי (₪)"       sortKey="valueILS"           current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="רווח/הפסד יומי" sortKey="dailyPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -541,6 +542,16 @@ const StocksDashboard: React.FC = () => {
                             {/* Quantity */}
                             <td className="px-4 py-3">
                               <p className="font-medium text-slate-600 dark:text-slate-300">{(h.qty ?? h.shares ?? 0).toLocaleString()}</p>
+                            </td>
+                            {/* Last Price */}
+                            <td className="px-4 py-3">
+                              <p className="font-mono font-semibold text-slate-700 dark:text-slate-200 text-[13px]">
+                                {h.lastPrice != null
+                                  ? (h.currency === 'USD'
+                                      ? `$${h.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                      : `₪${h.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+                                  : '—'}
+                              </p>
                             </td>
                             {/* Daily % */}
                             <td className="px-4 py-3">
@@ -642,7 +653,12 @@ const StocksDashboard: React.FC = () => {
                               {formatPct(h.dailyChangePercent)}
                             </span>
                           </div>
-                          <p className="text-slate-400 text-xs font-mono">{h.sector === 'cash' ? 'מזומן' : h.symbol} · {(h.qty ?? h.shares ?? 0).toLocaleString()} {h.sector === 'cash' ? 'יחידות מטבע' : 'יחידות'}</p>
+                          <p className="text-slate-400 text-xs font-mono">
+                            {h.sector === 'cash' ? 'מזומן' : h.symbol} · {(h.qty ?? h.shares ?? 0).toLocaleString()} {h.sector === 'cash' ? 'יחידות מטבע' : 'יחידות'}
+                            {h.lastPrice != null && (
+                              <> · שער: {h.currency === 'USD' ? `$${h.lastPrice.toFixed(2)}` : `₪${h.lastPrice.toFixed(2)}`}</>
+                            )}
+                          </p>
                         </div>
                         <div className="text-left shrink-0">
                           <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{formatILS(vILS)}</p>
