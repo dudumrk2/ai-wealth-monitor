@@ -40,7 +40,7 @@ describe('Pension Component', () => {
     } as any);
 
     // Mock fetch
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   const renderPension = () => {
@@ -53,7 +53,7 @@ describe('Pension Component', () => {
 
   it('shows loading state initially', () => {
     // Keep fetch pending
-    (global.fetch as any).mockImplementation(() => new Promise(() => {}));
+    (globalThis.fetch as any).mockImplementation(() => new Promise(() => {}));
     
     renderPension();
     expect(screen.getByText('טוען ננתונים פיננסיים...')).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('Pension Component', () => {
 
     // First call is to check inbox, second is portfolio data.
     // However, they run asynchronously.
-    (global.fetch as any).mockImplementation((url: string) => {
+    (globalThis.fetch as any).mockImplementation((url: string) => {
       if (url.includes('process-inbox')) {
         return Promise.resolve({ ok: true, json: async () => ({ results: [] }) });
       }
@@ -99,7 +99,7 @@ describe('Pension Component', () => {
   });
 
   it('renders error state when fetch fails', async () => {
-    (global.fetch as any).mockImplementation((url: string) => {
+    (globalThis.fetch as any).mockImplementation((url: string) => {
       if (url.includes('portfolio')) {
         return Promise.resolve({ ok: false });
       }

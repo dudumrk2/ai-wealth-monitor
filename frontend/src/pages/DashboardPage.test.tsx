@@ -31,16 +31,16 @@ describe('DashboardPage', () => {
       user: mockUser as any,
       signInWithGoogle: vi.fn(),
       signInWithDemo: vi.fn(),
-      currentUser: mockUser as any,
+
       familyConfig: null,
       loading: false,
       logout: vi.fn(),
-      hasCompletedOnboarding: true,
-      completeOnboarding: vi.fn(),
+      familyId: null,
+      refreshFamily: vi.fn(),
     });
 
     // Mock fetch
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   const renderDashboard = () => {
@@ -53,7 +53,7 @@ describe('DashboardPage', () => {
 
   it('shows loading state initially', () => {
     // Keep fetch pending
-    (global.fetch as any).mockImplementation(() => new Promise(() => {}));
+    (globalThis.fetch as any).mockImplementation(() => new Promise(() => {}));
     
     renderDashboard();
     expect(screen.getByText('טוען נתונים פיננסיים...')).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe('DashboardPage', () => {
       action_items: []
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockPortfolioData
     });
@@ -88,7 +88,7 @@ describe('DashboardPage', () => {
   });
 
   it('renders error state when fetch fails', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
     });
 

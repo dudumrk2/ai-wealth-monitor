@@ -42,7 +42,7 @@ describe('StocksDashboard Component', () => {
     } as any);
 
     // Mock fetch for portfolio and fx-rate
-    global.fetch = vi.fn((url: string | Request | URL) => {
+    globalThis.fetch = vi.fn((url: string | Request | URL) => {
       const urlStr = url.toString();
       if (urlStr.includes('fx-rate')) {
         return Promise.resolve({

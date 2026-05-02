@@ -26,12 +26,12 @@ describe('Login Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signInWithGoogle: mockSignInWithGoogle,
       signInWithDemo: mockSignInWithDemo,
-      currentUser: null,
+      user: null,
       familyConfig: null,
       loading: false,
       logout: vi.fn(),
-      hasCompletedOnboarding: false,
-      completeOnboarding: vi.fn(),
+      familyId: null,
+      refreshFamily: vi.fn(),
     });
   });
 

@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
 
 // Mock FinancialProfileStep
 vi.mock('../components/onboarding/FinancialProfileStep', () => ({
-  default: ({ onComplete, initialData, onDataChange }: any) => (
+  default: ({ onComplete, onDataChange }: any) => (
     <div data-testid="financial-profile-step">
       <button onClick={() => onComplete({ test: 'data' })}>Complete Step 2</button>
       <button onClick={() => onDataChange({ test: 'data' })}>Change Data</button>
@@ -50,12 +50,11 @@ describe('Onboarding Component', () => {
       refreshFamily: mockRefreshFamily,
       signInWithGoogle: vi.fn(),
       signInWithDemo: vi.fn(),
-      currentUser: mockUser as any,
+
       familyConfig: null,
       loading: false,
       logout: vi.fn(),
-      hasCompletedOnboarding: false,
-      completeOnboarding: vi.fn(),
+      familyId: null,
     });
 
     // Mock localStorage

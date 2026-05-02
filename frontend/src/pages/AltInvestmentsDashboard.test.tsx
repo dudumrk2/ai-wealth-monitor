@@ -38,7 +38,7 @@ describe('AltInvestmentsDashboard Component', () => {
     } as any);
 
     // Mock fetch
-    global.fetch = vi.fn((url: string | Request | URL) => {
+    globalThis.fetch = vi.fn((url: string | Request | URL) => {
       const urlStr = url.toString();
       if (urlStr.includes('alternatives/projects')) {
         return Promise.resolve({

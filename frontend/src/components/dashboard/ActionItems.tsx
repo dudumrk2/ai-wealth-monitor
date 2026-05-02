@@ -3,7 +3,7 @@ import { CheckCircle2, Circle, AlertTriangle, Info, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import type { ActionItem, Severity } from '../../types/portfolio';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
-import { Badge } from '../ui/Badge';
+
 
 interface ActionItemsProps {
   items: ActionItem[];
@@ -94,7 +94,7 @@ export default function ActionItems({
     return [...itemsList].sort((a, b) => (priorityScore[b.severity || 'low'] || 0) - (priorityScore[a.severity || 'low'] || 0));
   };
 
-  const allSortedItems = getSortedItems(items);
+
 
   return (
     <>
