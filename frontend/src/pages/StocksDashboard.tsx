@@ -546,11 +546,13 @@ const StocksDashboard: React.FC = () => {
                             {/* Last Price */}
                             <td className="px-4 py-3">
                               <p className="font-medium text-slate-600 dark:text-slate-300">
-                                {h.lastPrice != null
-                                  ? (h.currency === 'USD'
-                                      ? `$${h.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                      : `₪${h.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-                                  : '—'}
+                                {h.sector === 'cash' && h.currency === 'USD'
+                                  ? `₪${rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                                  : h.lastPrice != null
+                                    ? (h.currency === 'USD'
+                                        ? `$${h.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : `₪${h.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+                                    : '—'}
                               </p>
                             </td>
                             {/* Daily % */}
@@ -655,9 +657,11 @@ const StocksDashboard: React.FC = () => {
                           </div>
                           <p className="text-slate-400 text-xs font-mono">
                             {h.sector === 'cash' ? 'מזומן' : h.symbol} · {(h.qty ?? h.shares ?? 0).toLocaleString()} {h.sector === 'cash' ? 'יחידות מטבע' : 'יחידות'}
-                            {h.lastPrice != null && (
+                            {h.sector === 'cash' && h.currency === 'USD' ? (
+                              <> · שער: ₪{rate.toFixed(4)}</>
+                            ) : h.lastPrice != null ? (
                               <> · שער: {h.currency === 'USD' ? `$${h.lastPrice.toFixed(2)}` : `₪${h.lastPrice.toFixed(2)}`}</>
-                            )}
+                            ) : null}
                           </p>
                         </div>
                         <div className="text-left shrink-0">
