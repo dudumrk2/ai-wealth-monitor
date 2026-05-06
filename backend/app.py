@@ -859,19 +859,28 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     today = _date.today()
 
     if not bypass_schedule:
-        if today.day != cron_day:
-            print(f"⏭️  [CRON] Skipping {uid} — today is day {today.day}, scheduled for day {cron_day}.")
-            return {"processed": 0, "skipped": f"not_scheduled_day (today={today.day}, scheduled={cron_day})"}
-
         if last_fetched:
             try:
                 last_dt = _date.fromisoformat(str(last_fetched)[:10])
                 months_passed = (today.year - last_dt.year) * 12 + (today.month - last_dt.month)
+                
+                # Not enough months have passed
                 if months_passed < cron_freq:
                     print(f"⏭️  [CRON] Skipping {uid} — only {months_passed}/{cron_freq} months since last run.")
                     return {"processed": 0, "skipped": f"too_soon ({months_passed}/{cron_freq} months)"}
+                
+                # In the target month, but hasn't reached the exact day yet
+                if months_passed == cron_freq and today.day < cron_day:
+                    print(f"⏭️  [CRON] Skipping {uid} — wait for day {cron_day} (today is {today.day}).")
+                    return {"processed": 0, "skipped": f"not_scheduled_day_yet (today={today.day}, scheduled={cron_day})"}
+                    
             except Exception:
                 pass  # bad date format — proceed anyway
+        else:
+            # First time running, but haven't reached the day yet
+            if today.day < cron_day:
+                print(f"⏭️  [CRON] Skipping {uid} — wait for day {cron_day} (today is {today.day}).")
+                return {"processed": 0, "skipped": f"not_scheduled_day_yet (today={today.day}, scheduled={cron_day})"}
 
     # ── 3. Build Gmail service ────────────────────────────────────────────────
     try:
@@ -932,7 +941,8 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             def _decode_part(part: dict) -> str:
                 data = part.get("body", {}).get("data", "")
                 if data:
-                    return _base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+                    data += "=" * ((4 - len(data) % 4) % 4)
+                    return _base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
                 return ""
 
             def _walk_parts(payload: dict):
