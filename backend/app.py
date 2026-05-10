@@ -898,6 +898,7 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
     try:
         search_result = service.users().messages().list(userId="me", q=query).execute()
     except Exception as e:
+        print(f"❌ [CRON] Gmail search failed for {uid}: {e}")
         return {"processed": 0, "error": f"gmail_search_failed: {e}"}
 
     messages = search_result.get("messages", [])
