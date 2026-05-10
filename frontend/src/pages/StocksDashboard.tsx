@@ -254,7 +254,7 @@ const StocksDashboard: React.FC = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">תיק מניות</h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5 italic">ניהול ומעקב תיק ניירות הערך המשפחתי</p>
           </div>
-          <div className="grid grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="hidden lg:flex lg:flex-wrap items-center gap-2 w-full lg:w-auto">
             <button
               onClick={() => setIsManualModalOpen(true)}
               className="inline-flex items-center justify-center gap-1.5 px-3 lg:px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[13px] lg:text-sm transition-all group whitespace-nowrap"
@@ -413,30 +413,30 @@ const StocksDashboard: React.FC = () => {
           </div>
 
               {/* Top Row: Summary Cards (Order 1 on mobile, Col 1 on LG Row 1) */}
-              <div className="grid grid-cols-3 lg:flex lg:flex-col gap-2 lg:gap-4 h-full w-full order-1 lg:order-1">
+              <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2 lg:gap-4 h-full w-full order-1 lg:order-1">
                 {fxLoading ? (
                   <>
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 h-[60px] lg:h-[120px] animate-pulse flex-1" />
+                    <div className="col-span-2 lg:col-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 h-[100px] lg:h-[120px] animate-pulse flex-1" />
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 h-[60px] lg:h-[120px] animate-pulse flex-1" />
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 h-[60px] lg:h-[120px] animate-pulse flex-1" />
                   </>
                 ) : (
                   <>
                     {/* Card 1 — Total Value */}
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-2 lg:p-5 shadow-sm hover:border-blue-500/30 lg:hover:-translate-y-0.5 transition-all group flex-1">
-                      <div className="flex items-center justify-between mb-0.5 lg:mb-2">
-                        <p className="text-slate-500 dark:text-slate-400 text-[10px] lg:text-xs font-bold uppercase tracking-wider">שווי פדיון</p>
-                        <div className="hidden lg:flex w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 items-center justify-center group-hover:scale-110 transition-transform">
-                          <DollarSign className="w-4 h-4 text-blue-500" />
+                    <div className="col-span-2 lg:col-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 lg:p-5 shadow-sm hover:border-blue-500/30 lg:hover:-translate-y-0.5 transition-all group flex-1">
+                      <div className="flex items-center justify-between mb-1 lg:mb-2">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">שווי פדיון</p>
+                        <div className="flex w-7 h-7 lg:w-9 lg:h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 items-center justify-center group-hover:scale-110 transition-transform">
+                          <DollarSign className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-blue-500" />
                         </div>
                       </div>
-                      <p className="text-[13px] sm:text-base lg:text-3xl font-black text-slate-900 dark:text-white leading-tight">{formatILS(totalValueILS)}</p>
-                      <div className="hidden lg:flex flex-col gap-1 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-                        <div className="flex justify-between items-center text-xs font-medium">
+                      <p className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white leading-tight">{formatILS(totalValueILS)}</p>
+                      <div className="flex flex-col gap-1 mt-2 lg:mt-2.5 pt-2 lg:pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center text-[11px] lg:text-xs font-medium">
                           <span className="text-slate-500 dark:text-slate-400">מושקע</span>
                           <span className="text-slate-700 dark:text-slate-300">{formatILS(totalInvestedILS)}</span>
                         </div>
-                        <div className="flex justify-between items-center text-xs font-medium">
+                        <div className="flex justify-between items-center text-[11px] lg:text-xs font-medium">
                           <span className="text-slate-500 dark:text-slate-400">מזומן</span>
                           <span className="text-slate-700 dark:text-slate-300">{formatILS(totalCashILS)}</span>
                         </div>
@@ -502,8 +502,13 @@ const StocksDashboard: React.FC = () => {
               {/* Middle Section: Full Width Sortable Table (Order 2 on mobile, Span 3 on LG Row 2) */}
               <div className="order-2 lg:order-4 lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-2 lg:mb-0">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-                  <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base">אחזקות התיק</h2>
-                  <span className="text-xs text-slate-400 font-semibold">{holdings.length} ניירות ערך</span>
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-3">
+                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base">אחזקות התיק</h2>
+                    <span className="text-[11px] lg:text-xs text-slate-400 font-medium">
+                      עודכן: {fxRate?.date ? new Date(fxRate.date).toLocaleDateString('he-IL') : '...'}
+                    </span>
+                  </div>
+                  <span className="hidden lg:inline text-xs text-slate-400 font-semibold">{holdings.length} ניירות ערך</span>
                 </div>
 
                 {/* Table Wrapper (Responsive) */}
@@ -520,12 +525,12 @@ const StocksDashboard: React.FC = () => {
                           className="sticky right-0 z-20 bg-slate-50 dark:bg-slate-800/90 backdrop-blur-sm shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b] max-w-[160px] md:max-w-[300px]" 
                         />
                         <SortableTh label="שינוי יומי %"   sortKey="dailyChangePercent" current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortableTh label="תשואה %"        sortKey="totalReturnPercent" current={sortKey} dir={sortDir} onSort={handleSort} />
                         <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">שער אחרון</th>
                         <SortableTh label="כמות"           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="שווי (₪)"       sortKey="valueILS"           current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="רווח/הפסד יומי" sortKey="dailyPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
                         <SortableTh label="רווח/הפסד כולל" sortKey="totalPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortableTh label="תשואה %"        sortKey="totalReturnPercent" current={sortKey} dir={sortDir} onSort={handleSort} />
                         <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap w-[60px]">
                           פעולות
                         </th>
@@ -571,6 +576,12 @@ const StocksDashboard: React.FC = () => {
                                 {formatPct(h.dailyChangePercent)}
                               </span>
                             </td>
+                            {/* Total Return % */}
+                            <td className="px-4 py-3">
+                              <span className={clsx('text-xs font-bold', h.totalReturnPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400')}>
+                                {formatPct(h.totalReturnPercent)}
+                              </span>
+                            </td>
                             {/* Last Price */}
                             <td className="px-4 py-3">
                               <p className="font-medium text-slate-600 dark:text-slate-300">
@@ -604,12 +615,6 @@ const StocksDashboard: React.FC = () => {
                             <td className="px-4 py-3">
                               <span className={clsx('font-bold text-[13px]', pILS >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
                                 {pILS >= 0 ? '+' : ''}{formatILS(pILS)}
-                              </span>
-                            </td>
-                            {/* Total Return % */}
-                            <td className="px-4 py-3">
-                              <span className={clsx('text-xs font-bold', h.totalReturnPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400')}>
-                                {formatPct(h.totalReturnPercent)}
                               </span>
                             </td>
                             {/* Actions */}
@@ -653,8 +658,27 @@ const StocksDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Mobile Actions (Bottom) */}
+            <div className="grid lg:hidden grid-cols-2 gap-3 mt-4">
+              <button
+                onClick={() => setIsManualModalOpen(true)}
+                className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold text-sm shadow-sm"
+              >
+                <Plus className="w-4 h-4 text-blue-500" />
+                הוספת נייר
+              </button>
+              <Link
+                to="/settings"
+                className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border-2 border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-sm shadow-sm"
+              >
+                <Upload className="w-4 h-4" />
+                העלאת נתונים
+              </Link>
+            </div>
+
             {/* Footer note */}
-            <p className="text-[11px] text-slate-400 text-center py-4">
+            <p className="text-[11px] text-slate-400 text-center py-4 mt-2">
               * נתוני התיק נשמרים בענן; שערי המרה מסונכרנים פעם ב-12 שעות.
             </p>
           </div>
