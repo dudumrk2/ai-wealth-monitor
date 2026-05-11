@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LineChart, Send, User, Bot } from 'lucide-react';
+import { LineChart, Send, User, Bot, Copy } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 import { API_URL } from '../../lib/api';
@@ -17,6 +17,7 @@ export const AdvisorChat: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [isCopied, setIsCopied] = useState(false);
   
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +121,24 @@ export const AdvisorChat: React.FC = () => {
     }
   };
 
+  const handleCopyPrompt = async () => {
+    try {
+      const idToken = await user?.getIdToken();
+      const res = await fetch(`${API_URL}/api/chat/advisor/prompt`, {
+        headers: idToken ? { 'Authorization': `Bearer ${idToken}` } : {}
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        await navigator.clipboard.writeText(data.prompt);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      }
+    } catch (err) {
+      console.error("Failed to copy prompt", err);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleSendMessage();
@@ -145,6 +164,18 @@ export const AdvisorChat: React.FC = () => {
             </div>
           </div>
         </div>
+        <button
+          onClick={handleCopyPrompt}
+          className={`p-2 rounded-lg transition-all flex items-center gap-2 text-xs font-bold ${
+            isCopied 
+              ? 'bg-emerald-500 text-white' 
+              : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
+          }`}
+          title="העתק פרומפט מלא ל-AI חיצוני"
+        >
+          {isCopied ? 'הועתק!' : 'העתק פרומפט'}
+          <Copy className="w-4 h-4" />
+        </button>
       </div>
 
 

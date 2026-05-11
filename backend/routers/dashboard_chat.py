@@ -235,6 +235,57 @@ Data: {json.dumps(context_data, ensure_ascii=False)}
         print(f"❌ [CHAT] Gemini SDK Initialization Error: {e}")
         return {"response": "מצטער, חלה שגיאה פנימית."}
 
+@router.get("/api/chat/copilot/prompt")
+async def get_copilot_prompt(context_filter: str = "כללי", user: dict = Depends(verify_token)):
+    uid = user.get("uid")
+    family_profile = db_manager.get_family_profile(uid)
+    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    if not portfolio_doc:
+        from mock_data import MOCK_DATA
+        portfolio_doc = MOCK_DATA
+        
+    portfolios = portfolio_doc.get("portfolios", {})
+    f_profile = family_profile.get("financial_profile", {}) if family_profile else {}
+    
+    filtered_funds = []
+    pension_cats = ['pension', 'managers', 'study', 'provident', 'investment_provident']
+    
+    for owner_key in ["user", "spouse"]:
+        for fund in portfolios.get(owner_key, {}).get("funds", []):
+            cat = fund.get("category", "")
+            
+            if context_filter == "פנסיה" and cat not in pension_cats: continue
+            if context_filter == "בורסה" and cat != "stocks": continue
+            if context_filter == "ביטוח" and cat != "insurance": continue
+            
+            filtered_funds.append(fund)
+            
+    if context_filter == "בורסה" or context_filter == "כללי":
+        filtered_funds.extend(portfolios.get("joint", {}).get("stock_investments", []))
+        
+    context_data = {
+        "profile": f_profile,
+        "relevant_funds": filtered_funds
+    }
+
+    user_owner_name   = portfolios.get("user",   {}).get("ownerName", "משתמש ראשי")
+    spouse_owner_name = portfolios.get("spouse", {}).get("ownerName", "בן/בת הזוג")
+
+    system_prompt = f"""You are an expert family wealth advisor (Copilot).
+Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
+If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
+
+OWNER IDENTIFICATION — VERY IMPORTANT:
+The financial data is organized hierarchically under "user" and "spouse" objects.
+- The "user" object belongs to: {user_owner_name}
+- The "spouse" object belongs to: {spouse_owner_name}
+When the user asks about a specific person (e.g. "Does {user_owner_name} have a pension?"),
+look for funds inside the object whose ownerName matches that person's name.
+
+Data: {json.dumps(context_data, ensure_ascii=False)}
+"""
+    return {"prompt": system_prompt}
+
 class AdvisorChatRequest(BaseModel):
     family_id: str
     question: str
@@ -329,3 +380,19 @@ async def copilot_advisor_chat(request: AdvisorChatRequest, user: dict = Depends
         err_msg = "מצטער, חלה שגיאה ביצירת התשובה."
         db_manager.save_chat_message(uid_to_use, "model", err_msg)
         return {"response": err_msg}
+
+@router.get("/api/chat/advisor/prompt")
+async def get_advisor_prompt(user: dict = Depends(verify_token)):
+    uid = user.get("uid")
+    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    if not portfolio_doc:
+        stocks_data = []
+    else:
+        stocks_data = portfolio_doc.get("stocks", [])
+        
+    portfolio_json_str = json.dumps(stocks_data, ensure_ascii=False)
+    
+    from prompts import ADVISOR_SYSTEM_PROMPT
+    system_prompt = ADVISOR_SYSTEM_PROMPT.format(current_portfolio_json_string=portfolio_json_str)
+    
+    return {"prompt": system_prompt}
