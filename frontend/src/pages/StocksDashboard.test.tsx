@@ -96,8 +96,8 @@ describe('StocksDashboard Component', () => {
       expect(screen.getAllByText('Apple').length).toBeGreaterThan(0);
     });
 
-    const addBtn = screen.getByText('הוספת נייר');
-    fireEvent.click(addBtn);
+    const addBtns = screen.getAllByText('הוספת נייר');
+    fireEvent.click(addBtns[0]);
 
     expect(screen.getByTestId('manual-stock-modal')).toBeInTheDocument();
   });
