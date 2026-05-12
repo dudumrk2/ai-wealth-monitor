@@ -7,6 +7,7 @@ These tools equip the LLM agent with the ability to:
   1. Fetch live US stock prices via yfinance.
   2. Fetch live Israeli (TASE) stock/fund prices via the existing Bizportal scraper.
   3. Send real-time push notifications to a Telegram chat.
+  4. Scan Superinvestor 13F filings for new and liquidated positions (alpha signals).
 
 Security: Only yfinance, requests, python-telegram-bot, httpx, and
 beautifulsoup4 are used for external integrations — no other outbound
@@ -21,6 +22,7 @@ import logging
 import os
 
 import requests
+from bs4 import BeautifulSoup
 import yfinance as yf
 from langchain_core.tools import tool
 
@@ -225,5 +227,213 @@ def send_telegram_alert(message: str) -> str:
 
     except Exception as e:
         msg = f"ERROR [send_telegram_alert]: Unexpected failure. Reason: {e}"
+        logger.error(msg)
+        return msg
+
+
+# ---------------------------------------------------------------------------
+# Constant: Tracked Superinvestors
+# ---------------------------------------------------------------------------
+
+# Canonical guru names accepted by scan_guru_portfolio, mapped to their
+# Dataroma 'm=' URL parameter (verified against dataroma.com/m/managers.php).
+TRACKED_GURUS: dict[str, str] = {
+    "Berkshire Hathaway": "BRK",
+    "Pershing Square":    "psc",
+    "Scion Asset Management": "SAM",
+}
+
+# ---------------------------------------------------------------------------
+# Tool 4 — Superinvestor 13F Scanner (Dataroma)
+# ---------------------------------------------------------------------------
+
+_DATAROMA_ACTIVITY_URL = "https://www.dataroma.com/m/m_activity.php"
+_DATAROMA_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.dataroma.com/",
+}
+
+
+def _extract_ticker(stock_cell_text: str) -> str:
+    """Extract the ticker symbol from a Dataroma stock cell string.
+
+    Dataroma renders stock cells as: "AAPL - Apple Inc."
+    This helper returns the part before ' - ', uppercased and stripped.
+    """
+    return stock_cell_text.split(" - ")[0].strip().upper()
+
+
+@tool
+def scan_guru_portfolio(guru_name: str) -> str:
+    """Scan the latest 13F filing activity for a tracked Superinvestor and extract alpha signals.
+
+    Use this tool when you need to identify investment ideas or risk warnings derived
+    from the most recent quarterly 13F moves of elite institutional investors
+    (\"Superinvestors\").  Specifically, this tool extracts:
+
+      - **new_positions**: Stocks the guru initiated for the FIRST TIME this quarter
+        (a potential conviction BUY signal worth investigating for the family portfolio).
+      - **liquidated_positions**: Stocks the guru sold 100% of their stake in
+        (a potential EXIT or RISK WARNING signal — especially if held in the family portfolio).
+
+    When to use this tool:
+      - User asks: \"What did Buffett buy / sell this quarter?\"
+      - User asks: \"Did Ackman exit any positions recently?\"
+      - User asks: \"Generate new stock ideas from Superinvestor moves.\"
+      - As part of a weekly monitoring routine to flag any overlap between guru
+        liquidations and the family's current holdings.
+
+    Supported guru names (must match exactly, case-insensitive):
+      - \"Berkshire Hathaway\"  (Warren Buffett)
+      - \"Pershing Square\"     (Bill Ackman)
+      - \"Scion Asset Management\" (Michael Burry)
+
+    Data source: Dataroma.com (aggregates SEC 13F filings, updated quarterly,
+    typically 45 days after each quarter end).
+
+    Args:
+        guru_name: The name of the Superinvestor to query.  Must be one of the
+                   values listed in TRACKED_GURUS.  Case-insensitive matching
+                   is applied, so \"berkshire hathaway\" also works.
+
+    Returns:
+        A structured plain-text summary of the latest quarter's NEW and LIQUIDATED
+        positions, e.g.:
+            \"Berkshire Hathaway — Q4 2024 13F Activity:\\n\"
+            \"  🆕 New positions (initiated this quarter): NYT, ULTA\\n\"
+            \"  🚪 Liquidated positions (sold 100%): HPQ, PARA\\n\"
+        Returns an error message string if the guru is not supported, the page
+        cannot be reached, or the HTML structure has changed.
+    """
+    # --- Resolve guru name to Dataroma ID ---
+    normalised = guru_name.strip()
+    guru_id: str | None = None
+    for key, val in TRACKED_GURUS.items():
+        if key.lower() == normalised.lower():
+            guru_id = val
+            guru_id_display = key
+            break
+
+    if guru_id is None:
+        supported = ", ".join(f'"{k}"' for k in TRACKED_GURUS)
+        msg = (
+            f"ERROR [scan_guru_portfolio]: Unknown guru '{guru_name}'. "
+            f"Supported gurus: {supported}"
+        )
+        logger.warning(msg)
+        return msg
+
+    # --- Fetch the activity page from Dataroma ---
+    url = _DATAROMA_ACTIVITY_URL
+    params = {"m": guru_id, "typ": "a"}  # typ=a → all activity (new + sells + adds)
+
+    try:
+        response = requests.get(
+            url, params=params, headers=_DATAROMA_HEADERS, timeout=15
+        )
+        if response.status_code != 200:
+            msg = (
+                f"ERROR [scan_guru_portfolio]: Dataroma returned HTTP {response.status_code} "
+                f"for guru '{guru_id_display}' (m={guru_id}). The site may be temporarily "
+                f"unavailable or the guru ID may have changed."
+            )
+            logger.error(msg)
+            return msg
+
+    except requests.exceptions.Timeout:
+        msg = f"ERROR [scan_guru_portfolio]: Request timed out fetching Dataroma for '{guru_id_display}'."
+        logger.error(msg)
+        return msg
+    except Exception as e:
+        msg = f"ERROR [scan_guru_portfolio]: Network error for '{guru_id_display}': {e}"
+        logger.error(msg)
+        return msg
+
+    # --- Parse the HTML ---
+    try:
+        soup = BeautifulSoup(response.text, "html.parser")
+        table = soup.find("table", {"id": "grid"})
+
+        if table is None:
+            msg = (
+                f"ERROR [scan_guru_portfolio]: Could not find activity table (id='grid') "
+                f"on the Dataroma page for '{guru_id_display}'. The site layout may have changed."
+            )
+            logger.error(msg)
+            return msg
+
+        rows = table.find_all("tr")
+
+        new_positions: list[str] = []
+        liquidated_positions: list[str] = []
+        current_quarter: str = ""
+        latest_quarter: str = ""
+
+        for row in rows:
+            cells = row.find_all("td")
+
+            # Quarter header row: single cell containing the quarter label (e.g. "Q4 2024")
+            if len(cells) == 1:
+                text = cells[0].get_text(strip=True)
+                if text and not latest_quarter:
+                    latest_quarter = text   # capture the FIRST (= most recent) quarter only
+                current_quarter = text
+                continue
+
+            # Skip header rows (th elements) and rows from older quarters
+            if not cells or current_quarter != latest_quarter:
+                continue
+
+            # Data rows have 5 cells:
+            # [0] history icon | [1] "TICKER - Company Name" | [2] activity label
+            # [3] share change  | [4] % portfolio change
+            if len(cells) < 3:
+                continue
+
+            stock_text = cells[1].get_text(strip=True)
+            activity_text = cells[2].get_text(strip=True)
+
+            if not stock_text or not activity_text:
+                continue
+
+            ticker = _extract_ticker(stock_text)
+            if not ticker:
+                continue
+
+            # "Buy" = brand-new position initiated this quarter
+            if activity_text == "Buy":
+                new_positions.append(ticker)
+
+            # "Sell 100.00%" = full liquidation (may contain different decimal formats)
+            elif "sell" in activity_text.lower() and "100" in activity_text:
+                liquidated_positions.append(ticker)
+
+        # --- Format the result ---
+        if not latest_quarter:
+            msg = (
+                f"ERROR [scan_guru_portfolio]: No quarterly data found for '{guru_id_display}'. "
+                f"The page structure may have changed or the guru has no recorded activity."
+            )
+            logger.warning(msg)
+            return msg
+
+        new_str = ", ".join(new_positions) if new_positions else "None"
+        liq_str = ", ".join(liquidated_positions) if liquidated_positions else "None"
+
+        result = (
+            f"{guru_id_display} — {latest_quarter} 13F Activity (Dataroma):\n"
+            f"  🆕 New positions (initiated this quarter): {new_str}\n"
+            f"  🚪 Liquidated positions (sold 100%): {liq_str}"
+        )
+        logger.info(f"[scan_guru_portfolio] {result}")
+        return result
+
+    except Exception as e:
+        msg = f"ERROR [scan_guru_portfolio]: Failed to parse Dataroma response for '{guru_id_display}': {e}"
         logger.error(msg)
         return msg
