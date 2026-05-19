@@ -133,20 +133,19 @@ export async function getUserFamily(uid: string, email: string): Promise<(Family
   }
 
   try {
-    // 1. Check user doc
-    const userRef = doc(db, 'users', uid);
-    const userSnap = await getDoc(userRef);
+    // Run both lookups in parallel to save ~100-200ms
+    const [userSnap, directFamilySnap] = await Promise.all([
+      getDoc(doc(db, 'users', uid)),
+      getDoc(doc(db, 'families', uid)),
+    ]);
 
     let familyId: string | null = userSnap.exists() ? userSnap.data().familyId : null;
 
-    // 2. If not found by uid mapping, try direct uid check in families collection
-    if (!familyId) {
-      const directFamilySnap = await getDoc(doc(db, 'families', uid));
-      if (directFamilySnap.exists()) {
-        familyId = uid;
-        // Retroactively link user for future faster lookups
-        await setDoc(userRef, { familyId, email, joinedAt: serverTimestamp() }, { merge: true });
-      }
+    // If not found by uid mapping, check if families/{uid} exists directly
+    if (!familyId && directFamilySnap.exists()) {
+      familyId = uid;
+      // Retroactively link user for future faster lookups
+      await setDoc(doc(db, 'users', uid), { familyId, email, joinedAt: serverTimestamp() }, { merge: true });
     }
 
     // 3. If still not found, try finding by email in authorizedEmails
@@ -159,14 +158,16 @@ export async function getUserFamily(uid: string, email: string): Promise<(Family
       if (!snap.empty) {
         familyId = snap.docs[0].id;
         // Link user retroactively
-        await setDoc(userRef, { familyId, email, joinedAt: serverTimestamp() }, { merge: true });
+        await setDoc(doc(db, 'users', uid), { familyId, email, joinedAt: serverTimestamp() }, { merge: true });
       }
     }
 
     if (!familyId) return null;
 
-    // 4. Fetch the family doc
-    const familySnap = await getDoc(doc(db, 'families', familyId));
+    // 4. Fetch the family doc (reuse directFamilySnap if it's already the right one)
+    const familySnap = (familyId === uid && directFamilySnap.exists())
+      ? directFamilySnap
+      : await getDoc(doc(db, 'families', familyId));
     if (!familySnap.exists()) return null;
 
     const data = familySnap.data();

@@ -20,6 +20,7 @@ describe('Pension Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     
     // Mock the useAuth hook
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({

@@ -19,6 +19,8 @@ import { CopilotChat } from '../components/CopilotChat';
 
 import { API_URL } from '../lib/api';
 import { formatCurrency } from '../utils/format';
+
+const PORTFOLIO_CACHE_KEY = 'portfolio_cache';
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,8 @@ const DashboardPage: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch portfolio');
       const data = await response.json();
       setPortfolioData(data);
+      // Cache for instant re-display on next navigation
+      try { sessionStorage.setItem(PORTFOLIO_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
     } catch (err: any) {
       console.error('Portfolio fetch error:', err);
       if (!silent) setError('אירעה שגיאה בטעינת הנתונים.');
@@ -57,6 +61,18 @@ const DashboardPage: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    // Stale-while-revalidate: show cached data instantly, refresh in background
+    const cached = sessionStorage.getItem(PORTFOLIO_CACHE_KEY);
+    if (cached) {
+      try {
+        setPortfolioData(JSON.parse(cached));
+        setLoading(false);
+        // Fetch fresh data silently (no spinner) in the background
+        fetchPortfolio(true);
+        return;
+      } catch { /* ignore bad cache */ }
+    }
+    // No cache — show full loading spinner
     fetchPortfolio();
   }, [fetchPortfolio]);
 

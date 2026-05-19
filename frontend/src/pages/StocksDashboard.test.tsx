@@ -27,6 +27,7 @@ describe('StocksDashboard Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       user: mockUser as any,

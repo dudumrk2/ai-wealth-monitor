@@ -9,6 +9,24 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React runtime — cached across all pages
+          'vendor-react':     ['react', 'react-dom', 'react-router-dom'],
+          // Firebase SDK — large but rarely changes
+          'vendor-firebase':  ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          // Charts — heavy, only needed on dashboard/stocks pages
+          'vendor-charts':    ['recharts'],
+          // Animation — needed on most pages but separate from charts
+          'vendor-animation': ['framer-motion'],
+          // UI utilities — tiny, but worth isolating
+          'vendor-ui':        ['lucide-react', 'clsx', 'tailwind-merge'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
@@ -17,3 +35,4 @@ export default defineConfig({
     exclude: ['tests/**', 'node_modules/**'],
   },
 })
+
