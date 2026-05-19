@@ -29,6 +29,9 @@ import ManualStockModal from '../components/stocks/ManualStockModal';
 
 import { API_URL } from '../lib/api';
 import { formatCurrency } from '../utils/format';
+
+const STOCKS_CACHE_KEY = 'stocks_holdings_cache';
+const FX_CACHE_KEY = 'stocks_fx_cache';
 // ─────────────────────────────────────────────────────────────────
 // MOCK DATA REMOVED - using live API
 // ─────────────────────────────────────────────────────────────────
@@ -112,17 +115,21 @@ const StocksDashboard: React.FC = () => {
 
       if (portRes.ok) {
         const portData = await portRes.json();
-        setHoldings(portData.data?.stocks || portData.stocks || []);
+        const newHoldings = portData.data?.stocks || portData.stocks || [];
+        setHoldings(newHoldings);
+        try { sessionStorage.setItem(STOCKS_CACHE_KEY, JSON.stringify(newHoldings)); } catch { /* quota */ }
       }
 
       if (fxRes.ok) {
         const fxData = await fxRes.json();
-        setFxRate({ 
-           rate: fxData.rate as number, 
-           date: fxData.date as string, 
-           source: fxData.cached ? 'firestore' : 'api', 
-           isFallback: fxData.is_fallback 
-        });
+        const newFx: ExchangeRate = {
+          rate: fxData.rate as number,
+          date: fxData.date as string,
+          source: fxData.cached ? 'firestore' : 'api',
+          isFallback: fxData.is_fallback,
+        };
+        setFxRate(newFx);
+        try { sessionStorage.setItem(FX_CACHE_KEY, JSON.stringify(newFx)); } catch { /* quota */ }
       }
     } catch (err) {
       console.error('Error fetching stock data:', err);
@@ -136,6 +143,19 @@ const StocksDashboard: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    // Stale-while-revalidate: show cached holdings/fx instantly, refresh in background
+    const cachedHoldings = sessionStorage.getItem(STOCKS_CACHE_KEY);
+    const cachedFx = sessionStorage.getItem(FX_CACHE_KEY);
+    if (cachedHoldings && cachedFx) {
+      try {
+        setHoldings(JSON.parse(cachedHoldings));
+        setFxRate(JSON.parse(cachedFx));
+        setDataLoading(false);
+        setFxLoading(false);
+        fetchPortfolioData(true);
+        return;
+      } catch { /* ignore bad cache */ }
+    }
     fetchPortfolioData();
   }, [fetchPortfolioData]);
 

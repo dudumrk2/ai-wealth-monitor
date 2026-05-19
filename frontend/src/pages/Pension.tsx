@@ -17,6 +17,9 @@ import ProcessingStatusModal, { type ProcessingStatus } from '../components/onbo
 
 import { API_URL } from '../lib/api';
 
+/** Same cache key as DashboardPage — both pages fetch the same /api/portfolio endpoint */
+const PORTFOLIO_CACHE_KEY = 'portfolio_cache';
+
 type TabView = 'user' | 'spouse' | 'joint';
 
 const CATEGORY_COLORS: Record<FundCategory, string> = {
@@ -77,7 +80,6 @@ export default function Pension() {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const startTime = Date.now();
       const idToken = await user?.getIdToken();
 
       const params = new URLSearchParams();
@@ -91,12 +93,8 @@ export default function Pension() {
       if (!response.ok) throw new Error('Failed to fetch portfolio');
       const data = await response.json();
       setPortfolioData(data);
-
-      // Ensure at least 600ms of loading for visual feedback
-      const elapsed = Date.now() - startTime;
-      if (!silent && elapsed < 600) {
-        await new Promise(resolve => setTimeout(resolve, 600 - elapsed));
-      }
+      // Update the shared cache so Dashboard also benefits
+      try { sessionStorage.setItem(PORTFOLIO_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
     } catch (err: any) {
       console.error('Portfolio fetch error:', err);
       if (!silent) setError('אירעה שגיאה בטעינת הנתונים.');
@@ -111,8 +109,18 @@ export default function Pension() {
     householdName: familyConfig?.householdName || 'המשפחה',
   }), [familyConfig]);
 
-  // Initial portfolio fetch on mount
+  // Initial portfolio fetch — stale-while-revalidate using shared Dashboard cache
   useEffect(() => {
+    const cached = sessionStorage.getItem(PORTFOLIO_CACHE_KEY);
+    if (cached) {
+      try {
+        setPortfolioData(JSON.parse(cached));
+        setLoading(false);
+        // Refresh silently in background
+        fetchPortfolio(true);
+        return;
+      } catch { /* ignore bad cache */ }
+    }
     fetchPortfolio();
   }, [fetchPortfolio]);
 

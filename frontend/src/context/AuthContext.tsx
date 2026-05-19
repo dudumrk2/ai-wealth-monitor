@@ -22,7 +22,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [familyConfig, setFamilyConfig] = useState<(FamilyConfig & { familyId: string }) | null>(null);
+  const [familyConfig, setFamilyConfig] = useState<(FamilyConfig & { familyId: string }) | null>(() => {
+    // Optimistic cache read — avoids blank screen for returning users.
+    // Firestore will still verify/refresh in the background via loadFamily().
+    const raw = localStorage.getItem(STORAGE_KEYS.FAMILY_CONFIG);
+    if (raw) {
+      try { return JSON.parse(raw); } catch { return null; }
+    }
+    return null;
+  });
 
   const loadFamily = async (currentUser: User) => {
     const config = await getUserFamily(currentUser.uid, currentUser.email || '');
@@ -178,11 +186,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  if (loading) {
+  // Show a minimal, non-blocking indicator only on the very first load
+  // when neither cache nor Firebase has resolved yet.
+  // ProtectedRoute handles all redirect logic, so we can render safely.
+  if (loading && !user && !familyConfig) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
           <p className="text-slate-400 text-sm">טוען...</p>
         </div>
       </div>

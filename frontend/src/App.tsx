@@ -1,14 +1,27 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
-import Onboarding from './pages/Onboarding';
-import DashboardPage from './pages/DashboardPage';
-import Pension from './pages/Pension';
-import InsurancePage from './pages/InsurancePage';
-import Settings from './pages/Settings';
-import StocksDashboard from './pages/StocksDashboard';
-import AltInvestmentsDashboard from './pages/AltInvestmentsDashboard';
+import { ThemeProvider } from './context/ThemeContext';
+import { Loader2 } from 'lucide-react';
+
+// Lazy-load all pages so only the current route's chunk is downloaded on first visit
+const Login                   = lazy(() => import('./pages/Login'));
+const Onboarding              = lazy(() => import('./pages/Onboarding'));
+const DashboardPage           = lazy(() => import('./pages/DashboardPage'));
+const Pension                 = lazy(() => import('./pages/Pension'));
+const InsurancePage           = lazy(() => import('./pages/InsurancePage'));
+const Settings                = lazy(() => import('./pages/Settings'));
+const StocksDashboard         = lazy(() => import('./pages/StocksDashboard'));
+const AltInvestmentsDashboard = lazy(() => import('./pages/AltInvestmentsDashboard'));
+
+/** Lightweight spinner shown while a lazy chunk is being fetched */
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+    </div>
+  );
+}
 
 /**
  * Route Guard: only for authenticated users.
@@ -22,7 +35,13 @@ function ProtectedRoute({
   children: React.ReactNode;
   requireOnboarding?: boolean;
 }) {
-  const { user, familyConfig } = useAuth();
+  const { user, familyConfig, loading } = useAuth();
+
+  // While Firebase is still resolving auth state, don't redirect yet —
+  // redirecting too early causes a flash to /login for returning users.
+  if (loading && !user && !familyConfig) {
+    return null;
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -31,6 +50,10 @@ function ProtectedRoute({
   // If this is the Dashboard or Settings, ensure onboarding has been completed first.
   // We use familyConfig as the source of truth (it's fetched from Firestore).
   if (!requireOnboarding) {
+    // While familyConfig is still loading from Firestore (not from cache), hold off.
+    if (!familyConfig && loading) {
+      return null;
+    }
     if (!familyConfig) {
       return <Navigate to="/onboarding" replace />;
     }
@@ -44,7 +67,8 @@ function AppContent() {
 
   return (
     <Router>
-      <Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
         {/* Public: Login */}
         <Route
           path="/login"
@@ -124,12 +148,11 @@ function AppContent() {
         {/* Default: redirect to dashboard (will cascade to /onboarding or /login as needed) */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </Router>
   );
 }
-
-import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
