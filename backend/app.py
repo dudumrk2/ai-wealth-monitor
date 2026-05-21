@@ -1237,8 +1237,6 @@ async def weekly_stock_summary_cron(request: Request):
     return {"status": "success", "families_processed": len(uids), "results": results}
 
 
-
-
 @app.post("/api/cron/update-funder-yields")
 async def cron_update_funder_yields(request: Request):
     """

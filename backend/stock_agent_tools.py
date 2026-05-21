@@ -207,7 +207,7 @@ def send_telegram_alert(message: str, chat_id: str = "") -> str:
     payload = {
         "chat_id": chat_id,
         "text": message,
-        "parse_mode": "HTML",   # Standard Markdown — safe default; switch to MarkdownV2 if needed
+        "parse_mode": "HTML",   # HTML — stable across special chars (-, ., parens) in alert text
     }
 
     try:
