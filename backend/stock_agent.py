@@ -369,8 +369,18 @@ def analyze_portfolio_and_gurus(
             )
 
         # The final answer is the content of the last AI message.
+        # Gemini may return content as a list of typed blocks (text + grounding
+        # metadata) rather than a plain string — extract the text portions only.
         last_msg = result["messages"][-1]
-        output = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+        raw_content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+        if isinstance(raw_content, list):
+            output = "\n".join(
+                block.get("text", "")
+                for block in raw_content
+                if isinstance(block, dict) and block.get("type") == "text"
+            ).strip() or str(raw_content)
+        else:
+            output = raw_content
 
         logger.info(
             f"[AGENT] Run complete in {summary.run_duration_seconds}s — "
