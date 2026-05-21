@@ -253,6 +253,7 @@ def _build_agent_executor():
 def analyze_portfolio_and_gurus(
     user_portfolio_tickers: list[str],
     pre_analyzed_guru_data: dict[str, str] | None = None,
+    telegram_chat_id: str = "",
 ) -> dict[str, Any]:
     """Run the full Sense → Think → Act analysis cycle for the provided tickers.
 
@@ -267,6 +268,9 @@ def analyze_portfolio_and_gurus(
         pre_analyzed_guru_data: Pre-computed 13F data from previous scans.
             If provided, this maps guru names to their pre-computed activity summaries,
             instructing the agent to bypass active scraping and use this data directly.
+        telegram_chat_id: Per-family Telegram chat ID.  When provided, the agent
+            passes this value to every send_telegram_alert call so alerts reach
+            the correct family chat.  Overrides the global TELEGRAM_CHAT_ID env var.
 
     Returns:
         A dict with keys:
@@ -288,13 +292,32 @@ def analyze_portfolio_and_gurus(
 
     tickers_formatted = ", ".join(user_portfolio_tickers)
 
+    # Notification context injected into every human message so the agent
+    # always passes the correct chat_id to send_telegram_alert.
+    if telegram_chat_id:
+        notification_instruction = (
+            f"\nNotification config:\n"
+            f"  Telegram chat_id: {telegram_chat_id}\n"
+            f"  IMPORTANT: When calling send_telegram_alert, always pass "
+            f'chat_id="{telegram_chat_id}" as the chat_id argument.\n'
+        )
+    else:
+        notification_instruction = (
+            "\nNotification config:\n"
+            "  Telegram: NOT configured for this family.\n"
+            "  IMPORTANT: Do NOT call send_telegram_alert. Instead, just "
+            "list all triggered alerts clearly in your final summary text — "
+            "they will be delivered by another channel.\n"
+        )
+
     if pre_analyzed_guru_data is None:
         guru_names_formatted = ", ".join(f'"{g}"' for g in TRACKED_GURUS)
         # The human turn gives the agent its concrete task for this run.
         human_input = (
             f"Run a full portfolio analysis now.\n\n"
             f"Current Holdings: {tickers_formatted}\n\n"
-            f"Superinvestors to scan: {guru_names_formatted}\n\n"
+            f"Superinvestors to scan: {guru_names_formatted}\n"
+            f"{notification_instruction}\n"
             f"Follow all three steps in the system prompt exactly. "
             f"After completing all tool calls, provide a brief summary of what you found."
         )
@@ -308,7 +331,8 @@ def analyze_portfolio_and_gurus(
                 f"{guru}:\n{data}"
                 for guru, data in pre_analyzed_guru_data.items()
             )
-            + "\n\nSkip Step 2 entirely. Proceed to Step 1 (fetch prices for "
+            + f"\n{notification_instruction}\n"
+            + "Skip Step 2 entirely. Proceed to Step 1 (fetch prices for "
               "the holdings above), then Step 3 (send alerts based on the "
               "pre-computed 13F data provided). Follow all alert rules from "
               "the system prompt exactly."

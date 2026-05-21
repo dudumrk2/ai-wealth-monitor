@@ -58,10 +58,17 @@ export default function Settings() {
   const [cronFetchEmailsEnabled, setCronFetchEmailsEnabled] = useState(true);
   const [cronStockPricesEnabled, setCronStockPricesEnabled] = useState(true);
   const [cronWeeklySummaryEnabled, setCronWeeklySummaryEnabled] = useState(true);
+  const [cronAgentEnabled, setCronAgentEnabled] = useState(true);
+
+  // Stock agent notification
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramSaving, setTelegramSaving] = useState(false);
+  const [telegramSaveMsg, setTelegramSaveMsg] = useState<string | null>(null);
 
   const [runningStockPrices, setRunningStockPrices] = useState(false);
   const [runningWeeklySummary, setRunningWeeklySummary] = useState(false);
   const [runningFunderYields, setRunningFunderYields] = useState(false);
+  const [runningStockAgent, setRunningStockAgent] = useState(false);
   const [cronRunMsg, setCronRunMsg] = useState<string | null>(null);
 
   const updateCronStatus = async (key: string, value: boolean) => {
@@ -102,6 +109,8 @@ export default function Settings() {
         setCronFetchEmailsEnabled(data.cron_fetch_emails_enabled ?? true);
         setCronStockPricesEnabled(data.cron_stock_prices_enabled ?? true);
         setCronWeeklySummaryEnabled(data.cron_weekly_summary_enabled ?? true);
+        setCronAgentEnabled(data.cron_agent_enabled ?? true);
+        setTelegramChatId(data.telegram_chat_id ?? '');
       } catch { /* silent */ }
     };
     load();
@@ -165,6 +174,7 @@ export default function Settings() {
           cron_fetch_emails_enabled: cronFetchEmailsEnabled,
           cron_stock_prices_enabled: cronStockPricesEnabled,
           cron_weekly_summary_enabled: cronWeeklySummaryEnabled,
+          cron_agent_enabled: cronAgentEnabled,
         }),
       });
       if (res.ok) setGmailSaveMsg('✅ ההגדרות נשמרו בהצלחה');
@@ -259,6 +269,48 @@ export default function Settings() {
       setCronRunMsg('❌ שגיאה בעדכון תשואות פאנדר: ' + err.message);
     } finally {
       setRunningFunderYields(false);
+    }
+  };
+
+  const handleRunStockAgent = async () => {
+    if (!user) return;
+    setRunningStockAgent(true);
+    setCronRunMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/cron/analyze-stocks/run`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      if (!res.ok) throw new Error('שגיאה בשרת');
+      const data = await res.json();
+      const channel = data?.notification_channel === 'telegram' ? 'Telegram' : 'מייל';
+      setCronRunMsg(`✅ ניתוח הסוכן הושלם. התראות נשלחו ל-${channel}.`);
+    } catch (err: any) {
+      setCronRunMsg('❌ שגיאה בהרצת הסוכן: ' + err.message);
+    } finally {
+      setRunningStockAgent(false);
+    }
+  };
+
+  const handleSaveTelegramChatId = async () => {
+    if (!user) return;
+    setTelegramSaving(true);
+    setTelegramSaveMsg(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/settings/gmail`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_chat_id: telegramChatId }),
+      });
+      if (res.ok) setTelegramSaveMsg('✅ נשמר בהצלחה');
+      else setTelegramSaveMsg('❌ שגיאה בשמירה');
+    } catch {
+      setTelegramSaveMsg('❌ שגיאה בשמירה');
+    } finally {
+      setTelegramSaving(false);
+      setTimeout(() => setTelegramSaveMsg(null), 3000);
     }
   };
 
@@ -722,7 +774,72 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Cron 4: Funder Yields */}
+            {/* Cron 4: Stock Agent */}
+            <div className="flex flex-col gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              {/* Row: title + toggle + run button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">סוכן מניות אוטונומי (LangGraph)</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    בודק מחירים ודוחות 13F של Superinvestors ושולח התראות לטלגרם (או מייל כ-fallback)
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => {
+                      const next = !cronAgentEnabled;
+                      setCronAgentEnabled(next);
+                      updateCronStatus('cron_agent_enabled', next);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cronAgentEnabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cronAgentEnabled ? '-translate-x-6' : '-translate-x-1'}`} />
+                  </button>
+                  <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                  <button
+                    onClick={handleRunStockAgent}
+                    disabled={runningStockAgent}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                  >
+                    {runningStockAgent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-blue-500" />}
+                    הרץ עכשיו
+                  </button>
+                </div>
+              </div>
+              {/* Telegram Chat ID input */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                  Telegram Chat ID{' '}
+                  <span className="text-slate-400 dark:text-slate-500 font-normal">
+                    (ריק = fallback למייל)
+                  </span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={telegramChatId}
+                    onChange={e => setTelegramChatId(e.target.value)}
+                    placeholder="לדוגמה: 123456789"
+                    dir="ltr"
+                    className="flex-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-2 text-left text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600 text-slate-900 dark:text-slate-100"
+                  />
+                  <button
+                    onClick={handleSaveTelegramChatId}
+                    disabled={telegramSaving}
+                    className="px-4 py-2 bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-black dark:hover:bg-white disabled:opacity-50 transition-colors shrink-0"
+                  >
+                    {telegramSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}
+                  </button>
+                </div>
+                {telegramSaveMsg && (
+                  <p className={`mt-1.5 text-xs font-medium ${telegramSaveMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>
+                    {telegramSaveMsg}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Cron 5: Funder Yields */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
               <div className="flex-1">
                 <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">עדכון תשואות חודשיות (Funder)</p>

@@ -624,6 +624,10 @@ async def save_gmail_settings(
         updates["cron_stock_prices_enabled"] = payload.cron_stock_prices_enabled
     if payload.cron_weekly_summary_enabled is not None:
         updates["cron_weekly_summary_enabled"] = payload.cron_weekly_summary_enabled
+    if payload.cron_agent_enabled is not None:
+        updates["cron_agent_enabled"] = payload.cron_agent_enabled
+    if payload.telegram_chat_id is not None:
+        updates["telegram_chat_id"] = payload.telegram_chat_id.strip()
 
     if not updates:
         raise HTTPException(status_code=422, detail="No fields to update")
@@ -651,6 +655,8 @@ async def get_gmail_settings(user: dict = Depends(verify_token)):
         "cron_fetch_emails_enabled": profile.get("cron_fetch_emails_enabled", True),
         "cron_stock_prices_enabled": profile.get("cron_stock_prices_enabled", True),
         "cron_weekly_summary_enabled": profile.get("cron_weekly_summary_enabled", True),
+        "cron_agent_enabled": profile.get("cron_agent_enabled", True),
+        "telegram_chat_id": profile.get("telegram_chat_id", ""),
     }
 
 @app.post("/api/settings/cron/update-stock-prices/run")

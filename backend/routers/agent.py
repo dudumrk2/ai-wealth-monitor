@@ -9,8 +9,10 @@ Exposes two endpoints:
 """
 
 import asyncio
+import base64
 import os
 import re
+from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -20,6 +22,68 @@ from stock_agent import analyze_portfolio_and_gurus
 from stock_agent_tools import TRACKED_GURUS, scan_guru_portfolio
 
 router = APIRouter(tags=["Agent"])
+
+
+# ---------------------------------------------------------------------------
+# Email fallback helper
+# ---------------------------------------------------------------------------
+
+def _send_agent_summary_email(uid: str, profile: dict, agent_output: str) -> None:
+    """Send the agent's findings via email when Telegram is not configured.
+
+    Mirrors the Gmail-send pattern used by _weekly_stock_summary_for_family.
+    Silently swallows errors so a missing Gmail setup never breaks the agent run.
+
+    Args:
+        uid: Family UID (used only for log messages).
+        profile: Firestore family profile dict — must contain gmail_refresh_token
+                 and pii_data.member1.email for the send to succeed.
+        agent_output: The agent's final summary text (plain text or light HTML).
+    """
+    import markdown
+
+    try:
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        refresh_token = profile.get("gmail_refresh_token")
+        if not refresh_token:
+            print(f"⚠️  [AGENT] No Gmail refresh_token for {uid} — skipping email fallback.")
+            return
+
+        email_addr = profile.get("pii_data", {}).get("member1", {}).get("email")
+        if not email_addr:
+            print(f"⚠️  [AGENT] No email address for {uid} — skipping email fallback.")
+            return
+
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=os.environ["GOOGLE_CLIENT_ID"],
+            client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+            scopes=["https://www.googleapis.com/auth/gmail.modify"],
+        )
+        service = build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+        html_body = markdown.markdown(agent_output)
+        email_html = (
+            "<html><head><style>"
+            "body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }"
+            "h2 { color: #2c3e50; } b { color: #1abc9c; }"
+            "</style></head>"
+            f"<body dir='ltr'>{html_body}</body></html>"
+        )
+
+        message = MIMEText(email_html, "html", "utf-8")
+        message["To"] = email_addr
+        message["Subject"] = "Stock Agent Alert — Portfolio Analysis"
+        raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw_msg}).execute()
+        print(f"📧 [AGENT] Email fallback sent to {email_addr} for {uid}.")
+
+    except Exception as e:
+        print(f"⚠️  [AGENT] Email fallback failed for {uid}: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +117,13 @@ def _analyze_stocks_for_family(uid: str) -> dict:
 
     tickers = [h["id"] for h in holdings]
     print(f"📊 [AGENT] Holdings for {uid}: {tickers}")
+
+    # Notification channel — prefer per-family Telegram chat_id, fall back to email.
+    telegram_chat_id: str = profile.get("telegram_chat_id", "") or ""
+    print(
+        f"🔔 [AGENT] Notification channel for {uid}: "
+        f"{'Telegram chat_id=' + telegram_chat_id if telegram_chat_id else 'email fallback'}"
+    )
 
     # Step 2 — Pre-fetch 13F data outside the agent
     guru_results: dict[str, str] = {}
@@ -90,6 +161,7 @@ def _analyze_stocks_for_family(uid: str) -> dict:
     result = analyze_portfolio_and_gurus(
         tickers,
         pre_analyzed_guru_data=guru_results,
+        telegram_chat_id=telegram_chat_id,
     )
 
     # Step 5 — Mark new alerts as sent on success
@@ -98,6 +170,10 @@ def _analyze_stocks_for_family(uid: str) -> dict:
             db_manager.mark_13f_alert_sent(key)
         print(f"✅ [AGENT] Analysis complete for {uid}. "
               f"Marked {len(new_alert_keys)} new alerts as sent.")
+
+        # Step 6 — Email fallback when Telegram is not configured
+        if not telegram_chat_id:
+            _send_agent_summary_email(uid, profile, result.get("output", ""))
     else:
         print(f"❌ [AGENT] Analysis failed for {uid}: {result.get('error', 'unknown')}")
 
@@ -105,6 +181,7 @@ def _analyze_stocks_for_family(uid: str) -> dict:
         "uid": uid,
         "success": result.get("success", False),
         "new_alerts_marked": len(new_alert_keys) if result.get("success") else 0,
+        "notification_channel": "telegram" if telegram_chat_id else "email",
         "output_snippet": result.get("output", "")[:200],
     }
 

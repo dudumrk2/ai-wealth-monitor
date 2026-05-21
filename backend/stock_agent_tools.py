@@ -154,7 +154,7 @@ def get_il_stock_data(ticker: str) -> str:
 # ---------------------------------------------------------------------------
 
 @tool
-def send_telegram_alert(message: str) -> str:
+def send_telegram_alert(message: str, chat_id: str = "") -> str:
     """Send a push notification message to the family Telegram chat via the configured bot.
 
     Use this tool whenever the agent needs to notify the user about a significant
@@ -168,14 +168,17 @@ def send_telegram_alert(message: str) -> str:
     that the user did not explicitly request to be notified about — prefer
     returning a text response from the agent instead.
 
-    The bot token and destination chat are read from environment variables:
-      TELEGRAM_BOT_TOKEN  (required) — Telegram bot token from BotFather.
-      TELEGRAM_CHAT_ID    (required) — Numeric chat / channel ID.
+    The bot token is read from the TELEGRAM_BOT_TOKEN environment variable.
+    The destination chat ID comes from the `chat_id` argument (preferred) and
+    falls back to the TELEGRAM_CHAT_ID environment variable when not supplied.
 
     Args:
-        message: The notification text to send. Supports Telegram MarkdownV2
-                 formatting (bold, italic, inline code, etc.).  Keep messages
+        message: The notification text to send. Supports HTML formatting
+                 (e.g. <b>bold</b>, <i>italic</i>).  Keep messages
                  concise and actionable — ideally one to three sentences.
+        chat_id: The numeric Telegram chat / channel ID to send the alert to.
+                 Pass the value provided in the run context.  Leave empty to
+                 fall back to the TELEGRAM_CHAT_ID environment variable.
 
     Returns:
         A confirmation string on success, or a descriptive error message if the
@@ -185,17 +188,20 @@ def send_telegram_alert(message: str) -> str:
           "ERROR [send_telegram_alert]: Telegram API returned HTTP 400 — Bad Request."
     """
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    # Prefer the per-call chat_id argument; fall back to the global env var.
+    resolved_chat_id = chat_id.strip() or os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
     if not bot_token:
         msg = "ERROR [send_telegram_alert]: TELEGRAM_BOT_TOKEN is not set in environment variables."
         logger.error(msg)
         return msg
 
-    if not chat_id:
-        msg = "ERROR [send_telegram_alert]: TELEGRAM_CHAT_ID is not set in environment variables."
+    if not resolved_chat_id:
+        msg = "ERROR [send_telegram_alert]: No chat_id provided and TELEGRAM_CHAT_ID is not set in environment variables."
         logger.error(msg)
         return msg
+
+    chat_id = resolved_chat_id
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
