@@ -22,11 +22,13 @@ Environment variables required:
 
 import logging
 import os
+import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
+from pydantic import BaseModel
 
 from stock_agent_tools import (
     TRACKED_GURUS,
@@ -48,6 +50,99 @@ AGENT_TOOLS = [
     scan_guru_portfolio,
     send_telegram_alert,
 ]
+
+
+# ---------------------------------------------------------------------------
+# Structured run summary
+# ---------------------------------------------------------------------------
+
+class AgentRunSummary(BaseModel):
+    """Structured summary of a single agent run, extracted from message history.
+
+    Built by inspecting the actual tool calls made during the run — not by
+    parsing the agent's free-text output.  This gives a reliable, programmatic
+    view of what the agent actually did regardless of how it phrased its reply.
+    """
+
+    tickers_checked: list[str]
+    total_alerts_sent: int
+    price_alerts_sent: int
+    risk_alerts_sent: int
+    alpha_alerts_sent: int
+    tool_errors: list[str]       # tool responses that start with "ERROR"
+    gurus_scanned: list[str]     # populated only in full-loop (non-cron) mode
+    run_duration_seconds: float
+    success: bool
+
+
+def _extract_run_summary(
+    messages_history: list,
+    start_time: float,
+) -> AgentRunSummary:
+    """Build an AgentRunSummary by inspecting LangGraph's message history.
+
+    LangGraph stores every tool call (AIMessage.tool_calls) and tool response
+    (ToolMessage.content) as messages.  Walking those messages gives a ground-
+    truth view of what the agent actually invoked, independent of its final
+    text summary.
+
+    Args:
+        messages_history: Full list of messages from agent.invoke() result.
+        start_time: Unix timestamp recorded immediately before agent.invoke().
+
+    Returns:
+        AgentRunSummary with per-tool counts and any error strings encountered.
+    """
+    tickers_checked: list[str] = []
+    gurus_scanned: list[str] = []
+    tool_errors: list[str] = []
+    total_alerts = price_alerts = risk_alerts = alpha_alerts = 0
+
+    for msg in messages_history:
+        # AIMessage with tool_calls → what the agent requested
+        tool_calls = getattr(msg, "tool_calls", None)
+        if tool_calls:
+            for tc in tool_calls:
+                name = tc.get("name", "")
+                args = tc.get("args", {})
+
+                if name in ("get_us_stock_data", "get_il_stock_data"):
+                    ticker = args.get("ticker", "").strip()
+                    if ticker:
+                        tickers_checked.append(ticker)
+
+                elif name == "send_telegram_alert":
+                    total_alerts += 1
+                    alert_text = args.get("message", "")
+                    if "PRICE ALERT" in alert_text:
+                        price_alerts += 1
+                    elif "RISK ALERT" in alert_text:
+                        risk_alerts += 1
+                    elif "ALPHA IDEA" in alert_text:
+                        alpha_alerts += 1
+
+                elif name == "scan_guru_portfolio":
+                    guru = args.get("guru_name", "").strip()
+                    if guru:
+                        gurus_scanned.append(guru)
+
+        # ToolMessage → what the tool returned — capture errors
+        content = getattr(msg, "content", None)
+        if isinstance(content, str) and content.startswith("ERROR"):
+            tool_errors.append(content[:300])
+
+    return AgentRunSummary(
+        tickers_checked=tickers_checked,
+        total_alerts_sent=total_alerts,
+        price_alerts_sent=price_alerts,
+        risk_alerts_sent=risk_alerts,
+        alpha_alerts_sent=alpha_alerts,
+        tool_errors=tool_errors,
+        gurus_scanned=gurus_scanned,
+        run_duration_seconds=round(time.time() - start_time, 2),
+        success=True,
+    )
+
 
 # ---------------------------------------------------------------------------
 # System Prompt
@@ -81,20 +176,20 @@ You MUST call send_telegram_alert in the following scenarios:
 
   [A] PRICE ALERT
       Trigger: Any holding has a daily change ≥ +5% or ≤ -5%.
-      Message format: "📊 PRICE ALERT: [TICKER] moved [±X%] today.
+      Message format: "📊 PRICE ALERT: <b>[TICKER]</b> moved <b>[±X%]</b> today.
       Current price: [PRICE]. Action recommended: review position."
 
   [B] RISK ALERT — Guru Exit
       Trigger: A TRACKED_GURU fully liquidated (sold 100%) a stock that
                currently exists in the user's portfolio.
-      Message format: "🚨 RISK ALERT: [GURU] exited [TICKER] completely in
-      their latest 13F. You currently hold [TICKER]. Consider reviewing your
+      Message format: "🚨 RISK ALERT: <b>[GURU]</b> exited <b>[TICKER]</b> completely in
+      their latest 13F. You currently hold <b>[TICKER]</b>. Consider reviewing your
       conviction thesis."
 
   [C] ALPHA ALERT — Guru New Position
       Trigger: A TRACKED_GURU initiated a brand-new position.
-      Message format: "💡 ALPHA IDEA: [GURU] initiated a NEW position in
-      [TICKER] this quarter. Consider researching for potential addition."
+      Message format: "💡 ALPHA IDEA: <b>[GURU]</b> initiated a NEW position in
+      <b>[TICKER]</b> this quarter. Consider researching for potential addition."
 
 If NO alerts are triggered, send a single summary message:
   "✅ Portfolio Check Complete — No significant events detected.
@@ -155,7 +250,11 @@ def _build_agent_executor():
 # ---------------------------------------------------------------------------
 
 
-def analyze_portfolio_and_gurus(user_portfolio_tickers: list[str]) -> dict[str, Any]:
+def analyze_portfolio_and_gurus(
+    user_portfolio_tickers: list[str],
+    pre_analyzed_guru_data: dict[str, str] | None = None,
+    telegram_chat_id: str = "",
+) -> dict[str, Any]:
     """Run the full Sense → Think → Act analysis cycle for the provided tickers.
 
     This is the main entry point called by cron jobs, API routes, or any other
@@ -166,6 +265,12 @@ def analyze_portfolio_and_gurus(user_portfolio_tickers: list[str]) -> dict[str, 
             family's current stock holdings.  Mix of US (alphabetical, e.g.
             "AAPL") and Israeli (numeric, e.g. "5131054") tickers is supported.
             Example: ["AAPL", "NVDA", "5131054", "5122947"]
+        pre_analyzed_guru_data: Pre-computed 13F data from previous scans.
+            If provided, this maps guru names to their pre-computed activity summaries,
+            instructing the agent to bypass active scraping and use this data directly.
+        telegram_chat_id: Per-family Telegram chat ID.  When provided, the agent
+            passes this value to every send_telegram_alert call so alerts reach
+            the correct family chat.  Overrides the global TELEGRAM_CHAT_ID env var.
 
     Returns:
         A dict with keys:
@@ -186,16 +291,52 @@ def analyze_portfolio_and_gurus(user_portfolio_tickers: list[str]) -> dict[str, 
         }
 
     tickers_formatted = ", ".join(user_portfolio_tickers)
-    guru_names_formatted = ", ".join(f'"{g}"' for g in TRACKED_GURUS)
 
-    # The human turn gives the agent its concrete task for this run.
-    human_input = (
-        f"Run a full portfolio analysis now.\n\n"
-        f"Current Holdings: {tickers_formatted}\n\n"
-        f"Superinvestors to scan: {guru_names_formatted}\n\n"
-        f"Follow all three steps in the system prompt exactly. "
-        f"After completing all tool calls, provide a brief summary of what you found."
-    )
+    # Notification context injected into every human message so the agent
+    # always passes the correct chat_id to send_telegram_alert.
+    if telegram_chat_id:
+        notification_instruction = (
+            f"\nNotification config:\n"
+            f"  Telegram chat_id: {telegram_chat_id}\n"
+            f"  IMPORTANT: When calling send_telegram_alert, always pass "
+            f'chat_id="{telegram_chat_id}" as the chat_id argument.\n'
+        )
+    else:
+        notification_instruction = (
+            "\nNotification config:\n"
+            "  Telegram: NOT configured for this family.\n"
+            "  IMPORTANT: Do NOT call send_telegram_alert. Instead, just "
+            "list all triggered alerts clearly in your final summary text — "
+            "they will be delivered by another channel.\n"
+        )
+
+    if pre_analyzed_guru_data is None:
+        guru_names_formatted = ", ".join(f'"{g}"' for g in TRACKED_GURUS)
+        # The human turn gives the agent its concrete task for this run.
+        human_input = (
+            f"Run a full portfolio analysis now.\n\n"
+            f"Current Holdings: {tickers_formatted}\n\n"
+            f"Superinvestors to scan: {guru_names_formatted}\n"
+            f"{notification_instruction}\n"
+            f"Follow all three steps in the system prompt exactly. "
+            f"After completing all tool calls, provide a brief summary of what you found."
+        )
+    else:
+        human_input = (
+            f"Run a full portfolio analysis now.\n\n"
+            f"Current Holdings: {tickers_formatted}\n\n"
+            f"[PRE-COMPUTED 13F DATA — DO NOT call scan_guru_portfolio. "
+            f"Use this data directly for Step 3 (ACT)]\n"
+            + "\n".join(
+                f"{guru}:\n{data}"
+                for guru, data in pre_analyzed_guru_data.items()
+            )
+            + f"\n{notification_instruction}\n"
+            + "Skip Step 2 entirely. Proceed to Step 1 (fetch prices for "
+              "the holdings above), then Step 3 (send alerts based on the "
+              "pre-computed 13F data provided). Follow all alert rules from "
+              "the system prompt exactly."
+        )
 
     logger.info(
         f"[AGENT] Starting analysis for {len(user_portfolio_tickers)} tickers: "
@@ -203,15 +344,44 @@ def analyze_portfolio_and_gurus(user_portfolio_tickers: list[str]) -> dict[str, 
     )
 
     try:
+        start_time = time.time()
         agent = _build_agent_executor()
         # LangGraph agents accept a list of BaseMessage objects.
         messages = [HumanMessage(content=human_input)]
         result = agent.invoke({"messages": messages})
+
+        # Build structured summary from message history (ground-truth view).
+        summary = _extract_run_summary(result["messages"], start_time)
+
+        # Validate: warn if the agent skipped any tickers.
+        skipped = set(user_portfolio_tickers) - set(summary.tickers_checked)
+        if skipped:
+            logger.warning(
+                f"[AGENT] Price check skipped for tickers: {skipped}. "
+                f"Agent may have missed these holdings."
+            )
+
+        # Validate: warn on any tool errors encountered during the run.
+        if summary.tool_errors:
+            logger.warning(
+                f"[AGENT] {len(summary.tool_errors)} tool error(s) during run: "
+                f"{summary.tool_errors}"
+            )
+
         # The final answer is the content of the last AI message.
         last_msg = result["messages"][-1]
         output = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
-        logger.info(f"[AGENT] Run complete. Output snippet: {output[:200]}")
-        return {"output": output, "success": True}
+
+        logger.info(
+            f"[AGENT] Run complete in {summary.run_duration_seconds}s — "
+            f"checked {len(summary.tickers_checked)} tickers, "
+            f"sent {summary.total_alerts_sent} alert(s) "
+            f"({summary.price_alerts_sent} price / "
+            f"{summary.risk_alerts_sent} risk / "
+            f"{summary.alpha_alerts_sent} alpha)"
+        )
+
+        return {"output": output, "success": True, "summary": summary.model_dump()}
 
     except EnvironmentError as e:
         logger.error(f"[AGENT] Configuration error: {e}")

@@ -41,3 +41,5 @@ class GmailSettingsPayload(BaseModel):
     cron_fetch_emails_enabled: Optional[bool] = None
     cron_stock_prices_enabled: Optional[bool] = None
     cron_weekly_summary_enabled: Optional[bool] = None
+    cron_agent_enabled: Optional[bool] = None
+    telegram_chat_id: Optional[str] = None

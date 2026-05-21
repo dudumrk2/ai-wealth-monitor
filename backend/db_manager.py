@@ -603,3 +603,55 @@ def get_prime_rate() -> float | None:
         print(f"💥 [DB_MANAGER] Error fetching prime rate: {e}")
         return None
 
+
+def get_sent_13f_alert_keys() -> set[str]:
+    """Return the set of 13F alert keys already sent.
+
+    Reads settings/agent_state from Firestore.
+    Each key has format: "{guru_name}:{ticker}:{quarter}"
+    e.g. "Berkshire Hathaway:AAPL:Q4 2024"
+
+    Returns an empty set if the document doesn't exist or on any error.
+    """
+    if db is None:
+        return set()
+    try:
+        doc_ref = db.collection("settings").document("agent_state")
+        doc = doc_ref.get()
+        if doc.exists:
+            return set(doc.to_dict().get("sent_alerts", {}).keys())
+        return set()
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching sent 13F alert keys: {e}")
+        return set()
+
+
+def mark_13f_alert_sent(alert_key: str) -> bool:
+    """Mark a 13F alert as sent in Firestore to prevent future duplicates.
+
+    Writes to settings/agent_state using update() with dot-notation so that
+    only the specific key is added without overwriting other sent alerts.
+
+    Args:
+        alert_key: Format "{guru_name}:{ticker}:{quarter}"
+                   e.g. "Berkshire Hathaway:AAPL:Q4 2024"
+
+    Returns:
+        True on success, False on failure.
+    """
+    if db is None:
+        return False
+    try:
+        doc_ref = db.collection("settings").document("agent_state")
+        # Use update() with dot-notation to set a nested field without
+        # overwriting sibling keys in sent_alerts.
+        doc_ref.set(
+            {"sent_alerts": {alert_key: True}},
+            merge=True
+        )
+        print(f"✅ [DB_MANAGER] Marked 13F alert as sent: {alert_key}")
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error marking 13F alert sent '{alert_key}': {e}")
+        return False
+
