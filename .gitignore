@@ -61,3 +61,4 @@ coverage/
 
 # VS Code - allow settings.json for shared team config
 !.vscode/settings.json
+.vercel
