@@ -655,3 +655,58 @@ def mark_13f_alert_sent(alert_key: str) -> bool:
         print(f"💥 [DB_MANAGER] Error marking 13F alert sent '{alert_key}': {e}")
         return False
 
+
+def save_policy_chunks(uid: str, policy_id: str, chunks: list) -> bool:
+    """Delete existing chunks for policy_id then write new ones.
+
+    Args:
+        uid:       Family UID (Firestore document ID under "families").
+        policy_id: Stable slug identifying the policy (used for dedup).
+        chunks:    List of chunk dicts with keys: chunk_id, text, anchor,
+                   embedding, policy_id, source_doc.
+
+    Returns:
+        True on success, False when db is unavailable or an error occurs.
+    """
+    if db is None:
+        return False
+    try:
+        subcol = (
+            db.collection("families")
+            .document(uid)
+            .collection("insurance_chunks")
+        )
+        # Delete stale chunks for this policy before writing fresh ones.
+        for old in subcol.where("policy_id", "==", policy_id).stream():
+            old.reference.delete()
+        # Write each chunk; chunk_id is the document ID, not a field.
+        for chunk in chunks:
+            payload = {k: v for k, v in chunk.items() if k != "chunk_id"}
+            subcol.document(chunk["chunk_id"]).set(payload)
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving policy chunks for uid={uid} policy={policy_id}: {e}")
+        return False
+
+
+def get_insurance_chunks(uid: str) -> list:
+    """Return all insurance chunk dicts for a family.
+
+    Args:
+        uid: Family UID.
+
+    Returns:
+        List of dicts (one per chunk document), empty list on error or no db.
+    """
+    if db is None:
+        return []
+    try:
+        subcol = (
+            db.collection("families")
+            .document(uid)
+            .collection("insurance_chunks")
+        )
+        return [doc.to_dict() for doc in subcol.stream()]
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching insurance chunks for uid={uid}: {e}")
+        return []

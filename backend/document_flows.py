@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 import fitz
@@ -9,6 +10,13 @@ from typing import Any
 from abc import ABC, abstractmethod
 
 from flow_utils import call_claude_vision, call_gemini_json
+from rag_utils import (
+    redact_pdf_bytes,
+    extract_markdown_via_gemini,
+    chunk_section_aware,
+    embed_documents,
+)
+from db_manager import save_policy_chunks
 import prompts
 import report_utils
 import db_manager
@@ -349,7 +357,7 @@ class InsuranceFlow(BaseDocumentFlow):
             # 2. Extract core metadata via Claude
             print(f"🤖 [INSURANCE-FLOW] Starting Claude Vision extraction...")
             from flow_utils import prepare_pdf_for_vision
-            doc, _, _ = prepare_pdf_for_vision(file_bytes, self.f_profile)
+            doc, pii_targets, _ = prepare_pdf_for_vision(file_bytes, self.f_profile)
             images_b64 = []
             for page in doc[:3]: 
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
@@ -363,6 +371,25 @@ class InsuranceFlow(BaseDocumentFlow):
             )
             print(f"✅ [INSURANCE-FLOW] Claude extraction complete. Extracted data for policy.")
             parsed_json["source_document_url"] = source_url
+
+            # 3. RAG indexing — best-effort, non-fatal
+            try:
+                policy_id = self.target_policy_id or re.sub(
+                    r"[^a-zA-Z0-9]+", "_", os.path.splitext(filename)[0]
+                ).strip("_").lower()
+                redacted_bytes = redact_pdf_bytes(file_bytes, pii_targets)
+                markdown = extract_markdown_via_gemini(redacted_bytes)
+                chunks = chunk_section_aware(markdown, source_doc=filename, policy_id=policy_id)
+                if chunks:
+                    texts = [c["text"] for c in chunks]
+                    embeddings = embed_documents(texts)
+                    for chunk, emb in zip(chunks, embeddings):
+                        chunk["embedding"] = emb
+                    save_policy_chunks(uid, policy_id, chunks)
+                    print(f"🔍 [INSURANCE-FLOW] RAG indexed {len(chunks)} chunks for policy_id={policy_id}")
+            except Exception as rag_err:
+                print(f"⚠️ [INSURANCE-FLOW] RAG indexing skipped (non-fatal): {rag_err}")
+
             return parsed_json
 
     async def enrich_data(self, extracted_data: Any) -> Any:

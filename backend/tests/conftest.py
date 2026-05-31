@@ -2,6 +2,13 @@
 Shared test fixtures for backend tests.
 Pytest automatically discovers and loads conftest.py files.
 """
+import sys
+from pathlib import Path
+
+# Add backend directory to Python path so tests can import routers, services, etc.
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
+
 import pytest
 from unittest.mock import patch, MagicMock
 

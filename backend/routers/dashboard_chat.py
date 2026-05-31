@@ -11,11 +11,35 @@ import fitz
 from google import genai
 from google.genai import types
 import db_manager
+from db_manager import get_insurance_chunks
+from rag_utils import embed_query, cosine_top_k
 from auth import verify_token
 import config
 from services.demo_constants import DEMO_CHAT_RESPONSES
 
 router = APIRouter(tags=["dashboard"])
+
+
+def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
+    """Retrieve the top-k most relevant insurance policy excerpts for a query.
+
+    Used as the inner logic for the Gemini tool; extracted to module level for testability.
+    """
+    chunks = get_insurance_chunks(uid)
+    if not chunks:
+        return "No insurance policies have been indexed for this family yet."
+    query_vec = embed_query(query)
+    embeddings = [c["embedding"] for c in chunks]
+    top = cosine_top_k(query_vec, embeddings, k)
+    if not top:
+        return "No relevant passages found."
+    lines = []
+    for rank, (idx, score) in enumerate(top, 1):
+        c = chunks[idx]
+        lines.append(
+            f"[{rank}] (score={score:.3f}, source={c['source_doc']})\n{c['text']}"
+        )
+    return "\n\n---\n\n".join(lines)
 
 class DashboardSummary(BaseModel):
     total_net_worth: float
@@ -141,8 +165,8 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
     spouse_owner_name = portfolios.get("spouse", {}).get("ownerName", "בן/בת הזוג")
 
     system_prompt = f"""You are an expert family wealth advisor (Copilot).
-Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
-If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
+Answer the user's question concisely in Hebrew, based ONLY on the provided financial data.
+If the user asks a deep contractual question about an insurance policy (coverage, exclusions, premiums, terms), use the `query_insurance_policy` tool with a short Hebrew search phrase.
 
 OWNER IDENTIFICATION — VERY IMPORTANT:
 The financial data is organized hierarchically under "user" and "spouse" objects.
@@ -154,36 +178,14 @@ look for funds inside the object whose ownerName matches that person's name.
 Data: {json.dumps(context_data, ensure_ascii=False)}
 """
 
-    def read_full_policy(policy_id: str) -> str:
-        """Call this tool to read the full text of a specific policy PDF document to answer deep contractual questions.
+    def query_insurance_policy(query: str) -> str:
+        """Search the indexed insurance policies for the most relevant excerpts.
+
         Args:
-            policy_id: The ID or policy number of the policy to read.
+            query: A short search phrase (Hebrew or English) describing what to look for.
         """
-        print(f"🛠️ [TOOL] read_full_policy called for {policy_id}")
-        url = None
-        for f in filtered_funds:
-            if f.get("id") == policy_id or f.get("policy_number") == policy_id:
-                url = f.get("source_document_url")
-                break
-
-        if not url:
-            return f"Error: No source document URL found for policy {policy_id}. Cannot read document."
-
-        try:
-            resp = httpx.get(url, timeout=30.0)
-            resp.raise_for_status()
-            pdf_bytes = resp.content
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            text_content = ""
-            for page in doc:
-                text_content += page.get_text()
-            doc.close()
-            if len(text_content) > 35000:
-                print(f"⚠️ [TOOL] Document text truncated (original length: {len(text_content)})")
-                return "[DOCUMENT TRUNCATED DUE TO LENGTH]\n" + text_content[:35000]
-            return text_content
-        except Exception as e:
-            return f"Error reading document: {str(e)}"
+        print(f"🛠️ [TOOL] query_insurance_policy called: {query!r}")
+        return _query_insurance_policy(query, uid)
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -199,7 +201,7 @@ Data: {json.dumps(context_data, ensure_ascii=False)}
             model=config.GEMINI_MODEL_NAME,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
-                tools=[read_full_policy],
+                tools=[query_insurance_policy],
                 temperature=0.3
             )
         )
