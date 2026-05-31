@@ -26,8 +26,9 @@ def test_query_insurance_policy_returns_top_excerpts(monkeypatch):
 
     assert "כיסוי נכות" in result
     assert "life.pdf" in result
-    # Should not include second result's text (ranked 3rd)
-    assert "פרמיה חודשית" not in result
+    # We now use RRF and return up to k=5 chunks.
+    # Since we have 3 chunks, all of them will be returned.
+    assert "פרמיה חודשית" in result
 
 
 def test_query_insurance_policy_passes_uid_to_get_chunks(monkeypatch):
@@ -72,7 +73,7 @@ def test_query_insurance_policy_passes_embeddings_to_cosine_top_k(monkeypatch):
     call_args = mock_cosine.call_args
     assert call_args.args[0] == query_vec
     assert call_args.args[1] == [[0.1, 0.2], [0.3, 0.4]]
-    assert call_args.args[2] == 5  # k=5
+    assert call_args.args[2] == len(chunks)  # For RRF, we need ranks of all chunks
 
 
 def test_system_prompt_references_query_insurance_policy():

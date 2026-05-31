@@ -205,3 +205,24 @@ def test_anchor_falls_back_to_first_80_chars_without_heading():
     md = "Some text without a heading prefix, just raw content here."
     chunks = chunk_section_aware(md, "policy.pdf", "pol1")
     assert chunks[0]["anchor"] == md[:80]
+
+
+def test_table_rows_split_into_separate_chunks():
+    md = "## \u05ea\u05e2\u05e8\u05d9\u05e4\u05d9\u05dd\n| \u05e9\u05d9\u05e8\u05d5\u05ea | \u05de\u05d7\u05d9\u05e8 |\n|---|---|\n| \u05d2\u05e8\u05d9\u05e8\u05d4 | 500 |\n| \u05d6\u05db\u05d5\u05db\u05d9\u05ea | 300 |"
+    chunks = chunk_section_aware(md, "policy.pdf", "pol1")
+    assert len(chunks) == 3  # heading chunk + two data row chunks
+    assert "\u05d2\u05e8\u05d9\u05e8\u05d4" in chunks[1]["text"]
+    assert "\u05d6\u05db\u05d5\u05db\u05d9\u05ea" in chunks[2]["text"]
+    # Each chunk includes the header row
+    assert "\u05e9\u05d9\u05e8\u05d5\u05ea" in chunks[1]["text"]
+    assert "\u05e9\u05d9\u05e8\u05d5\u05ea" in chunks[2]["text"]
+
+
+def test_table_with_preceding_text_creates_text_plus_row_chunks():
+    md = "## \u05e1\u05e7\u05d9\u05e8\u05d4\n\u05ea\u05d5\u05db\u05df \u05db\u05dc\u05dc\u05d9 \u05e2\u05dc \u05d4\u05e4\u05d5\u05dc\u05d9\u05e1\u05d4\n| \u05e1\u05d5\u05d2 | \u05e2\u05e8\u05da |\n|---|---|\n| \u05d7\u05d9\u05d9\u05dd | 100 |"
+    chunks = chunk_section_aware(md, "p.pdf", "p1")
+    # non-table text chunk + 1 data row chunk = 2 chunks
+    assert len(chunks) == 2
+    assert "\u05ea\u05d5\u05db\u05df \u05db\u05dc\u05dc\u05d9" in chunks[0]["text"]
+    assert "\u05d7\u05d9\u05d9\u05dd" in chunks[1]["text"]
+    assert "\u05e1\u05d5\u05d2" in chunks[1]["text"]  # header row included

@@ -22,6 +22,8 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
 
     Used as the inner logic for the Gemini tool; extracted to module level for testability.
     """
+    from rank_bm25 import BM25Okapi
+
     chunks = get_insurance_chunks(uid)
     if not chunks:
         return "No insurance policies have been indexed for this family yet."
@@ -29,11 +31,35 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
     chunks = [c for c in chunks if c.get("embedding")]
     if not chunks:
         return "No insurance policies have been indexed for this family yet."
+    
+    # 1. Cosine Similarity search
     query_vec = embed_query(query)
     embeddings = [c["embedding"] for c in chunks]
-    top = cosine_top_k(query_vec, embeddings, k)
+    cosine_results = cosine_top_k(query_vec, embeddings, len(chunks))
+    cosine_rank = {idx: rank for rank, (idx, score) in enumerate(cosine_results, 1)}
+    
+    # 2. BM25 search
+    tokenized_corpus = [c["text"].split() for c in chunks]
+    bm25 = BM25Okapi(tokenized_corpus)
+    tokenized_query = query.split()
+    bm25_scores = bm25.get_scores(tokenized_query)
+    bm25_results = sorted(enumerate(bm25_scores), key=lambda x: x[1], reverse=True)
+    bm25_rank = {idx: rank for rank, (idx, score) in enumerate(bm25_results, 1)}
+    
+    # 3. Reciprocal Rank Fusion (RRF)
+    rrf_scores = []
+    for idx in range(len(chunks)):
+        c_rank = cosine_rank.get(idx, len(chunks))
+        b_rank = bm25_rank.get(idx, len(chunks))
+        score = (1.0 / (60 + c_rank)) + (1.0 / (60 + b_rank))
+        rrf_scores.append((idx, score))
+        
+    rrf_scores.sort(key=lambda x: x[1], reverse=True)
+    top = rrf_scores[:k]
+    
     if not top:
         return "No relevant passages found."
+        
     lines = []
     for rank, (idx, score) in enumerate(top, 1):
         c = chunks[idx]
