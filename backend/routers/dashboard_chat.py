@@ -37,8 +37,11 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
     lines = []
     for rank, (idx, score) in enumerate(top, 1):
         c = chunks[idx]
+        # Extract section heading for model context
+        text = c["text"]
+        heading = text.split("\n")[0] if text.startswith("## ") else c.get("anchor", text[:60])
         lines.append(
-            f"[{rank}] (score={score:.3f}, source={c['source_doc']})\n{c['text']}"
+            f"[{rank}] \u05de\u05e7\u05d5\u05e8: {c['source_doc']} | \u05e1\u05e2\u05d9\u05e3: {heading}\n{text}"
         )
     return "\n\n---\n\n".join(lines)
 
@@ -177,6 +180,8 @@ When the user asks about a specific person (e.g. "Does {user_owner_name} have a 
 look for funds inside the object whose ownerName matches that person's name.
 
 Data: {json.dumps(context_data, ensure_ascii=False)}
+
+If the `query_insurance_policy` tool returns excerpts that do not explicitly answer the question, respond with "לא מצאתי מידע מפורש בפוליסה על כך" instead of guessing or extrapolating.
 """
 
     def query_insurance_policy(query: str) -> str:
@@ -276,7 +281,7 @@ async def get_copilot_prompt(context_filter: str = "כללי", user: dict = Depe
 
     system_prompt = f"""You are an expert family wealth advisor (Copilot).
 Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
-If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
+If the user asks a deep contractual question about an insurance policy (coverage, exclusions, premiums, terms), use the `query_insurance_policy` tool with a short Hebrew search phrase.
 
 OWNER IDENTIFICATION — VERY IMPORTANT:
 The financial data is organized hierarchically under "user" and "spouse" objects.
@@ -286,6 +291,8 @@ When the user asks about a specific person (e.g. "Does {user_owner_name} have a 
 look for funds inside the object whose ownerName matches that person's name.
 
 Data: {json.dumps(context_data, ensure_ascii=False)}
+
+If the `query_insurance_policy` tool returns excerpts that do not explicitly answer the question, respond with "לא מצאתי מידע מפורש בפוליסה על כך" instead of guessing or extrapolating.
 """
     return {"prompt": system_prompt}
 

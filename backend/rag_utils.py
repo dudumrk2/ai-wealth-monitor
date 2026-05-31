@@ -29,10 +29,11 @@ def _get_client():
 
 
 def _make_chunk(text: str, source_doc: str, policy_id: str, idx: int) -> dict:
+    heading_line = text.split("\n")[0] if text.startswith("## ") else ""
     return {
         "chunk_id": f"{policy_id}_{idx}",
         "text": text,
-        "anchor": text[:80],
+        "anchor": heading_line or text[:80],
         "source_doc": source_doc,
         "policy_id": policy_id,
     }

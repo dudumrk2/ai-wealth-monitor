@@ -36,9 +36,9 @@ def test_chunk_section_aware_splits_on_headings_no_e5_prefix():
     assert "passage:" not in chunks[0]["text"]
     assert "passage:" not in chunks[1]["text"]
 
-    # anchor = first 80 chars of raw text (stable citation key)
-    assert chunks[0]["anchor"] == chunks[0]["text"][:80]
-    assert chunks[1]["anchor"] == chunks[1]["text"][:80]
+    # anchor = heading line for heading-prefixed chunks
+    assert chunks[0]["anchor"] == "## Section A"
+    assert chunks[1]["anchor"] == "## Section B"
 
     # chunk_id = "{policy_id}_{idx}" (valid Firestore doc id)
     assert chunks[0]["chunk_id"] == "p_42_0"
@@ -193,3 +193,15 @@ def test_extract_markdown_via_gemini_sends_pdf_inline_and_returns_markdown_text(
     assert pdf_part.inline_data.data == pdf_bytes
     prompt = contents[1]
     assert isinstance(prompt, str) and len(prompt) > 0
+
+
+def test_anchor_uses_section_heading():
+    md = "## \u05db\u05d9\u05e1\u05d5\u05d9\u05d9\u05dd \u05de\u05d9\u05d5\u05d7\u05d3\u05d9\u05dd\n\u05ea\u05d5\u05db\u05df \u05d4\u05e1\u05e2\u05d9\u05e3 \u05db\u05d0\u05df."
+    chunks = chunk_section_aware(md, "policy.pdf", "pol1")
+    assert chunks[0]["anchor"] == "## \u05db\u05d9\u05e1\u05d5\u05d9\u05d9\u05dd \u05de\u05d9\u05d5\u05d7\u05d3\u05d9\u05dd"
+
+
+def test_anchor_falls_back_to_first_80_chars_without_heading():
+    md = "Some text without a heading prefix, just raw content here."
+    chunks = chunk_section_aware(md, "policy.pdf", "pol1")
+    assert chunks[0]["anchor"] == md[:80]
