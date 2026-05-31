@@ -8,12 +8,16 @@ from rag_utils import (
     EMBED_MODEL,
     EMBED_OUTPUT_DIM,
     SECTION_MAX_CHARS,
+    _is_separator_row,
+    _tokenize,
+    bm25_top_k,
     chunk_section_aware,
     cosine_top_k,
     embed_documents,
     embed_query,
     extract_markdown_via_gemini,
     redact_pdf_bytes,
+    rrf_merge,
 )
 
 
@@ -226,3 +230,91 @@ def test_table_with_preceding_text_creates_text_plus_row_chunks():
     assert "\u05ea\u05d5\u05db\u05df \u05db\u05dc\u05dc\u05d9" in chunks[0]["text"]
     assert "\u05d7\u05d9\u05d9\u05dd" in chunks[1]["text"]
     assert "\u05e1\u05d5\u05d2" in chunks[1]["text"]  # header row included
+
+
+# ---------------------------------------------------------------------------
+# Regression: table parser must never hang or drop data (PR #17 review fixes)
+# ---------------------------------------------------------------------------
+
+
+def test_lone_pipe_line_does_not_hang_and_is_kept_as_text():
+    """A ``|``-line not followed by another ``|``-row must be treated as text.
+
+    Before the fix this caused an infinite loop (i never advanced). The chunk
+    must still be produced so no content is lost.
+    """
+    # Single pseudo-table line at the very end of the section.
+    md = "## \u05d4\u05e2\u05e8\u05d4\n| \u05e9\u05d9\u05e8\u05d5\u05ea: \u05d2\u05e8\u05d9\u05e8\u05d4 - 500"
+    chunks = chunk_section_aware(md, "p.pdf", "p1")
+    assert len(chunks) == 1
+    assert "\u05d2\u05e8\u05d9\u05e8\u05d4" in chunks[0]["text"]
+
+
+def test_pipe_line_followed_by_prose_does_not_hang():
+    """A ``|``-line followed by a non-table line must not loop forever."""
+    md = "| \u05dc\u05d0 \u05d8\u05d1\u05dc\u05d4\n\u05e4\u05e1\u05e7\u05d4 \u05e8\u05d2\u05d9\u05dc\u05d4 \u05db\u05d0\u05df"
+    chunks = chunk_section_aware(md, "p.pdf", "p1")
+    # Both lines collapse into one text chunk; importantly the call returns.
+    assert len(chunks) == 1
+    assert "\u05e4\u05e1\u05e7\u05d4 \u05e8\u05d2\u05d9\u05dc\u05d4" in chunks[0]["text"]
+
+
+def test_table_without_separator_keeps_first_data_row():
+    """A table lacking a ``|---|`` separator must not drop its first data row."""
+    md = "## \u05ea\u05e2\u05e8\u05d9\u05e4\u05d9\u05dd\n| \u05e9\u05d9\u05e8\u05d5\u05ea | \u05de\u05d7\u05d9\u05e8 |\n| \u05d2\u05e8\u05d9\u05e8\u05d4 | 500 |\n| \u05d6\u05db\u05d5\u05db\u05d9\u05ea | 300 |"
+    chunks = chunk_section_aware(md, "p.pdf", "p1")
+    # heading + two data rows (no separator row to skip)
+    assert len(chunks) == 3
+    assert "\u05d2\u05e8\u05d9\u05e8\u05d4" in chunks[1]["text"]  # first data row preserved
+    assert "\u05d6\u05db\u05d5\u05db\u05d9\u05ea" in chunks[2]["text"]
+
+
+def test_is_separator_row_distinguishes_separator_from_data():
+    assert _is_separator_row("|---|---|")
+    assert _is_separator_row("| :--- | ---: |")
+    assert _is_separator_row("|:-:|:-:|")
+    assert not _is_separator_row("| 1 | 2 |")
+    assert not _is_separator_row("| \u05d2\u05e8\u05d9\u05e8\u05d4 | 500 |")
+    assert not _is_separator_row("")
+
+
+# ---------------------------------------------------------------------------
+# BM25 + RRF hybrid retrieval helpers
+# ---------------------------------------------------------------------------
+
+
+def test_tokenize_strips_table_pipes():
+    assert _tokenize("| \u05d2\u05e8\u05d9\u05e8\u05d4 | 500 |") == ["\u05d2\u05e8\u05d9\u05e8\u05d4", "500"]
+    assert _tokenize("plain text here") == ["plain", "text", "here"]
+
+
+def test_bm25_top_k_ranks_exact_match_first():
+    chunks = [
+        {"text": "\u05db\u05d9\u05e1\u05d5\u05d9 \u05e0\u05d6\u05e7\u05d9 \u05e6\u05d3 \u05e9\u05dc\u05d9\u05e9\u05d9"},
+        {"text": "\u05e4\u05e8\u05de\u05d9\u05d4 \u05e9\u05e0\u05ea\u05d9\u05ea \u05d2\u05e8\u05d9\u05e8\u05d4 1200"},
+        {"text": "\u05ea\u05e0\u05d0\u05d9\u05dd \u05db\u05dc\u05dc\u05d9\u05d9\u05dd"},
+    ]
+    results = bm25_top_k("\u05d2\u05e8\u05d9\u05e8\u05d4", chunks, k=3)
+    assert len(results) == 3
+    # The chunk literally containing the query term ranks first.
+    assert results[0][0] == 1
+
+
+def test_bm25_top_k_empty_chunks_returns_empty():
+    assert bm25_top_k("anything", [], k=5) == []
+
+
+def test_rrf_merge_rewards_agreement_between_rankers():
+    # Index 2 is top of both lists -> should win after fusion.
+    cosine = [(2, 0.9), (0, 0.8), (1, 0.1)]
+    bm25 = [(2, 5.0), (1, 4.0), (0, 0.2)]
+    merged = rrf_merge(cosine, bm25, k=3)
+    assert merged[0][0] == 2
+    assert {idx for idx, _ in merged} == {0, 1, 2}
+
+
+def test_rrf_merge_respects_k_limit():
+    cosine = [(0, 0.9), (1, 0.8), (2, 0.7), (3, 0.6)]
+    bm25 = [(3, 5.0), (2, 4.0), (1, 3.0), (0, 2.0)]
+    merged = rrf_merge(cosine, bm25, k=2)
+    assert len(merged) == 2

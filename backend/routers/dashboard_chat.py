@@ -9,7 +9,7 @@ from google import genai
 from google.genai import types
 import db_manager
 from db_manager import get_insurance_chunks
-from rag_utils import embed_query, cosine_top_k
+from rag_utils import embed_query, cosine_top_k, bm25_top_k, rrf_merge
 from auth import verify_token
 import config
 from services.demo_constants import DEMO_CHAT_RESPONSES
@@ -22,8 +22,6 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
 
     Used as the inner logic for the Gemini tool; extracted to module level for testability.
     """
-    from rank_bm25 import BM25Okapi
-
     chunks = get_insurance_chunks(uid)
     if not chunks:
         return "No insurance policies have been indexed for this family yet."
@@ -31,35 +29,21 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
     chunks = [c for c in chunks if c.get("embedding")]
     if not chunks:
         return "No insurance policies have been indexed for this family yet."
-    
-    # 1. Cosine Similarity search
+
+    # Hybrid retrieval: dense (cosine) + lexical (BM25), fused with RRF.
+    # Both retrievers rank the full corpus so RRF sees a rank for every chunk.
+    # This is fine at the few-policies-per-family scale; a family with many
+    # large policies would need server-side filtering (see INSURANCE_RAG_CONTEXT.md
+    # "Scale" note) since BM25 rebuilds its index per query.
     query_vec = embed_query(query)
     embeddings = [c["embedding"] for c in chunks]
     cosine_results = cosine_top_k(query_vec, embeddings, len(chunks))
-    cosine_rank = {idx: rank for rank, (idx, score) in enumerate(cosine_results, 1)}
-    
-    # 2. BM25 search
-    tokenized_corpus = [c["text"].split() for c in chunks]
-    bm25 = BM25Okapi(tokenized_corpus)
-    tokenized_query = query.split()
-    bm25_scores = bm25.get_scores(tokenized_query)
-    bm25_results = sorted(enumerate(bm25_scores), key=lambda x: x[1], reverse=True)
-    bm25_rank = {idx: rank for rank, (idx, score) in enumerate(bm25_results, 1)}
-    
-    # 3. Reciprocal Rank Fusion (RRF)
-    rrf_scores = []
-    for idx in range(len(chunks)):
-        c_rank = cosine_rank.get(idx, len(chunks))
-        b_rank = bm25_rank.get(idx, len(chunks))
-        score = (1.0 / (60 + c_rank)) + (1.0 / (60 + b_rank))
-        rrf_scores.append((idx, score))
-        
-    rrf_scores.sort(key=lambda x: x[1], reverse=True)
-    top = rrf_scores[:k]
-    
+    bm25_results = bm25_top_k(query, chunks, len(chunks))
+    top = rrf_merge(cosine_results, bm25_results, k=k)
+
     if not top:
         return "No relevant passages found."
-        
+
     lines = []
     for rank, (idx, score) in enumerate(top, 1):
         c = chunks[idx]
