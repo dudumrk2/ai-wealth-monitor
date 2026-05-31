@@ -29,10 +29,11 @@ def _get_client():
 
 
 def _make_chunk(text: str, source_doc: str, policy_id: str, idx: int) -> dict:
+    heading_line = text.split("\n")[0] if text.startswith("## ") else ""
     return {
         "chunk_id": f"{policy_id}_{idx}",
         "text": text,
-        "anchor": text[:80],
+        "anchor": heading_line or text[:80],
         "source_doc": source_doc,
         "policy_id": policy_id,
     }
@@ -48,31 +49,91 @@ def _fixed_split(text: str, size: int, overlap: int) -> list[str]:
     return out
 
 
-def chunk_section_aware(text: str, source_doc: str, policy_id: str) -> list[dict]:
-    """Split Markdown text on ``## `` headings into chunk dicts.
+def _is_table_start(lines: list[str], i: int) -> bool:
+    """A Markdown table starts where a ``|``-row is followed by another ``|``-row."""
+    return (
+        lines[i].startswith("|")
+        and i + 1 < len(lines)
+        and lines[i + 1].startswith("|")
+    )
 
-    Sections larger than SECTION_MAX_CHARS fall back to fixed-size sub-chunking
-    with 10% overlap. Each chunk has: chunk_id, text (raw, no e5 prefix),
-    anchor (first 80 chars of text), source_doc, policy_id.
+
+def _is_separator_row(line: str) -> bool:
+    """True only for a real Markdown table separator (e.g. ``|---|:--:|``).
+
+    Validated by checking that every cell consists solely of dashes with
+    optional alignment colons. A genuine data row (``| 1 | 2 |``) returns False
+    so it is never mistaken for — and silently dropped as — a separator.
     """
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    cells = [c for c in cells if c]
+    return bool(cells) and all(re.fullmatch(r":?-+:?", c) for c in cells)
+
+
+def _split_table_rows(
+    section_text: str, source_doc: str, policy_id: str, start_idx: int
+) -> tuple[list[dict], int]:
+    """Split any Markdown table within section_text into per-row chunks.
+
+    Each table data row becomes its own chunk with the header row prepended for
+    context. Non-table lines are grouped into a single chunk (fixed-split if
+    oversized). Returns (chunks, next_idx).
+    """
+    lines = section_text.split("\n")
+    chunks: list[dict] = []
+    idx = start_idx
+    i = 0
+    n = len(lines)
+
+    while i < n:
+        if _is_table_start(lines, i):
+            header_row = lines[i]
+            i += 1
+            # Skip the separator row only if it is genuinely one; otherwise the
+            # line is a real data row and must not be discarded.
+            if i < n and _is_separator_row(lines[i]):
+                i += 1
+            # One chunk per data row: header + row.
+            while i < n and lines[i].startswith("|"):
+                chunk_text = f"{header_row}\n{lines[i]}"
+                chunks.append(_make_chunk(chunk_text, source_doc, policy_id, idx))
+                idx += 1
+                i += 1
+        else:
+            # Collect non-table lines until the next table start. The condition
+            # mirrors _is_table_start so a lone ``|``-line (not a real table) is
+            # consumed as text and ``i`` always advances — no infinite loop.
+            non_table: list[str] = []
+            while i < n and not _is_table_start(lines, i):
+                non_table.append(lines[i])
+                i += 1
+            text = "\n".join(non_table).strip()
+            if text:
+                if len(text) <= SECTION_MAX_CHARS:
+                    chunks.append(_make_chunk(text, source_doc, policy_id, idx))
+                    idx += 1
+                else:
+                    for sub in _fixed_split(text, SECTION_MAX_CHARS, _SUB_OVERLAP):
+                        chunks.append(_make_chunk(sub, source_doc, policy_id, idx))
+                        idx += 1
+
+    return chunks, idx
+
+
+def chunk_section_aware(text: str, source_doc: str, policy_id: str) -> list[dict]:
+    """Split Markdown on ## headings; table rows become individual chunks."""
     if not text:
         return []
 
     parts = re.split(r"\n(?=## )", text)
-
     chunks: list[dict] = []
     idx = 0
     for part in parts:
         stripped = part.strip()
         if not stripped:
             continue
-        if len(stripped) <= SECTION_MAX_CHARS:
-            chunks.append(_make_chunk(stripped, source_doc, policy_id, idx))
-            idx += 1
-        else:
-            for sub in _fixed_split(stripped, SECTION_MAX_CHARS, _SUB_OVERLAP):
-                chunks.append(_make_chunk(sub, source_doc, policy_id, idx))
-                idx += 1
+        new_chunks, idx = _split_table_rows(stripped, source_doc, policy_id, idx)
+        chunks.extend(new_chunks)
     return chunks
 
 
@@ -93,6 +154,53 @@ def cosine_top_k(
 
     order = np.argsort(-sims)[: max(0, k)]
     return [(int(i), float(sims[i])) for i in order]
+
+
+def _tokenize(text: str) -> list[str]:
+    """Tokenize for BM25 by splitting on whitespace and Markdown table pipes.
+
+    Splitting on ``|`` keeps table-cell values as clean tokens instead of
+    letting the pipe delimiters inflate every chunk's term frequencies.
+    Hebrew prefixes (ב/ה/ל/מ/ו) are not stripped — a known lexical limitation.
+    """
+    return [t for t in re.split(r"[\s|]+", text) if t]
+
+
+def bm25_top_k(query: str, chunks: list[dict], k: int) -> list[tuple[int, float]]:
+    """BM25 lexical retrieval over chunk texts (strong for exact numbers/names).
+
+    Returns ``[(chunk_index, score), ...]`` sorted by descending score, length k.
+    """
+    from rank_bm25 import BM25Okapi  # lazy: optional dep, only for hybrid search
+
+    if not chunks:
+        return []
+    tokenized_corpus = [_tokenize(c["text"]) for c in chunks]
+    bm25 = BM25Okapi(tokenized_corpus)
+    scores = bm25.get_scores(_tokenize(query))
+    order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    return [(i, float(scores[i])) for i in order[: max(0, k)]]
+
+
+def rrf_merge(
+    cosine_results: list[tuple[int, float]],
+    bm25_results: list[tuple[int, float]],
+    k: int = 5,
+    rrf_k: int = 60,
+) -> list[tuple[int, float]]:
+    """Reciprocal Rank Fusion of two ranked ``(index, score)`` lists.
+
+    An item's fused score is the sum of ``1 / (rrf_k + rank)`` across both lists.
+    ``rrf_k=60`` is the canonical constant from the original RRF paper. Returns
+    the top-k fused ``(index, fused_score)`` pairs sorted descending.
+    """
+    fused: dict[int, float] = {}
+    for rank, (idx, _) in enumerate(cosine_results, 1):
+        fused[idx] = fused.get(idx, 0.0) + 1.0 / (rrf_k + rank)
+    for rank, (idx, _) in enumerate(bm25_results, 1):
+        fused[idx] = fused.get(idx, 0.0) + 1.0 / (rrf_k + rank)
+    ranked = sorted(fused.items(), key=lambda x: x[1], reverse=True)
+    return ranked[: max(0, k)]
 
 
 _EXTRACT_PROMPT = (
