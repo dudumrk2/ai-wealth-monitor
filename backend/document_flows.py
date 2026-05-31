@@ -374,18 +374,28 @@ class InsuranceFlow(BaseDocumentFlow):
 
             # 3. RAG indexing — best-effort, non-fatal
             try:
-                policy_id = self.target_policy_id or re.sub(
+                _slug = re.sub(
                     r"[^a-zA-Z0-9]+", "_", os.path.splitext(filename)[0]
                 ).strip("_").lower()
+                # Fallback to a uuid5 (stable, deterministic) when the slug is
+                # empty — common for Hebrew filenames whose chars are all stripped.
+                policy_id = self.target_policy_id or _slug or str(
+                    uuid.uuid5(uuid.NAMESPACE_URL, filename)
+                )
                 redacted_bytes = redact_pdf_bytes(file_bytes, pii_targets)
                 markdown = extract_markdown_via_gemini(redacted_bytes)
                 chunks = chunk_section_aware(markdown, source_doc=filename, policy_id=policy_id)
                 if chunks:
                     texts = [c["text"] for c in chunks]
                     embeddings = embed_documents(texts)
+                    if len(embeddings) != len(chunks):
+                        print(f"⚠️ [INSURANCE-FLOW] embed_documents returned {len(embeddings)} vectors for {len(chunks)} chunks — saving only matched pairs")
                     for chunk, emb in zip(chunks, embeddings):
                         chunk["embedding"] = emb
-                    save_policy_chunks(uid, policy_id, chunks)
+                    # Only save chunks that received an embedding to avoid
+                    # persisting embedding-less docs that would 500 on retrieval.
+                    embedded_chunks = [c for c in chunks if "embedding" in c]
+                    save_policy_chunks(uid, policy_id, embedded_chunks)
                     print(f"🔍 [INSURANCE-FLOW] RAG indexed {len(chunks)} chunks for policy_id={policy_id}")
             except Exception as rag_err:
                 print(f"⚠️ [INSURANCE-FLOW] RAG indexing skipped (non-fatal): {rag_err}")
