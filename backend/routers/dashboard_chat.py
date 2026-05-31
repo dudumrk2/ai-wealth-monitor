@@ -5,9 +5,6 @@ import os
 import json
 import asyncio
 import time
-import httpx
-import fitz
-
 from google import genai
 from google.genai import types
 import db_manager
@@ -26,6 +23,10 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
     Used as the inner logic for the Gemini tool; extracted to module level for testability.
     """
     chunks = get_insurance_chunks(uid)
+    if not chunks:
+        return "No insurance policies have been indexed for this family yet."
+    # Guard against legacy/partially-indexed docs that may lack an embedding.
+    chunks = [c for c in chunks if c.get("embedding")]
     if not chunks:
         return "No insurance policies have been indexed for this family yet."
     query_vec = embed_query(query)
