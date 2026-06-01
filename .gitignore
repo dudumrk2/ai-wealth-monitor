@@ -41,9 +41,6 @@ backend/__pycache__/
 # Firebase
 serviceAccountKey.json
 
-# AI-generated design docs (local only, not tracked in git)
-docs/
-
 # Debug and Scratch files
 backend/debug_*.txt
 backend/_debug_*.py
