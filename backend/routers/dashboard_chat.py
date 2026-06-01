@@ -9,7 +9,7 @@ from google import genai
 from google.genai import types
 import db_manager
 from db_manager import get_insurance_chunks
-from rag_utils import embed_query, cosine_top_k
+from rag_utils import embed_query, cosine_top_k, bm25_top_k, rrf_merge
 from auth import verify_token
 import config
 from services.demo_constants import DEMO_CHAT_RESPONSES
@@ -29,16 +29,29 @@ def _query_insurance_policy(query: str, uid: str, k: int = 5) -> str:
     chunks = [c for c in chunks if c.get("embedding")]
     if not chunks:
         return "No insurance policies have been indexed for this family yet."
+
+    # Hybrid retrieval: dense (cosine) + lexical (BM25), fused with RRF.
+    # Both retrievers rank the full corpus so RRF sees a rank for every chunk.
+    # This is fine at the few-policies-per-family scale; a family with many
+    # large policies would need server-side filtering (see INSURANCE_RAG_CONTEXT.md
+    # "Scale" note) since BM25 rebuilds its index per query.
     query_vec = embed_query(query)
     embeddings = [c["embedding"] for c in chunks]
-    top = cosine_top_k(query_vec, embeddings, k)
+    cosine_results = cosine_top_k(query_vec, embeddings, len(chunks))
+    bm25_results = bm25_top_k(query, chunks, len(chunks))
+    top = rrf_merge(cosine_results, bm25_results, k=k)
+
     if not top:
         return "No relevant passages found."
+
     lines = []
     for rank, (idx, score) in enumerate(top, 1):
         c = chunks[idx]
+        # Extract section heading for model context
+        text = c["text"]
+        heading = text.split("\n")[0] if text.startswith("## ") else c.get("anchor", text[:60])
         lines.append(
-            f"[{rank}] (score={score:.3f}, source={c['source_doc']})\n{c['text']}"
+            f"[{rank}] \u05de\u05e7\u05d5\u05e8: {c['source_doc']} | \u05e1\u05e2\u05d9\u05e3: {heading}\n{text}"
         )
     return "\n\n---\n\n".join(lines)
 
@@ -177,6 +190,8 @@ When the user asks about a specific person (e.g. "Does {user_owner_name} have a 
 look for funds inside the object whose ownerName matches that person's name.
 
 Data: {json.dumps(context_data, ensure_ascii=False)}
+
+If the `query_insurance_policy` tool returns excerpts that do not explicitly answer the question, respond with "לא מצאתי מידע מפורש בפוליסה על כך" instead of guessing or extrapolating.
 """
 
     def query_insurance_policy(query: str) -> str:
@@ -276,7 +291,7 @@ async def get_copilot_prompt(context_filter: str = "כללי", user: dict = Depe
 
     system_prompt = f"""You are an expert family wealth advisor (Copilot).
 Answer the user's question concisely in Hebrew, based ONLY on the provided financial data. 
-If the user asks a deep contractual question requiring full details of a specific policy, use the `read_full_policy` tool with the policy's ID.
+If the user asks a deep contractual question about an insurance policy (coverage, exclusions, premiums, terms), use the `query_insurance_policy` tool with a short Hebrew search phrase.
 
 OWNER IDENTIFICATION — VERY IMPORTANT:
 The financial data is organized hierarchically under "user" and "spouse" objects.
@@ -286,6 +301,8 @@ When the user asks about a specific person (e.g. "Does {user_owner_name} have a 
 look for funds inside the object whose ownerName matches that person's name.
 
 Data: {json.dumps(context_data, ensure_ascii=False)}
+
+If the `query_insurance_policy` tool returns excerpts that do not explicitly answer the question, respond with "לא מצאתי מידע מפורש בפוליסה על כך" instead of guessing or extrapolating.
 """
     return {"prompt": system_prompt}
 
