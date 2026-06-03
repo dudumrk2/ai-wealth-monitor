@@ -54,3 +54,11 @@ This document tracks development history, architectural decisions, and current p
 ### 2026-03-13 (Phase 5: Playwright Automation Coverage Expansion)
 - **Goal:** Protect new features from regressions.
 - **Action:** Added E2E tests for the Settings page (`kid@gmail.com` authorization and delete modal validation) and the Alternative Investments form (`רכב להשכרה` submission loop). Test suite now at 7 passing cases.
+
+### 2026-06-03 (Phase 6: Weekly GCP Log Monitor)
+- **Goal:** Enable weekly log monitoring with simultaneous notifications to Telegram and Gmail.
+- **Decision:** Implement a weekly GCP Cloud Run log scanner. It normalises and groups errors/warnings from the last 7 days by error signature.
+- **Decision:** Use Gemini Flash to write a short Telegram notification and a detailed HTML **AI Investigation Brief** email. The email includes repository file hints and raw log context, designed to be pasted directly into an AI coding assistant.
+- **Decision:** Expose cron endpoint secured by `X-Cron-Secret` and manual run endpoint secured by Firebase user auth.
+- **Decision:** Pause the Cloud Scheduler job in the GCP Console to disable the scan (avoiding settings page complexity).
+- **Action:** Added `google-cloud-logging` dependency, implemented `routers/log_monitor.py`, registered the router in `app.py`, and added unit tests in `tests/test_log_monitor.py`.
