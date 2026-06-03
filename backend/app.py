@@ -112,12 +112,14 @@ from routers import insurance
 from routers import alternatives
 from routers import portfolio
 from routers import agent
+from routers import log_monitor
 app.include_router(dashboard_chat.router)
 app.include_router(documents.router)
 app.include_router(insurance.router)
 app.include_router(alternatives.router)
 app.include_router(portfolio.router)
 app.include_router(agent.router)
+app.include_router(log_monitor.router)
 
 @app.on_event("startup")
 async def startup_event():
