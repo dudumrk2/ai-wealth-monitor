@@ -141,3 +141,69 @@ def test_send_log_email_returns_false_when_no_email():
     profile = {"gmail_refresh_token": "fake-token", "pii_data": {}}
     result = _send_log_email(profile, "Subject", "<html>body</html>")
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Tests for _run_log_scan orchestration (IMP-5)
+# ---------------------------------------------------------------------------
+
+def test_run_log_scan_returns_zero_when_no_entries():
+    """Should return silence result without sending notifications when no log entries found."""
+    from routers.log_monitor import _run_log_scan
+
+    with patch("routers.log_monitor._fetch_gcp_log_entries", return_value=[]):
+        result = _run_log_scan()
+
+    assert result["issues_found"] == 0
+    assert result["telegram_sent"] is False
+    assert result["email_sent"] is False
+    assert result["error"] is None
+
+
+def test_run_log_scan_returns_zero_when_groups_empty():
+    """Should return silence result when entries exist but all normalise to empty signatures."""
+    from routers.log_monitor import _run_log_scan
+
+    # Entries whose messages normalise to empty (all noise tokens)
+    noise_entries = [
+        {"severity": "WARNING", "message": "req-abc123", "timestamp": "2026-06-01T10:00:00Z"},
+    ]
+    with patch("routers.log_monitor._fetch_gcp_log_entries", return_value=noise_entries):
+        result = _run_log_scan()
+
+    assert result["issues_found"] == 0
+    assert result["telegram_sent"] is False
+    assert result["email_sent"] is False
+
+
+def test_run_log_scan_sends_notifications_when_issues_found():
+    """Should call both Telegram and email notifiers when issues are found."""
+    from routers.log_monitor import _run_log_scan
+
+    fake_entries = [
+        {"severity": "ERROR", "message": "Database connection failed", "timestamp": "2026-06-01T10:00:00Z"},
+    ]
+    fake_digest = {
+        "telegram_message": "🔍 Test alert",
+        "email_html": "<html><body>Test</body></html>",
+    }
+
+    with patch("routers.log_monitor._fetch_gcp_log_entries", return_value=fake_entries), \
+         patch("routers.log_monitor._generate_digest", return_value=fake_digest), \
+         patch("routers.log_monitor._send_log_telegram", return_value=True) as mock_tg, \
+         patch("routers.log_monitor._send_log_email", return_value=True) as mock_email, \
+         patch("routers.log_monitor.db_manager") as mock_db:
+
+        mock_db.get_all_family_uids.return_value = ["uid-owner"]
+        mock_db.get_family_profile.return_value = {
+            "gmail_refresh_token": "token",
+            "pii_data": {"member1": {"email": "owner@example.com"}},
+        }
+
+        result = _run_log_scan()
+
+    assert result["issues_found"] == 1
+    assert result["telegram_sent"] is True
+    assert result["email_sent"] is True
+    mock_tg.assert_called_once_with(fake_digest["telegram_message"])
+    mock_email.assert_called_once()

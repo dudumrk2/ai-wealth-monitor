@@ -16,10 +16,14 @@ Endpoints:
 Disable: Pause the Cloud Scheduler job in GCP Console. No code change needed.
 """
 
+import asyncio
 import base64
+import html as _html
+import json as _json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from typing import Any
@@ -116,7 +120,9 @@ def _fetch_gcp_log_entries(days: int = 7, max_entries: int = 500) -> list[dict]:
 _NOISE_PATTERN = re.compile(
     r"\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"  # UUID
     r"|req-[a-z0-9]+"                                                       # request IDs
-    r"|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"             # timestamps
+    r"|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"             # ISO timestamps
+    r"|[0-9a-f]{6,}(?![:-])"                                                # standalone hex IDs (doc IDs, etc)
+    r"|\b\d{4,}\b"                                                          # long numeric IDs (port numbers, Firestore IDs)
     r")\b",
     re.IGNORECASE,
 )
@@ -158,7 +164,7 @@ def _group_log_entries(entries: list[dict]) -> list[dict]:
         g = groups[sig]
         g["count"] += 1
         ts = entry.get("timestamp", "")
-        if ts and ts < g["first_seen"]:
+        if ts and (not g["first_seen"] or ts < g["first_seen"]):
             g["first_seen"] = ts
         if ts and ts > g["last_seen"]:
             g["last_seen"] = ts
@@ -195,7 +201,6 @@ def _generate_digest(grouped_text: str, scan_from: str, scan_to: str) -> dict[st
         Dict with keys 'telegram_message' and 'email_html'.
         Falls back to plain-text defaults on any Gemini error.
     """
-    import json as _json
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -276,7 +281,7 @@ def _fallback_digest(grouped_text: str, scan_from: str, scan_to: str) -> dict[st
         f"<h2>🔍 Weekly Log Scan — Issues Found</h2>"
         f"<p>Scan window: {scan_from} → {scan_to}</p>"
         f"<p><strong>Note:</strong> Gemini digest was unavailable. Raw grouped data:</p>"
-        f"<pre>{grouped_text}</pre>"
+        f"<pre>{_html.escape(grouped_text)}</pre>"  # CRIT-1: escape raw log content
         f"</body></html>"
     )
     return {"telegram_message": telegram_message, "email_html": email_html}
@@ -350,12 +355,18 @@ def _send_log_email(profile: dict, subject: str, html_body: str) -> bool:
             logger.warning("[LOG_MONITOR] No email address in profile — skipping email.")
             return False
 
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+        if not client_id or not client_secret:
+            logger.error("[LOG_MONITOR] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set — skipping email.")
+            return False
+
         creds = Credentials(
             token=None,
             refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=os.environ["GOOGLE_CLIENT_ID"],
-            client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+            client_id=client_id,
+            client_secret=client_secret,
             scopes=["https://www.googleapis.com/auth/gmail.modify"],
         )
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
@@ -385,7 +396,6 @@ def _run_log_scan() -> dict[str, Any]:
           issues_found (int), telegram_sent (bool), email_sent (bool),
           duration_seconds (float), error (str | None).
     """
-    import time
     start = time.time()
 
     scan_to = datetime.now(timezone.utc)
@@ -472,7 +482,6 @@ async def scan_logs_cron(request: Request):
     if not cron_secret or incoming_secret != cron_secret:
         raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
 
-    import asyncio
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(_run_log_scan),
@@ -496,7 +505,6 @@ async def trigger_manual_scan_logs(user: dict = Depends(verify_token)):
     uid = user["uid"]
     logger.info(f"[LOG_MONITOR] Manual scan triggered by user {uid}")
 
-    import asyncio
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(_run_log_scan),
