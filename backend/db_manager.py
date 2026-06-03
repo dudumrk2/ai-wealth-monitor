@@ -153,6 +153,8 @@ def get_family_profile(uid: str):
             "cron_fetch_emails_enabled": data.get("cron_fetch_emails_enabled"),
             "cron_stock_prices_enabled": data.get("cron_stock_prices_enabled"),
             "cron_weekly_summary_enabled": data.get("cron_weekly_summary_enabled"),
+            "cron_agent_enabled": data.get("cron_agent_enabled"),
+            "telegram_chat_id": data.get("telegram_chat_id"),
         }
         _family_profile_cache[uid] = (result, time.time())
         return result
