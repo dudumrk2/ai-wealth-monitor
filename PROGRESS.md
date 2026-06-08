@@ -62,3 +62,5 @@ This document tracks development history, architectural decisions, and current p
 - **Decision:** Expose cron endpoint secured by `X-Cron-Secret` and manual run endpoint secured by Firebase user auth.
 - **Decision:** Pause the Cloud Scheduler job in the GCP Console to disable the scan (avoiding settings page complexity).
 - **Action:** Added `google-cloud-logging` dependency, implemented `routers/log_monitor.py`, registered the router in `app.py`, and added unit tests in `tests/test_log_monitor.py`.
+- **Deployment:** Deployed the updated backend service containing the weekly log monitor routes to Google Cloud Run (`finance-family-backend` in `me-west1`).
+- **Cloud Scheduler:** Created and enabled the Cloud Scheduler job `log-monitor-weekly` in `us-central1` (Schedule: `0 8 * * 1` Asia/Jerusalem), verified with a successful force-run triggering HTTP 200 and generating an AI investigation brief email.
