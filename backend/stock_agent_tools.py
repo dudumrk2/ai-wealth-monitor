@@ -8,6 +8,7 @@ These tools equip the LLM agent with the ability to:
   2. Fetch live Israeli (TASE) stock/fund prices via the existing Bizportal scraper.
   3. Send real-time push notifications to a Telegram chat.
   4. Scan Superinvestor 13F filings for new and liquidated positions (alpha signals).
+  5. Search recent financial news headlines for any US ticker via yfinance.
 
 Security: Only yfinance, requests, python-telegram-bot, httpx, and
 beautifulsoup4 are used for external integrations — no other outbound
@@ -32,6 +33,124 @@ from langchain_core.tools import tool
 from services.scraper import fetch_bizportal_fund_data
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Demo / Presentation mock data
+# ---------------------------------------------------------------------------
+
+DEMO_SCENARIOS: dict[str, dict[str, str]] = {
+    "price": {
+        "get_us_stock_data:AAPL":
+            "AAPL last price: $213.40 USD  ▲ +6.10% vs previous close ($201.13)",
+        "get_us_stock_data:ICL.TA":
+            "ICL.TA last price: $15.90 USD  ▼ -0.60% vs previous close ($16.00)",
+        "get_il_stock_data:5131054":
+            "Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.20% (daily change)",
+        "search_financial_news:AAPL": (
+            "Recent news for AAPL:\n"
+            "1. Apple surges after surprise AI partnership with OpenAI — https://finance.yahoo.com/news/apple-ai-openai\n"
+            "2. iPhone 17 demand data beats Wall Street estimates — https://finance.yahoo.com/news/iphone17-demand\n"
+            "3. AAPL breaks above $210 resistance for first time in 2025 — https://finance.yahoo.com/news/aapl-210"
+        ),
+        "scan_guru_portfolio:Berkshire Hathaway":
+            "Berkshire Hathaway — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): OXY\n  🚪 Liquidated positions (sold 100%): PARA",
+        "scan_guru_portfolio:Pershing Square":
+            "Pershing Square — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+        "scan_guru_portfolio:Scion Asset Management":
+            "Scion Asset Management — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+    },
+    "risk": {
+        "get_us_stock_data:AAPL":
+            "AAPL last price: $192.10 USD  ▲ +0.80% vs previous close ($190.58)",
+        "get_us_stock_data:ICL.TA":
+            "ICL.TA last price: $15.90 USD  ▼ -0.40% vs previous close ($16.00)",
+        "get_il_stock_data:5131054":
+            "Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.10% (daily change)",
+        "scan_guru_portfolio:Berkshire Hathaway":
+            "Berkshire Hathaway — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): AAPL",
+        "scan_guru_portfolio:Pershing Square":
+            "Pershing Square — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+        "scan_guru_portfolio:Scion Asset Management":
+            "Scion Asset Management — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+    },
+    "alpha": {
+        "get_us_stock_data:AAPL":
+            "AAPL last price: $193.20 USD  ▲ +1.20% vs previous close ($190.90)",
+        "get_us_stock_data:ICL.TA":
+            "ICL.TA last price: $16.10 USD  ▲ +0.60% vs previous close ($16.00)",
+        "get_il_stock_data:5131054":
+            "Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.05% (daily change)",
+        "scan_guru_portfolio:Berkshire Hathaway":
+            "Berkshire Hathaway — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): GOOGL, TSM\n  🚪 Liquidated positions (sold 100%): None",
+        "scan_guru_portfolio:Pershing Square":
+            "Pershing Square — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+        "scan_guru_portfolio:Scion Asset Management":
+            "Scion Asset Management — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): NVO\n  🚪 Liquidated positions (sold 100%): BABA",
+    },
+    "clear": {
+        "get_us_stock_data:AAPL":
+            "AAPL last price: $191.50 USD  ▲ +0.30% vs previous close ($190.93)",
+        "get_us_stock_data:ICL.TA":
+            "ICL.TA last price: $16.20 USD  ▲ +0.10% vs previous close ($16.18)",
+        "get_il_stock_data:5131054":
+            "Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.05% (daily change)",
+        "scan_guru_portfolio:Berkshire Hathaway":
+            "Berkshire Hathaway — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+        "scan_guru_portfolio:Pershing Square":
+            "Pershing Square — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+        "scan_guru_portfolio:Scion Asset Management":
+            "Scion Asset Management — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): None\n  🚪 Liquidated positions (sold 100%): None",
+    },
+}
+
+
+def build_demo_tools(scenario_name: str) -> list:
+    """Return mock LangChain tools for a named demo scenario.
+
+    The returned tools have identical signatures to the real AGENT_TOOLS so the
+    agent's system prompt and tool-calling logic work without any changes.
+    Only the return values are replaced with controlled mock strings.
+    """
+    mock = DEMO_SCENARIOS.get(scenario_name, DEMO_SCENARIOS["clear"])
+
+    def _get(key: str, fallback: str) -> str:
+        return mock.get(key, fallback)
+
+    @tool
+    def get_us_stock_data(ticker: str) -> str:  # noqa: F811
+        """Fetch the latest closing price for a US-listed stock or ETF from Yahoo Finance."""
+        ticker = ticker.strip().upper()
+        return _get(f"get_us_stock_data:{ticker}", f"{ticker} last price: $150.00 USD  ▲ +0.50%")
+
+    @tool
+    def get_il_stock_data(ticker: str) -> str:  # noqa: F811
+        """Fetch the latest price for an Israeli security (TASE mutual fund or ETF) from Bizportal."""
+        return _get(f"get_il_stock_data:{ticker.strip()}", f"Israeli fund/ETF {ticker} last price: ₪12.00 NIS  ▲ +0.10%")
+
+    @tool
+    def scan_guru_portfolio(guru_name: str) -> str:  # noqa: F811
+        """Scan the latest 13F filing activity for a tracked Superinvestor.
+
+        Supported: "Berkshire Hathaway", "Pershing Square", "Scion Asset Management".
+        """
+        return _get(
+            f"scan_guru_portfolio:{guru_name.strip()}",
+            f"{guru_name} — Q1 2025 13F Activity:\n  🆕 New positions: None\n  🚪 Liquidated positions: None",
+        )
+
+    @tool
+    def search_financial_news(ticker: str) -> str:  # noqa: F811
+        """Fetch the 3 most recent financial news headlines for a US-listed stock via Yahoo Finance."""
+        ticker = ticker.strip().upper()
+        return _get(f"search_financial_news:{ticker}", f"No recent news found for {ticker}.")
+
+    @tool
+    def send_telegram_alert(message: str, chat_id: str = "") -> str:  # noqa: F811
+        """Send a push notification message to the family Telegram chat via the configured bot."""
+        logger.info(f"[DEMO send_telegram_alert] {message[:120]}")
+        return "✅ Telegram alert sent successfully."
+
+    return [get_us_stock_data, get_il_stock_data, scan_guru_portfolio, search_financial_news, send_telegram_alert]
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +269,65 @@ def get_il_stock_data(ticker: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool 3 — Telegram Alert
+# Tool 3 — Financial News Search
+# ---------------------------------------------------------------------------
+
+@tool
+def search_financial_news(ticker: str) -> str:
+    """Fetch the 3 most recent financial news headlines for a US-listed stock via Yahoo Finance.
+
+    Use this tool when a stock has moved significantly (e.g. ≥ 5% in a session)
+    and you want to understand WHY — to enrich an alert with context.
+
+    Do NOT use this tool for Israeli numeric fund codes — it is designed for
+    US ticker symbols only (e.g. "AAPL", "NVDA", "TSLA").
+
+    Args:
+        ticker: The uppercase US ticker symbol (e.g. "AAPL").
+
+    Returns:
+        Up to 3 recent headlines, each on its own line, with a short URL.
+        Example:
+          "1. Apple hits all-time high ahead of earnings — https://finance.yahoo.com/..."
+          "2. iPhone demand surge drives AAPL rally — https://..."
+        Returns an error message if no news is found or the request fails.
+    """
+    ticker = ticker.strip().upper()
+    try:
+        t = yf.Ticker(ticker)
+        news = t.news or []
+
+        if not news:
+            return f"No recent news found for {ticker}."
+
+        lines = []
+        for i, item in enumerate(news[:3], start=1):
+            content = item.get("content", {})
+            title = content.get("title", "").strip()
+            # Yahoo Finance news items nest the URL inside content.canonicalUrl or clickThroughUrl
+            url = (
+                content.get("canonicalUrl", {}).get("url", "")
+                or content.get("clickThroughUrl", {}).get("url", "")
+                or ""
+            )
+            if title:
+                lines.append(f"{i}. {title}" + (f" — {url}" if url else ""))
+
+        if not lines:
+            return f"No readable headlines found for {ticker}."
+
+        result = f"Recent news for {ticker}:\n" + "\n".join(lines)
+        logger.info(f"[search_financial_news] {ticker}: {len(lines)} headline(s) retrieved")
+        return result
+
+    except Exception as e:
+        msg = f"ERROR [search_financial_news]: Failed to fetch news for '{ticker}'. Reason: {e}"
+        logger.error(msg)
+        return msg
+
+
+# ---------------------------------------------------------------------------
+# Tool 4 — Telegram Alert
 # ---------------------------------------------------------------------------
 
 @tool

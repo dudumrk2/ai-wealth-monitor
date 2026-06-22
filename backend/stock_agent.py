@@ -35,6 +35,7 @@ from stock_agent_tools import (
     get_il_stock_data,
     get_us_stock_data,
     scan_guru_portfolio,
+    search_financial_news,
     send_telegram_alert,
 )
 
@@ -48,6 +49,7 @@ AGENT_TOOLS = [
     get_us_stock_data,
     get_il_stock_data,
     scan_guru_portfolio,
+    search_financial_news,
     send_telegram_alert,
 ]
 
@@ -160,6 +162,11 @@ For EVERY ticker provided by the user:
   • If the ticker is numeric (e.g. "5131054") → call get_il_stock_data.
   • If the ticker is alphabetical (e.g. "AAPL") → call get_us_stock_data.
 Record the current price and daily percentage change for each holding.
+
+  If any holding moved ≥ +5% or ≤ -5%, call search_financial_news for that ticker
+  to retrieve recent headlines that may explain the move.  Include the top headline
+  and its URL in the PRICE ALERT message so the recipient has immediate context.
+  (search_financial_news works for US tickers only — skip for Israeli numeric codes.)
 
 ═══════════════════════════════════════════════════════════════
 STEP 2 — THINK: Scan Superinvestor 13F Filings
