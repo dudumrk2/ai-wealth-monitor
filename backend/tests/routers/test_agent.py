@@ -1,8 +1,11 @@
 """Unit tests for _analyze_stocks_for_family in routers/agent.py."""
 from unittest.mock import patch, MagicMock
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 import routers.agent as agent_module
+from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools
 
 
 # Patch TRACKED_GURUS to a single controlled guru so tests are deterministic
@@ -81,3 +84,66 @@ def test_analyze_stocks_does_not_mark_keys_on_agent_failure():
     result, mock_mark = _run("uid_x", [{"id": "AAPL"}], set(), guru_output, agent_success=False)
     assert result["new_alerts_marked"] == 0
     mock_mark.assert_not_called()
+
+
+# ── Demo scenario tools ───────────────────────────────────────────────────────
+
+def test_build_demo_tools_returns_five_tools_with_mock_data():
+    tools = build_demo_tools("price")
+    assert len(tools) == 5
+
+    by_name = {t.name: t for t in tools}
+    # The price scenario defines AAPL up +6.10% — the mock must return it verbatim.
+    assert "+6.10%" in by_name["get_us_stock_data"].invoke({"ticker": "AAPL"})
+    # search_financial_news mock includes the seeded headline + URL.
+    assert "OpenAI" in by_name["search_financial_news"].invoke({"ticker": "AAPL"})
+    # send_telegram_alert is a no-op stub in demo mode (never hits the network).
+    assert "successfully" in by_name["send_telegram_alert"].invoke({"message": "hi"})
+
+
+def test_build_demo_tools_unknown_ticker_falls_back():
+    tools = {t.name: t for t in build_demo_tools("clear")}
+    # An unseeded ticker should not raise — it returns a generic fallback string.
+    out = tools["get_us_stock_data"].invoke({"ticker": "ZZZZ"})
+    assert "ZZZZ" in out
+
+
+# ── Demo endpoint auth (fail-closed) ──────────────────────────────────────────
+
+@pytest.fixture
+def demo_client():
+    app = FastAPI()
+    app.include_router(agent_module.router)
+    return TestClient(app)
+
+
+def test_demo_endpoint_rejects_when_secret_unset(demo_client, monkeypatch):
+    """Fail closed: no CRON_SECRET configured → 403 even with a header."""
+    monkeypatch.delenv("CRON_SECRET", raising=False)
+    resp = demo_client.post(
+        "/api/demo/run-scenario",
+        json={"scenario": "price"},
+        headers={"X-Cron-Secret": "anything"},
+    )
+    assert resp.status_code == 403
+
+
+def test_demo_endpoint_rejects_wrong_secret(demo_client, monkeypatch):
+    monkeypatch.setenv("CRON_SECRET", "right-secret")
+    resp = demo_client.post(
+        "/api/demo/run-scenario",
+        json={"scenario": "price"},
+        headers={"X-Cron-Secret": "wrong-secret"},
+    )
+    assert resp.status_code == 403
+
+
+def test_demo_endpoint_rejects_unknown_scenario(demo_client, monkeypatch):
+    """Valid secret but bad scenario → 400, before any Gemini call."""
+    monkeypatch.setenv("CRON_SECRET", "right-secret")
+    resp = demo_client.post(
+        "/api/demo/run-scenario",
+        json={"scenario": "does-not-exist"},
+        headers={"X-Cron-Secret": "right-secret"},
+    )
+    assert resp.status_code == 400

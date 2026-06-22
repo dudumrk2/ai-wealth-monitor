@@ -13,15 +13,16 @@ import asyncio
 import base64
 import os
 import re
+import time
 from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 import db_manager
 from auth import verify_token
-from stock_agent import analyze_portfolio_and_gurus, _build_agent_executor, SYSTEM_PROMPT
+from stock_agent import analyze_portfolio_and_gurus, SYSTEM_PROMPT
 from stock_agent_tools import TRACKED_GURUS, scan_guru_portfolio, DEMO_SCENARIOS, build_demo_tools
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 router = APIRouter(tags=["Agent"])
 
@@ -249,9 +250,13 @@ async def run_demo_scenario(request: Request):
     Returns the agent's actual tool calls and final output so the presentation
     page can display what the real agent decided to do.
     """
+    # Fail closed: reject if the secret is unset OR does not match (mirrors
+    # analyze_stocks_cron). This endpoint triggers paid Gemini calls, so it must
+    # never be reachable without a configured secret.
     cron_secret = os.environ.get("CRON_SECRET", "")
-    if cron_secret and request.headers.get("X-Cron-Secret", "") != cron_secret:
-        raise HTTPException(status_code=403, detail="Forbidden: invalid X-Cron-Secret")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
 
     body = await request.json()
     scenario_name = body.get("scenario", "clear")
@@ -259,11 +264,10 @@ async def run_demo_scenario(request: Request):
     if scenario_name not in DEMO_SCENARIOS:
         raise HTTPException(status_code=400, detail=f"Unknown scenario '{scenario_name}'. Choose: {list(DEMO_SCENARIOS)}")
 
-    import time, os as _os
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langgraph.prebuilt import create_react_agent
 
-    api_key = _os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
 
