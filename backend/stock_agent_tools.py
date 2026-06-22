@@ -21,6 +21,8 @@ Environment variables required (loaded from .env by the calling process):
 
 import logging
 import os
+import re
+from datetime import datetime, timezone, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,6 +37,45 @@ from services.scraper import fetch_bizportal_fund_data
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Input validation (guardrails)
+# ---------------------------------------------------------------------------
+# The agent (an LLM) decides which strings to pass to these tools. Validating
+# the shape of `ticker` before hitting yfinance / building the Bizportal URL
+# protects the downstream services from malformed or injected input and gives
+# the agent a clear, correctable error instead of an opaque failure.
+
+# US tickers: 1–10 chars of A–Z, digits, dot or dash, with at least one letter
+# (covers "AAPL", "BRK.B", "ICL.TA"). The letter requirement rejects a purely
+# numeric Israeli fund code mistakenly routed to a US tool. Uppercased first.
+_US_TICKER_RE = re.compile(r"^(?=.*[A-Z])[A-Z0-9.\-]{1,10}$")
+# Israeli TASE fund/security codes are purely numeric, typically 4–9 digits.
+_IL_TICKER_RE = re.compile(r"^\d{4,9}$")
+
+# Telegram rejects any single message longer than 4096 characters.
+TELEGRAM_MAX_MESSAGE_LEN = 4096
+
+
+def _validate_us_ticker(ticker: str) -> str | None:
+    """Return an ERROR string if `ticker` is not a plausible US symbol, else None."""
+    if not _US_TICKER_RE.match(ticker):
+        return (
+            f"ERROR [get_us_stock_data]: '{ticker}' is not a valid US ticker symbol "
+            f"(expected 1–10 chars: letters, digits, '.' or '-')."
+        )
+    return None
+
+
+def _validate_il_ticker(ticker: str) -> str | None:
+    """Return an ERROR string if `ticker` is not a numeric IL fund code, else None."""
+    if not _IL_TICKER_RE.match(ticker):
+        return (
+            f"ERROR [get_il_stock_data]: '{ticker}' is not a valid Israeli fund code "
+            f"(expected 4–9 digits, e.g. '5131054')."
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Demo / Presentation mock data
 # ---------------------------------------------------------------------------
 
@@ -47,10 +88,10 @@ DEMO_SCENARIOS: dict[str, dict[str, str]] = {
         "get_il_stock_data:5131054":
             "Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.20% (daily change)",
         "search_financial_news:AAPL": (
-            "Recent news for AAPL:\n"
-            "1. Apple surges after surprise AI partnership with OpenAI — https://finance.yahoo.com/news/apple-ai-openai\n"
-            "2. iPhone 17 demand data beats Wall Street estimates — https://finance.yahoo.com/news/iphone17-demand\n"
-            "3. AAPL breaks above $210 resistance for first time in 2025 — https://finance.yahoo.com/news/aapl-210"
+            "Recent news for AAPL (last 7 days):\n"
+            "1. [2026-06-21] Apple surges after surprise AI partnership with OpenAI — https://finance.yahoo.com/news/apple-ai-openai\n"
+            "2. [2026-06-20] iPhone 17 demand data beats Wall Street estimates — https://finance.yahoo.com/news/iphone17-demand\n"
+            "3. [2026-06-19] AAPL breaks above $210 resistance for first time in 2025 — https://finance.yahoo.com/news/aapl-210"
         ),
         "scan_guru_portfolio:Berkshire Hathaway":
             "Berkshire Hathaway — Q1 2025 13F Activity (Dataroma):\n  🆕 New positions (initiated this quarter): OXY\n  🚪 Liquidated positions (sold 100%): PARA",
@@ -179,6 +220,10 @@ def get_us_stock_data(ticker: str) -> str:
           "ERROR [get_us_stock_data]: No price data returned for ticker 'XYZ'"
     """
     ticker = ticker.strip().upper()
+    err = _validate_us_ticker(ticker)
+    if err:
+        logger.warning(err)
+        return err
     try:
         t = yf.Ticker(ticker)
         hist = t.history(period="5d")
@@ -240,6 +285,10 @@ def get_il_stock_data(ticker: str) -> str:
           "ERROR [get_il_stock_data]: Could not fetch data for IL fund '9999999'"
     """
     ticker = ticker.strip()
+    err = _validate_il_ticker(ticker)
+    if err:
+        logger.warning(err)
+        return err
     try:
         fund_data = fetch_bizportal_fund_data(ticker)
 
@@ -272,12 +321,38 @@ def get_il_stock_data(ticker: str) -> str:
 # Tool 3 — Financial News Search
 # ---------------------------------------------------------------------------
 
+# Only headlines published within this window are returned — older articles
+# rarely explain a same-session price move, so they add noise rather than context.
+NEWS_RECENCY_DAYS = 7
+
+
+def _parse_news_pub_date(content: dict) -> datetime | None:
+    """Extract the publish timestamp from a Yahoo Finance news item, if present.
+
+    Yahoo nests the publish date under content.pubDate (ISO 8601, e.g.
+    "2025-06-20T13:45:00Z"). Returns a timezone-aware datetime, or None if the
+    field is missing or unparseable (caller decides how to treat unknown dates).
+    """
+    raw = (content.get("pubDate") or content.get("displayTime") or "").strip()
+    if not raw:
+        return None
+    try:
+        # Python's fromisoformat handles the trailing "Z" only from 3.11+;
+        # normalise it to "+00:00" for broad compatibility.
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 @tool
 def search_financial_news(ticker: str) -> str:
-    """Fetch the 3 most recent financial news headlines for a US-listed stock via Yahoo Finance.
+    """Fetch recent financial news headlines for a US-listed stock via Yahoo Finance.
 
     Use this tool when a stock has moved significantly (e.g. ≥ 5% in a session)
     and you want to understand WHY — to enrich an alert with context.
+
+    Only headlines published in the last 7 days are returned, so the context is
+    relevant to the recent price move rather than stale background.
 
     Do NOT use this tool for Israeli numeric fund codes — it is designed for
     US ticker symbols only (e.g. "AAPL", "NVDA", "TSLA").
@@ -286,13 +361,20 @@ def search_financial_news(ticker: str) -> str:
         ticker: The uppercase US ticker symbol (e.g. "AAPL").
 
     Returns:
-        Up to 3 recent headlines, each on its own line, with a short URL.
-        Example:
-          "1. Apple hits all-time high ahead of earnings — https://finance.yahoo.com/..."
-          "2. iPhone demand surge drives AAPL rally — https://..."
-        Returns an error message if no news is found or the request fails.
+        Up to 3 recent headlines (last 7 days), each on its own line with its
+        publish date and a URL. Example:
+          "1. [2025-06-20] Apple hits all-time high ahead of earnings — https://..."
+          "2. [2025-06-19] iPhone demand surge drives AAPL rally — https://..."
+        Returns an error message if no recent news is found or the request fails.
     """
     ticker = ticker.strip().upper()
+    if not _US_TICKER_RE.match(ticker):
+        msg = (
+            f"ERROR [search_financial_news]: '{ticker}' is not a valid US ticker "
+            f"(news search supports US symbols only, not Israeli numeric codes)."
+        )
+        logger.warning(msg)
+        return msg
     try:
         t = yf.Ticker(ticker)
         news = t.news or []
@@ -300,23 +382,41 @@ def search_financial_news(ticker: str) -> str:
         if not news:
             return f"No recent news found for {ticker}."
 
+        cutoff = datetime.now(timezone.utc) - timedelta(days=NEWS_RECENCY_DAYS)
         lines = []
-        for i, item in enumerate(news[:3], start=1):
+        for item in news:
             content = item.get("content", {})
             title = content.get("title", "").strip()
+            if not title:
+                continue
+
+            # Skip anything older than the recency window. Items with an
+            # unparseable / missing date are kept (better a maybe-recent
+            # headline than silently dropping all of them).
+            pub_date = _parse_news_pub_date(content)
+            if pub_date is not None and pub_date < cutoff:
+                continue
+
             # Yahoo Finance news items nest the URL inside content.canonicalUrl or clickThroughUrl
             url = (
                 content.get("canonicalUrl", {}).get("url", "")
                 or content.get("clickThroughUrl", {}).get("url", "")
                 or ""
             )
-            if title:
-                lines.append(f"{i}. {title}" + (f" — {url}" if url else ""))
+            date_str = pub_date.strftime("%Y-%m-%d") if pub_date else "recent"
+            lines.append(f"[{date_str}] {title}" + (f" — {url}" if url else ""))
+
+            if len(lines) == 3:
+                break
 
         if not lines:
-            return f"No readable headlines found for {ticker}."
+            return (
+                f"No news for {ticker} in the last {NEWS_RECENCY_DAYS} days "
+                f"that could explain a recent move."
+            )
 
-        result = f"Recent news for {ticker}:\n" + "\n".join(lines)
+        numbered = [f"{i}. {line}" for i, line in enumerate(lines, start=1)]
+        result = f"Recent news for {ticker} (last {NEWS_RECENCY_DAYS} days):\n" + "\n".join(numbered)
         logger.info(f"[search_financial_news] {ticker}: {len(lines)} headline(s) retrieved")
         return result
 
@@ -379,6 +479,24 @@ def send_telegram_alert(message: str, chat_id: str = "") -> str:
         return msg
 
     chat_id = resolved_chat_id
+
+    # Guard: reject empty messages — a blank alert is never useful and Telegram
+    # rejects it with an opaque 400.
+    message = (message or "").strip()
+    if not message:
+        msg = "ERROR [send_telegram_alert]: message is empty — nothing to send."
+        logger.error(msg)
+        return msg
+
+    # Guard: Telegram hard-caps a single message at 4096 chars. Truncate
+    # defensively so a runaway-long alert is delivered (trimmed) instead of
+    # failing silently with HTTP 400.
+    if len(message) > TELEGRAM_MAX_MESSAGE_LEN:
+        logger.warning(
+            f"[send_telegram_alert] message length {len(message)} exceeds "
+            f"{TELEGRAM_MAX_MESSAGE_LEN} — truncating."
+        )
+        message = message[: TELEGRAM_MAX_MESSAGE_LEN - 1].rstrip() + "…"
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {

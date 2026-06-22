@@ -4,8 +4,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from datetime import datetime, timezone, timedelta
+
 import routers.agent as agent_module
-from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools
+import stock_agent_tools
+from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools, search_financial_news
 
 
 # Patch TRACKED_GURUS to a single controlled guru so tests are deterministic
@@ -106,6 +109,87 @@ def test_build_demo_tools_unknown_ticker_falls_back():
     # An unseeded ticker should not raise — it returns a generic fallback string.
     out = tools["get_us_stock_data"].invoke({"ticker": "ZZZZ"})
     assert "ZZZZ" in out
+
+
+# ── Financial news recency filter ─────────────────────────────────────────────
+
+def _news_item(title: str, days_ago: int) -> dict:
+    """Build a Yahoo-Finance-shaped news item published `days_ago` days back."""
+    pub = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat().replace("+00:00", "Z")
+    return {"content": {"title": title, "pubDate": pub,
+                        "canonicalUrl": {"url": f"https://news/{title}"}}}
+
+
+def test_search_news_drops_articles_older_than_window(monkeypatch):
+    """Headlines older than NEWS_RECENCY_DAYS must be filtered out."""
+    fake = MagicMock()
+    fake.news = [
+        _news_item("FreshStory", days_ago=1),
+        _news_item("StaleStory", days_ago=30),
+    ]
+    monkeypatch.setattr(stock_agent_tools.yf, "Ticker", lambda t: fake)
+
+    out = search_financial_news.invoke({"ticker": "AAPL"})
+    assert "FreshStory" in out
+    assert "StaleStory" not in out
+    # Each retained line is prefixed with its publish date.
+    assert "[" in out and "]" in out
+
+
+def test_search_news_returns_message_when_all_stale(monkeypatch):
+    fake = MagicMock()
+    fake.news = [_news_item("OldNews", days_ago=99)]
+    monkeypatch.setattr(stock_agent_tools.yf, "Ticker", lambda t: fake)
+
+    out = search_financial_news.invoke({"ticker": "AAPL"})
+    assert "last 7 days" in out
+    assert "OldNews" not in out
+
+
+# ── Input validation guardrails ───────────────────────────────────────────────
+
+from stock_agent_tools import get_us_stock_data, get_il_stock_data, send_telegram_alert
+
+
+def test_us_tool_rejects_malformed_ticker():
+    out = get_us_stock_data.invoke({"ticker": "not a ticker!!"})
+    assert out.startswith("ERROR")
+    assert "valid US ticker" in out
+
+
+def test_il_tool_rejects_non_numeric_code():
+    out = get_il_stock_data.invoke({"ticker": "AAPL"})
+    assert out.startswith("ERROR")
+    assert "valid Israeli fund code" in out
+
+
+def test_news_tool_rejects_israeli_numeric_code():
+    out = search_financial_news.invoke({"ticker": "5131054"})
+    assert out.startswith("ERROR")
+
+
+def test_telegram_rejects_empty_message(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
+    out = send_telegram_alert.invoke({"message": "   ", "chat_id": "123"})
+    assert out.startswith("ERROR")
+    assert "empty" in out
+
+
+# ── Run summary: price-alert hallucination check ──────────────────────────────
+
+def test_summary_captures_price_alert_ticker():
+    """The summary records the ticker named in a PRICE ALERT for hallucination checks."""
+    import stock_agent
+    from langchain_core.messages import AIMessage
+
+    msg = AIMessage(content="", tool_calls=[{
+        "name": "send_telegram_alert",
+        "args": {"message": "📊 PRICE ALERT: <b>AAPL</b> moved <b>+6%</b> today."},
+        "id": "1",
+    }])
+    summary = stock_agent._extract_run_summary([msg], start_time=0.0)
+    assert summary.price_alert_tickers == ["AAPL"]
+    assert summary.price_alerts_sent == 1
 
 
 # ── Demo endpoint auth (fail-closed) ──────────────────────────────────────────

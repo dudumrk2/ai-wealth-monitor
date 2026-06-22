@@ -22,6 +22,7 @@ Environment variables required:
 
 import logging
 import os
+import re
 import time
 from typing import Any
 
@@ -53,6 +54,16 @@ AGENT_TOOLS = [
     send_telegram_alert,
 ]
 
+# Hard ceiling on the ReAct loop's super-steps. A normal run (price checks +
+# news + guru scans + alerts) finishes well under this; the cap is a guardrail
+# against a runaway LLM looping indefinitely and racking up Gemini calls.
+# LangGraph raises GraphRecursionError when exceeded.
+AGENT_RECURSION_LIMIT = 50
+
+# Extracts the ticker named in a "📊 PRICE ALERT: <b>TICKER</b> ..." message,
+# used to verify the agent only raised price alerts for tickers it was given.
+_PRICE_ALERT_TICKER_RE = re.compile(r"PRICE ALERT:\s*<b>([^<]+)</b>", re.IGNORECASE)
+
 
 # ---------------------------------------------------------------------------
 # Structured run summary
@@ -73,6 +84,7 @@ class AgentRunSummary(BaseModel):
     alpha_alerts_sent: int
     tool_errors: list[str]       # tool responses that start with "ERROR"
     gurus_scanned: list[str]     # populated only in full-loop (non-cron) mode
+    price_alert_tickers: list[str]  # tickers named in PRICE ALERT messages
     run_duration_seconds: float
     success: bool
 
@@ -98,6 +110,7 @@ def _extract_run_summary(
     tickers_checked: list[str] = []
     gurus_scanned: list[str] = []
     tool_errors: list[str] = []
+    price_alert_tickers: list[str] = []
     total_alerts = price_alerts = risk_alerts = alpha_alerts = 0
 
     for msg in messages_history:
@@ -118,6 +131,9 @@ def _extract_run_summary(
                     alert_text = args.get("message", "")
                     if "PRICE ALERT" in alert_text:
                         price_alerts += 1
+                        m = _PRICE_ALERT_TICKER_RE.search(alert_text)
+                        if m:
+                            price_alert_tickers.append(m.group(1).strip())
                     elif "RISK ALERT" in alert_text:
                         risk_alerts += 1
                     elif "ALPHA IDEA" in alert_text:
@@ -141,6 +157,7 @@ def _extract_run_summary(
         alpha_alerts_sent=alpha_alerts,
         tool_errors=tool_errors,
         gurus_scanned=gurus_scanned,
+        price_alert_tickers=price_alert_tickers,
         run_duration_seconds=round(time.time() - start_time, 2),
         success=True,
     )
@@ -355,7 +372,12 @@ def analyze_portfolio_and_gurus(
         agent = _build_agent_executor()
         # LangGraph agents accept a list of BaseMessage objects.
         messages = [HumanMessage(content=human_input)]
-        result = agent.invoke({"messages": messages})
+        # recursion_limit caps the ReAct loop so a misbehaving LLM cannot spin
+        # forever; LangGraph raises GraphRecursionError when the cap is hit.
+        result = agent.invoke(
+            {"messages": messages},
+            config={"recursion_limit": AGENT_RECURSION_LIMIT},
+        )
 
         # Build structured summary from message history (ground-truth view).
         summary = _extract_run_summary(result["messages"], start_time)
@@ -366,6 +388,19 @@ def analyze_portfolio_and_gurus(
             logger.warning(
                 f"[AGENT] Price check skipped for tickers: {skipped}. "
                 f"Agent may have missed these holdings."
+            )
+
+        # Validate: a PRICE ALERT must reference a ticker the user actually holds.
+        # (RISK/ALPHA alerts legitimately reference guru tickers outside the
+        # portfolio, so this check applies to price alerts only.) Tickers are
+        # normalised for comparison because the agent may format them slightly
+        # differently in the alert text.
+        held = {t.strip().upper() for t in user_portfolio_tickers}
+        extraneous = [t for t in summary.price_alert_tickers if t.strip().upper() not in held]
+        if extraneous:
+            logger.warning(
+                f"[AGENT] PRICE ALERT raised for ticker(s) not in the portfolio: "
+                f"{extraneous}. Possible hallucination — held tickers: {sorted(held)}."
             )
 
         # Validate: warn on any tool errors encountered during the run.

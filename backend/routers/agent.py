@@ -21,7 +21,7 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 import db_manager
 from auth import verify_token
-from stock_agent import analyze_portfolio_and_gurus, SYSTEM_PROMPT
+from stock_agent import analyze_portfolio_and_gurus, AGENT_RECURSION_LIMIT, SYSTEM_PROMPT
 from stock_agent_tools import TRACKED_GURUS, scan_guru_portfolio, DEMO_SCENARIOS, build_demo_tools
 
 router = APIRouter(tags=["Agent"])
@@ -288,7 +288,10 @@ async def run_demo_scenario(request: Request):
 
     def _run():
         start = time.time()
-        result = agent.invoke({"messages": [HumanMessage(content=human_input)]})
+        result = agent.invoke(
+            {"messages": [HumanMessage(content=human_input)]},
+            config={"recursion_limit": AGENT_RECURSION_LIMIT},
+        )
         logs = []
         for msg in result["messages"]:
             tool_calls = getattr(msg, "tool_calls", None)

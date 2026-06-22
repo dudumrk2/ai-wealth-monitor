@@ -7,44 +7,99 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', Arial, sans-serif;
-    background: #0d1117;
+    background:
+      radial-gradient(900px 500px at 85% -8%, rgba(31,111,235,0.16), transparent 60%),
+      radial-gradient(700px 420px at 10% 0%, rgba(46,160,67,0.08), transparent 55%),
+      #0d1117;
+    background-attachment: fixed;
     color: #e6edf3;
-    padding: 32px 24px;
+    padding: 40px 24px 64px;
     line-height: 1.7;
     direction: rtl;
   }
-  h1 { font-size: 2rem; font-weight: 700; color: #58a6ff; margin-bottom: 6px; }
-  .subtitle { color: #8b949e; font-size: 1rem; margin-bottom: 36px; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+
+  /* ─── Hero ─── */
+  .hero { margin-bottom: 30px; padding-bottom: 22px; border-bottom: 1px solid #21262d; }
+  h1 {
+    font-size: 2.3rem; font-weight: 800; letter-spacing: -0.01em;
+    background: linear-gradient(95deg, #79c0ff, #58a6ff 40%, #d2a8ff);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px; line-height: 1.2;
+  }
+  .subtitle { color: #8b949e; font-size: 1.02rem; }
+  .hero-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .hero-tag { font-size: 0.74rem; font-weight: 600; color: #adbac7; background: #161b22; border: 1px solid #30363d; border-radius: 999px; padding: 4px 12px; }
+
   .section {
-    background: #161b22;
+    position: relative;
+    background: linear-gradient(180deg, #161b22, #13181f);
     border: 1px solid #30363d;
-    border-radius: 12px;
-    padding: 26px 30px;
-    margin-bottom: 24px;
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -16px rgba(0,0,0,0.8);
   }
   .section-num {
     display: inline-flex; align-items: center; justify-content: center;
-    background: #1f6feb; color: #fff; border-radius: 50%;
-    width: 28px; height: 28px; font-weight: 700; font-size: 0.9rem; margin-left: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff; border-radius: 9px;
+    width: 30px; height: 30px; font-weight: 800; font-size: 0.95rem; margin-left: 12px; flex-shrink: 0;
+    box-shadow: 0 4px 12px -4px rgba(31,111,235,0.6);
   }
   .section-title {
-    font-size: 1.2rem; font-weight: 700; color: #f0f6fc;
-    margin-bottom: 12px; display: flex; align-items: center;
+    font-size: 1.3rem; font-weight: 700; color: #f0f6fc;
+    margin-bottom: 14px; display: flex; align-items: center;
   }
   .section p { color: #c9d1d9; margin-bottom: 10px; font-size: 0.95rem; }
-  .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
   .tool-card {
     background: #0d1117; border: 1px solid #30363d;
-    border-radius: 8px; padding: 12px 14px;
+    border-radius: 10px; padding: 14px 16px;
+    transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
   }
+  .tool-card:hover { border-color: #388bfd; transform: translateY(-2px); box-shadow: 0 10px 24px -16px rgba(56,139,253,0.7); }
   .tool-card.new-tool { border-color: #2ea043; }
-  .tool-name { font-family: 'Consolas', monospace; color: #79c0ff; font-size: 0.88rem; font-weight: 700; margin-bottom: 5px; }
+  .tool-name { font-family: 'Consolas', monospace; color: #79c0ff; font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
   .tool-card.new-tool .tool-name { color: #56d364; }
-  .tool-desc { color: #8b949e; font-size: 0.82rem; }
+  .tool-desc { color: #8b949e; font-size: 0.83rem; line-height: 1.55; }
   .new-badge {
     display: inline-block; background: #2ea043; color: #fff;
     border-radius: 4px; font-size: 0.68rem; padding: 1px 6px; margin-right: 6px; font-weight: 700;
   }
+  /* ─── Animated ReAct loop ─── */
+  .react-loop { display: flex; gap: 26px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 20px 0 8px; }
+  .rl-diagram { position: relative; width: 240px; height: 240px; flex-shrink: 0; }
+  .rl-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .rl-track { fill: none; stroke: #21262d; stroke-width: 2; stroke-dasharray: 3 7; }
+  .rl-dot { fill: #58a6ff; filter: drop-shadow(0 0 6px #58a6ff); }
+  .rl-node {
+    position: absolute; width: 94px; height: 94px; border-radius: 50%;
+    transform: translate(-50%, -50%); background: #0d1117; border: 2px solid #30363d;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; font-size: 1.45rem; animation: rlPulse 4.5s infinite ease-in-out;
+  }
+  .rl-node b { font-size: 0.76rem; margin-top: 1px; }
+  .rl-node small { font-size: 0.58rem; color: #8b949e; font-weight: 400; }
+  .rl-think { left: 50%;   top: 13.5%; --glow: #58a6ff; animation-delay: 0s; }
+  .rl-think b { color: #79c0ff; }
+  .rl-act   { left: 80.7%; top: 70%;   --glow: #f78166; animation-delay: 1.5s; }
+  .rl-act b { color: #f78166; }
+  .rl-obs   { left: 19.3%; top: 70%;   --glow: #56d364; animation-delay: 3s; }
+  .rl-obs b { color: #56d364; }
+  @keyframes rlPulse {
+    0%, 100% { border-color: #30363d; box-shadow: none; transform: translate(-50%, -50%) scale(1); }
+    6%, 20%  { border-color: var(--glow); box-shadow: 0 0 18px -2px var(--glow); transform: translate(-50%, -50%) scale(1.07); }
+    32%      { border-color: #30363d; box-shadow: none; transform: translate(-50%, -50%) scale(1); }
+  }
+  .rl-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; font-size: 0.66rem; color: #8b949e; width: 86px; }
+  .rl-center b { display: block; color: #d2a8ff; font-size: 0.82rem; }
+  .rl-trace { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; font-family: 'Consolas', monospace; font-size: 0.8rem; line-height: 1.9; min-width: 280px; flex: 1; }
+  .rl-trace .tl { display: flex; gap: 8px; }
+  .rl-trace .ph { flex-shrink: 0; font-weight: 700; width: 92px; }
+  .rl-think-c { color: #79c0ff; } .rl-act-c { color: #f78166; } .rl-obs-c { color: #56d364; } .rl-done-c { color: #56d364; }
+  .rl-trace .tx { color: #c9d1d9; }
+  .rl-trace .mono { color: #a5d6ff; }
+
   .loop-flow { display: flex; align-items: center; justify-content: center; gap: 0; margin: 16px 0; flex-wrap: wrap; }
   .loop-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; text-align: center; min-width: 110px; }
   .loop-label { font-size: 0.68rem; color: #8b949e; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -70,12 +125,50 @@
   .cron-flow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .cron-step { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 9px 12px; font-size: 0.82rem; color: #c9d1d9; text-align: center; }
 
+  .news-flow { display: flex; align-items: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .nf-step { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 9px 13px; font-size: 0.84rem; font-weight: 600; text-align: center; min-width: 120px; }
+  .nf-step small { display: block; font-weight: 400; color: #8b949e; font-size: 0.72rem; margin-top: 2px; }
+  .nf-sense { border-color: #2ea043; color: #56d364; }
+  .nf-think { border-color: #1f6feb; color: #79c0ff; }
+  .nf-act   { border-color: #da3633; color: #f78166; }
+
+  .guard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+  .guard-card { background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 15px 17px; border-right: 3px solid #1f6feb; transition: border-color 0.18s, transform 0.18s; }
+  .guard-card:hover { transform: translateY(-2px); border-color: #30363d; border-right-color: #388bfd; }
+  .guard-icon { font-size: 1.2rem; margin-bottom: 4px; }
+  .guard-head { font-weight: 700; color: #79c0ff; font-size: 0.92rem; margin-bottom: 4px; }
+  .guard-desc { color: #8b949e; font-size: 0.82rem; line-height: 1.55; }
+  .guard-desc code, .note code { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 5px; font-family: 'Consolas', monospace; font-size: 0.78rem; color: #79c0ff; }
+
+  .demo-arch { display: flex; align-items: stretch; gap: 6px; margin: 6px 0 18px; flex-wrap: wrap; }
+  .da-step { background: #0d1117; border: 1px dashed #30363d; border-radius: 8px; padding: 10px 13px; font-size: 0.82rem; text-align: center; flex: 1; min-width: 130px; }
+  .da-step b { color: #79c0ff; display: block; margin-bottom: 3px; font-size: 0.8rem; }
+  .da-step small { color: #8b949e; font-size: 0.72rem; }
+  .da-real { border-style: solid; border-color: #2ea043; }
+  .da-real b { color: #56d364; }
+
   /* ─── DEMO SECTION ─── */
   .demo-section {
-    background: #161b22; border: 2px solid #1f6feb;
-    border-radius: 12px; padding: 26px 30px; margin-top: 24px;
+    background:
+      radial-gradient(600px 200px at 50% 0%, rgba(31,111,235,0.12), transparent 70%),
+      linear-gradient(180deg, #161b22, #13181f);
+    border: 1px solid #1f6feb;
+    border-radius: 14px; padding: 28px 32px; margin-top: 24px;
+    box-shadow: 0 12px 40px -24px rgba(31,111,235,0.8);
   }
-  .demo-title { font-size: 1.3rem; font-weight: 700; color: #58a6ff; margin-bottom: 6px; }
+  .demo-title { font-size: 1.4rem; font-weight: 800; color: #58a6ff; margin-bottom: 6px; }
+  .demo-config { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 14px; padding: 14px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; }
+  .cfg-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 220px; }
+  .cfg-field label { font-size: 0.74rem; font-weight: 700; color: #8b949e; }
+  .cfg-field label code { color: #79c0ff; font-family: 'Consolas', monospace; }
+  .cfg-field input {
+    background: #161b22; border: 1px solid #30363d; border-radius: 7px;
+    color: #e6edf3; padding: 8px 11px; font-size: 0.82rem; font-family: 'Consolas', monospace;
+    direction: ltr; text-align: left; transition: border-color 0.15s;
+  }
+  .cfg-field input:focus { outline: none; border-color: #388bfd; }
+  .cfg-field input::placeholder { color: #484f58; }
+  .cfg-saved { font-size: 0.72rem; color: #56d364; align-self: flex-end; padding-bottom: 9px; min-height: 1em; }
   .demo-subtitle { color: #8b949e; font-size: 0.88rem; margin-bottom: 6px; }
   .demo-note { color: #484f58; font-size: 0.78rem; margin-bottom: 18px; font-style: italic; }
   .scenario-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -115,8 +208,18 @@
 </style>
 </head>
 <body>
-<h1>🤖 Stock Agent — AI Wealth Monitor</h1>
-<p class="subtitle">סוכן פיננסי אוטונומי מבוסס LangGraph + Gemini 2.5 Flash</p>
+<div class="wrap">
+<div class="hero">
+  <h1>🤖 Stock Agent — AI Wealth Monitor</h1>
+  <p class="subtitle">סוכן פיננסי אוטונומי מבוסס LangGraph + Gemini 2.5 Flash</p>
+  <div class="hero-tags">
+    <span class="hero-tag">LangGraph ReAct</span>
+    <span class="hero-tag">Gemini 2.5 Flash</span>
+    <span class="hero-tag">5 Tools</span>
+    <span class="hero-tag">Cloud Scheduler</span>
+    <span class="hero-tag">Guardrails</span>
+  </div>
+</div>
 
 <!-- SECTION 1 -->
 <div class="section">
@@ -143,9 +246,9 @@
       <div class="tool-name">scan_guru_portfolio(guru)</div>
       <div class="tool-desc">סריקת 13F מ-Dataroma — פוזיציות חדשות וחיסולים של Buffett, Ackman, Burry</div>
     </div>
-    <div class="tool-card new-tool">
-      <div class="tool-name"><span class="new-badge">NEW</span>search_financial_news(ticker)</div>
-      <div class="tool-desc">3 כותרות חדשות אחרונות עם לינק — נקרא אוטומטית כשמניה זזה ≥5%</div>
+    <div class="tool-card">
+      <div class="tool-name">search_financial_news(ticker)</div>
+      <div class="tool-desc">עד 3 כותרות מ-7 הימים האחרונים בלבד, עם תאריך ולינק — נקרא אוטומטית כשמניה זזה ≥5%</div>
     </div>
     <div class="tool-card" style="grid-column: span 2;">
       <div class="tool-name">send_telegram_alert(message)</div>
@@ -153,6 +256,21 @@
     </div>
   </div>
   <a href="https://github.com/dudumrk2/ai-wealth-monitor/blob/master/backend/stock_agent_tools.py" target="_blank">📄 קוד הכלים — stock_agent_tools.py</a>
+
+  <p style="margin-top:18px;"><strong>זרימת העשרת התראה בחדשות (כשמניה זזה ≥5%):</strong></p>
+  <div class="news-flow">
+    <div class="nf-step nf-sense">📈 מהלך מחיר<br><small>AAPL +6.1%</small></div>
+    <div class="arrow">→</div>
+    <div class="nf-step nf-think">🔍 search_financial_news<br><small>3 כותרות, 7 ימים</small></div>
+    <div class="arrow">→</div>
+    <div class="nf-step nf-think">🧠 הסוכן שוקל<br><small>מה רלוונטי למהלך?</small></div>
+    <div class="arrow">→</div>
+    <div class="nf-step nf-act">📱 התראה + לינק<br><small>הסוכן מסכם ומצרף</small></div>
+  </div>
+  <div class="note">
+    <strong>החלוקה החשובה:</strong> הכלי מחזיר טקסט <em>גולמי</em> (כותרות + תאריך + URL). ה<strong>סיכום ובחירת הלינק הרלוונטי הם החלטה של ה-LLM</strong> — לא של הכלי. סינון 7 הימים מוודא שההקשר שייך למהלך הנוכחי ולא לכתבה ישנה.
+  </div>
+
   <p style="margin-top:18px;"><strong>הפעלה אוטומטית — Google Cloud Scheduler:</strong></p>
   <div class="cron-flow">
     <div class="cron-step">🕐 Cloud Scheduler<br><small>כל יום בבוקר</small></div>
@@ -163,22 +281,38 @@
     <div class="arrow">→</div>
     <div class="cron-step">📱 Telegram<br>או 📧 Email</div>
   </div>
-  <div class="note">
-    <strong>שימו לב:</strong> שליחת מייל אינה כלי של הסוכן — היא fallback ברמת ה-router לאחר שהסוכן מסיים.
-  </div>
 </div>
 
 <!-- SECTION 3 -->
 <div class="section">
   <div class="section-title"><span class="section-num">3</span>לופ הסוכן — ReAct עם LangGraph</div>
   <p>הסוכן בנוי על <strong>LangGraph ReAct</strong> — ה-LLM חושב ופועל בלולאה עד שמגיע לתשובה. הוא מחליט <em>לבד</em> איזה tool לקרוא ובאיזה סדר.</p>
-  <div class="loop-flow">
-    <div class="loop-box sense"><div class="loop-label">Sense</div><div class="loop-val">מחירים חיים</div></div>
-    <div class="arrow">←</div>
-    <div class="loop-box think"><div class="loop-label">Think</div><div class="loop-val">סריקת 13F</div></div>
-    <div class="arrow">←</div>
-    <div class="loop-box act"><div class="loop-label">Act</div><div class="loop-val">Telegram alerts</div></div>
+  <div class="react-loop">
+    <div class="rl-diagram">
+      <svg class="rl-ring" viewBox="0 0 240 240">
+        <circle class="rl-track" cx="120" cy="120" r="88"/>
+        <circle class="rl-dot" r="6">
+          <animateMotion dur="4.5s" repeatCount="indefinite"
+            path="M120,32 A88,88 0 1,1 120,208 A88,88 0 1,1 120,32"/>
+        </circle>
+      </svg>
+      <div class="rl-center"><b>LLM</b>Gemini 2.5</div>
+      <div class="rl-node rl-think">🧠<b>THINK</b><small>מה לעשות?</small></div>
+      <div class="rl-node rl-act">⚡<b>ACT</b><small>קורא ל-tool</small></div>
+      <div class="rl-node rl-obs">👁<b>OBSERVE</b><small>תוצאת הכלי</small></div>
+    </div>
+    <div class="rl-trace">
+      <div class="tl"><span class="ph rl-think-c">🧠 THINK</span><span class="tx">"AAPL זינק +6% — אבדוק למה"</span></div>
+      <div class="tl"><span class="ph rl-act-c">⚡ ACT</span><span class="tx"><span class="mono">search_financial_news("AAPL")</span></span></div>
+      <div class="tl"><span class="ph rl-obs-c">👁 OBSERVE</span><span class="tx">"Apple AI partnership with OpenAI…"</span></div>
+      <div class="tl"><span class="ph rl-think-c">🧠 THINK</span><span class="tx">"משמעותי — שולח התראה"</span></div>
+      <div class="tl"><span class="ph rl-act-c">⚡ ACT</span><span class="tx"><span class="mono">send_telegram_alert("📊 PRICE ALERT…")</span></span></div>
+      <div class="tl"><span class="ph rl-done-c">✅ DONE</span><span class="tx">אין עוד פעולות — הלולאה נעצרת</span></div>
+    </div>
   </div>
+  <p style="text-align:center; color:#8b949e; font-size:0.82rem; margin-top:4px;">
+    כל סיבוב = צעד בלולאה: הסוכן <b style="color:#79c0ff;">חושב</b> → <b style="color:#f78166;">פועל</b> → <b style="color:#56d364;">מתבונן</b> בתוצאה, עד שאין עוד מה לעשות.
+  </p>
   <pre><span class="cm"># LLM — Gemini 2.5 Flash, temperature=0 (דטרמיניסטי)</span>
 <span class="var">llm</span> = <span class="fn">ChatGoogleGenerativeAI</span>(model=<span class="str">"gemini-2.5-flash"</span>, temperature=<span class="var">0</span>)
 
@@ -191,11 +325,86 @@
   <a href="https://github.com/dudumrk2/ai-wealth-monitor/blob/master/backend/stock_agent.py#L241" target="_blank">📄 קוד הסוכן — stock_agent.py שורה 241</a>
 </div>
 
+<!-- SECTION 4 -->
+<div class="section">
+  <div class="section-title"><span class="section-num">4</span>Guardrails — הגנות על הסוכן</div>
+  <p>סוכן אוטונומי מחליט <em>לבד</em> מה להריץ — ולכן עוטפים אותו בשכבת הגנות שמונעת התנהגות חריגה, בזבוז עלות ושגיאות שקטות.</p>
+  <div class="guard-grid">
+    <div class="guard-card">
+      <div class="guard-icon">🔁</div>
+      <div class="guard-head">תקרת לולאה</div>
+      <div class="guard-desc"><code>recursion_limit=50</code> על ה-ReAct. LLM שנכנס ללולאה נעצר ב-<code>GraphRecursionError</code> במקום קריאות Gemini אינסופיות.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🛡️</div>
+      <div class="guard-head">ולידציית קלט</div>
+      <div class="guard-desc">לפני yfinance / הסקרייפר — בדיקת תקינות <code>ticker</code>: US דורש אות, IL דורש 4–9 ספרות. קלט פסול מוחזר כשגיאה ברורה שהסוכן מתקן.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">✂️</div>
+      <div class="guard-head">הגבלת פלט</div>
+      <div class="guard-desc">התראת טלגרם ריקה נדחית; הודעה מעל 4096 תווים נחתכת — שליחה מקוצרת במקום כשל 400 שקט.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🎯</div>
+      <div class="guard-head">בדיקת הזיה</div>
+      <div class="guard-desc">PRICE ALERT שנשלח על ניר <strong>שלא בתיק</strong> מסומן ב-<code>warning</code> — מזהה אם הסוכן "המציא" התראה.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🎲</div>
+      <div class="guard-head">דטרמיניזם</div>
+      <div class="guard-desc"><code>temperature=0</code> — ה-LLM בוחר תמיד את התשובה הסבירה ביותר. אותו קלט → אותה התנהגות, בלי "יצירתיות" בהתראות פיננסיות.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">⏱️</div>
+      <div class="guard-head">תקרת זמן</div>
+      <div class="guard-desc">כל הרצה עטופה ב-<code>timeout</code> 180s. סוכן תקוע (סקרייפר/API איטי) נקטע ולא תוקע את ה-cron או צובר עלות.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🗂️</div>
+      <div class="guard-head">dedup התראות</div>
+      <div class="guard-desc">מפתחות <code>גורו:טיקר:רבעון</code> נשמרים ב-Firestore. 13F רבעוני לא יתריע כל יום מחדש — התראה אחת לכל אירוע.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">📊</div>
+      <div class="guard-head">תקציר ground-truth</div>
+      <div class="guard-desc">מה הסוכן באמת עשה נקרא מ<strong>היסטוריית קריאות-הכלים</strong>, לא מהטקסט החופשי של ה-LLM — מקור אמת אובייקטיבי שעליו בנויות הבדיקות.</div>
+    </div>
+  </div>
+  <a href="https://github.com/dudumrk2/ai-wealth-monitor/blob/master/backend/stock_agent_tools.py" target="_blank">📄 ההגנות בקוד — stock_agent_tools.py</a>
+</div>
+
 <!-- DEMO SECTION -->
 <div class="demo-section">
   <div class="demo-title">▶ Demo — הרצה אמיתית עם Mock Data</div>
   <div class="demo-subtitle">הסוכן האמיתי (Gemini + LangGraph) רץ עם נתונים מוכנים מראש — ההחלטות אמיתיות</div>
-  <div class="demo-note">* מחייב הרצת demo_server.py מקומית | python demo_server.py</div>
+
+  <div class="demo-arch">
+    <div class="da-step"><b>1 · תרחיש</b><small>הכפתור בוחר scenario ושולח ל-/api/demo/run-scenario</small></div>
+    <div class="arrow">→</div>
+    <div class="da-step"><b>2 · כלים מזויפים</b><small>build_demo_tools() מחזיר @tool עם פלט מוגדר מראש (אותן חתימות)</small></div>
+    <div class="arrow">→</div>
+    <div class="da-step da-real"><b>3 · הסוכן האמיתי</b><small>create_react_agent + Gemini מחליט לבד מה לקרוא ומה לשלוח</small></div>
+    <div class="arrow">→</div>
+    <div class="da-step"><b>4 · לוגים אמיתיים</b><small>כל tool_call וכל החלטה חוזרים ומוצגים למטה</small></div>
+  </div>
+  <div class="demo-note">* רק נתוני ה<em>קלט</em> מזויפים — ההחלטות של ה-LLM אמיתיות לחלוטין.</div>
+
+  <div class="note">
+    <strong>שתי ארכיטקטורות — בכוונה:</strong> בדמו הסוכן <strong>קורא בעצמו</strong> ל-<code>scan_guru_portfolio</code> — כדי שתראו את לולאת ה-ReAct ב-action. בפרודקשן (cron) ה-13F נאסף <strong>מראש, מחוץ לסוכן</strong>, עובר <code>dedup</code> מול Firestore ומוזרק כ-context. הסיבות: state של "על מה כבר התרעתי" חייב להיות דטרמיניסטי (לא ב-LLM), עמידות לתקלות סקרייפר, ופחות קריאות Gemini. <em>המחירים</em>, לעומת זאת, נמשכים ע"י הסוכן בשני המצבים — כי אין עליהם dedup. כל גישה מיוּעֶלֶת למשהו אחר: פרודקשן ל-state ויעילות, הדמו להדגמת הלולאה.
+  </div>
+
+  <div class="demo-config">
+    <div class="cfg-field">
+      <label for="cfgBackend"><code>BACKEND_URL</code> — כתובת ה-Cloud Run</label>
+      <input id="cfgBackend" type="text" dir="ltr" placeholder="https://your-service.run.app" oninput="saveConfig()">
+    </div>
+    <div class="cfg-field">
+      <label for="cfgSecret"><code>CRON_SECRET</code> — הסוד מ-env vars</label>
+      <input id="cfgSecret" type="password" dir="ltr" placeholder="••••••••" oninput="saveConfig()">
+    </div>
+    <span class="cfg-saved" id="cfgSaved"></span>
+  </div>
 
   <div class="scenario-btns">
     <button class="btn btn-price"  onclick="runScenario('price')">📊 מניה זזה +6%</button>
@@ -209,96 +418,38 @@
     <span class="log-placeholder">← בחר תרחיש למעלה כדי להתחיל</span>
   </div>
 </div>
+</div><!-- /.wrap -->
 
 <script>
-// ← שנה את שני הערכים האלו לפני ההצגה
-const BACKEND_URL = 'https://YOUR-CLOUD-RUN-URL';  // כתובת ה-Cloud Run שלך
-const CRON_SECRET = 'YOUR-CRON-SECRET';             // ה-secret מ-Cloud Run env vars
+// Config is entered in the UI fields (saved to localStorage between refreshes).
+const CFG_KEY = 'stockAgentDemoConfig';
 
-const scenarios = {
-  price: [
-    { t: 0,    cls: 'log-info',  msg: '🤖 [AGENT] Starting analysis for 3 tickers: AAPL, ICL.TA, 5131054' },
-    { t: 400,  cls: 'log-info',  msg: '🔔 [AGENT] Notification channel: Telegram chat_id=−100123456' },
-    { t: 900,  cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("AAPL")' },
-    { t: 1600, cls: 'log-ok',    msg: '← AAPL last price: $213.40 USD  ▲ +6.10% vs previous close ($201.13)' },
-    { t: 2100, cls: 'log-tool',  msg: '→ TOOL CALL: search_financial_news("AAPL")   ← מניה זזה ≥5%, הסוכן חוקר למה' },
-    { t: 2900, cls: 'log-news',  msg: '← 1. Apple surges after surprise AI partnership with OpenAI — https://finance.yahoo.com/...' },
-    { t: 3100, cls: 'log-news',  msg: '   2. iPhone 17 demand data beats Wall Street estimates — https://...' },
-    { t: 3600, cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("ICL.TA")' },
-    { t: 4200, cls: 'log-ok',    msg: '← ICL.TA last price: $15.90 USD  ▼ −0.60%' },
-    { t: 4700, cls: 'log-tool',  msg: '→ TOOL CALL: get_il_stock_data("5131054")' },
-    { t: 5300, cls: 'log-ok',    msg: '← Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.20%' },
-    { t: 5800, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Berkshire Hathaway")' },
-    { t: 6800, cls: 'log-ok',    msg: '← Berkshire Hathaway — Q1 2025: 🆕 New: OXY  🚪 Liquidated: PARA' },
-    { t: 7300, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Pershing Square")' },
-    { t: 8100, cls: 'log-ok',    msg: '← Pershing Square — Q1 2025: 🆕 None  🚪 None' },
-    { t: 8500, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Scion Asset Management")' },
-    { t: 9200, cls: 'log-ok',    msg: '← Scion — Q1 2025: 🆕 None  🚪 None' },
-    { t: 9700, cls: 'log-alert', msg: '→ TOOL CALL: send_telegram_alert("📊 PRICE ALERT: AAPL moved +6.10%...' },
-    { t: 9900, cls: 'log-news',  msg: '   📰 Apple surges after surprise AI partnership — https://finance.yahoo.com/...' },
-    { t: 10400,cls: 'log-ok',    msg: '← ✅ Telegram alert sent successfully.' },
-    { t: 10900,cls: 'log-info',  msg: '✅ [AGENT] Run complete in 22.4s — checked 3 tickers, sent 1 alert (1 price / 0 risk / 0 alpha)' },
-  ],
-  risk: [
-    { t: 0,    cls: 'log-info',  msg: '🤖 [AGENT] Starting analysis for 3 tickers: AAPL, ICL.TA, 5131054' },
-    { t: 400,  cls: 'log-info',  msg: '🔔 [AGENT] Notification channel: Telegram chat_id=−100123456' },
-    { t: 900,  cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("AAPL")' },
-    { t: 1500, cls: 'log-ok',    msg: '← AAPL last price: $192.10 USD  ▲ +0.80%' },
-    { t: 2000, cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("ICL.TA")' },
-    { t: 2600, cls: 'log-ok',    msg: '← ICL.TA last price: $15.90 USD  ▼ −0.40%' },
-    { t: 3100, cls: 'log-tool',  msg: '→ TOOL CALL: get_il_stock_data("5131054")' },
-    { t: 3700, cls: 'log-ok',    msg: '← Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.10%' },
-    { t: 4200, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Berkshire Hathaway")' },
-    { t: 5100, cls: 'log-warn',  msg: '← Berkshire Hathaway — Q1 2025: 🆕 New: None  🚪 Liquidated: AAPL  ⚠️ overlap with portfolio!' },
-    { t: 5600, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Pershing Square")' },
-    { t: 6400, cls: 'log-ok',    msg: '← Pershing Square — Q1 2025: 🆕 None  🚪 None' },
-    { t: 6900, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Scion Asset Management")' },
-    { t: 7600, cls: 'log-ok',    msg: '← Scion — Q1 2025: 🆕 None  🚪 None' },
-    { t: 8100, cls: 'log-alert', msg: '→ TOOL CALL: send_telegram_alert("🚨 RISK ALERT: Berkshire Hathaway exited AAPL completely...")' },
-    { t: 8700, cls: 'log-ok',    msg: '← ✅ Telegram alert sent successfully.' },
-    { t: 9200, cls: 'log-info',  msg: '✅ [AGENT] Run complete in 19.8s — checked 3 tickers, sent 1 alert (0 price / 1 risk / 0 alpha)' },
-  ],
-  alpha: [
-    { t: 0,    cls: 'log-info',  msg: '🤖 [AGENT] Starting analysis for 3 tickers: AAPL, ICL.TA, 5131054' },
-    { t: 400,  cls: 'log-info',  msg: '🔔 [AGENT] Notification channel: Telegram chat_id=−100123456' },
-    { t: 900,  cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("AAPL")' },
-    { t: 1500, cls: 'log-ok',    msg: '← AAPL last price: $193.20 USD  ▲ +1.20%' },
-    { t: 2000, cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("ICL.TA")' },
-    { t: 2600, cls: 'log-ok',    msg: '← ICL.TA last price: $16.10 USD  ▲ +0.60%' },
-    { t: 3100, cls: 'log-tool',  msg: '→ TOOL CALL: get_il_stock_data("5131054")' },
-    { t: 3700, cls: 'log-ok',    msg: '← Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.05%' },
-    { t: 4200, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Berkshire Hathaway")' },
-    { t: 5100, cls: 'log-ok',    msg: '← Berkshire Hathaway — Q1 2025: 🆕 New: GOOGL, TSM  🚪 None' },
-    { t: 5600, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Pershing Square")' },
-    { t: 6400, cls: 'log-ok',    msg: '← Pershing Square — Q1 2025: 🆕 None  🚪 None' },
-    { t: 6900, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Scion Asset Management")' },
-    { t: 7700, cls: 'log-ok',    msg: '← Scion — Q1 2025: 🆕 New: NVO  🚪 Liquidated: BABA' },
-    { t: 8200, cls: 'log-alert', msg: '→ TOOL CALL: send_telegram_alert("💡 ALPHA IDEA: Berkshire initiated NEW position in GOOGL...")' },
-    { t: 8800, cls: 'log-ok',    msg: '← ✅ Telegram alert sent successfully.' },
-    { t: 9200, cls: 'log-alert', msg: '→ TOOL CALL: send_telegram_alert("💡 ALPHA IDEA: Scion initiated NEW position in NVO...")' },
-    { t: 9700, cls: 'log-ok',    msg: '← ✅ Telegram alert sent successfully.' },
-    { t: 10200,cls: 'log-info',  msg: '✅ [AGENT] Run complete in 21.1s — checked 3 tickers, sent 2 alerts (0 price / 0 risk / 2 alpha)' },
-  ],
-  clear: [
-    { t: 0,    cls: 'log-info',  msg: '🤖 [AGENT] Starting analysis for 3 tickers: AAPL, ICL.TA, 5131054' },
-    { t: 400,  cls: 'log-info',  msg: '🔔 [AGENT] Notification channel: email fallback (Telegram not configured)' },
-    { t: 900,  cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("AAPL")' },
-    { t: 1500, cls: 'log-ok',    msg: '← AAPL last price: $191.50 USD  ▲ +0.30%' },
-    { t: 2000, cls: 'log-tool',  msg: '→ TOOL CALL: get_us_stock_data("ICL.TA")' },
-    { t: 2600, cls: 'log-ok',    msg: '← ICL.TA last price: $16.20 USD  ▲ +0.10%' },
-    { t: 3100, cls: 'log-tool',  msg: '→ TOOL CALL: get_il_stock_data("5131054")' },
-    { t: 3700, cls: 'log-ok',    msg: '← Israeli fund/ETF 5131054 last price: ₪12.34 NIS  ▲ +0.05%' },
-    { t: 4200, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Berkshire Hathaway")' },
-    { t: 5000, cls: 'log-ok',    msg: '← Berkshire Hathaway — Q1 2025: 🆕 None  🚪 None' },
-    { t: 5500, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Pershing Square")' },
-    { t: 6300, cls: 'log-ok',    msg: '← Pershing Square — Q1 2025: 🆕 None  🚪 None' },
-    { t: 6800, cls: 'log-tool',  msg: '→ TOOL CALL: scan_guru_portfolio("Scion Asset Management")' },
-    { t: 7600, cls: 'log-ok',    msg: '← Scion — Q1 2025: 🆕 None  🚪 None' },
-    { t: 8100, cls: 'log-ok',    msg: '← No alerts triggered. Compiling summary.' },
-    { t: 8500, cls: 'log-info',  msg: '✅ [AGENT] Run complete in 18.2s — checked 3 tickers, sent 0 alerts' },
-    { t: 9000, cls: 'log-ok',    msg: '📧 [ROUTER] Email fallback sent to dudumrk2@gmail.com' },
-  ],
-};
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+    if (saved.backend) document.getElementById('cfgBackend').value = saved.backend;
+    if (saved.secret)  document.getElementById('cfgSecret').value  = saved.secret;
+  } catch (e) { /* ignore corrupt storage */ }
+}
+
+function saveConfig() {
+  const backend = document.getElementById('cfgBackend').value.trim();
+  const secret  = document.getElementById('cfgSecret').value.trim();
+  localStorage.setItem(CFG_KEY, JSON.stringify({ backend, secret }));
+  const el = document.getElementById('cfgSaved');
+  el.textContent = '✓ נשמר';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ''; }, 1500);
+}
+
+function getConfig() {
+  return {
+    backend: document.getElementById('cfgBackend').value.trim().replace(/\/+$/, ''),
+    secret:  document.getElementById('cfgSecret').value.trim(),
+  };
+}
+
+window.addEventListener('DOMContentLoaded', loadConfig);
 
 let running = false;
 let timers = [];
@@ -367,17 +518,23 @@ async function runScenario(name) {
   resetLog();
   const panel = document.getElementById('logPanel');
   panel.innerHTML = '';
-  running = true;
 
+  const { backend, secret } = getConfig();
+  if (!backend || !secret) {
+    appendLog(panel, 'log-warn', 'מלא קודם את BACKEND_URL ו-CRON_SECRET בשדות למעלה.');
+    return;
+  }
+
+  running = true;
   appendLog(panel, 'log-info', `[AGENT] מריץ סנריו: ${name} — הסוכן האמיתי (Gemini + LangGraph)`);
   appendLog(panel, 'log-info', 'ממתין לתגובה...');
 
   try {
-    const res = await fetch(`${BACKEND_URL}/api/demo/run-scenario`, {
+    const res = await fetch(`${backend}/api/demo/run-scenario`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Cron-Secret': CRON_SECRET,
+        'X-Cron-Secret': secret,
       },
       body: JSON.stringify({ scenario: name }),
     });
@@ -396,7 +553,7 @@ async function runScenario(name) {
   } catch (e) {
     panel.innerHTML = '';
     appendLog(panel, 'log-err', `שגיאת חיבור: ${e.message}`);
-    appendLog(panel, 'log-warn', 'וודא ש-BACKEND_URL ו-CRON_SECRET מוגדרים נכון בראש הסקריפט');
+    appendLog(panel, 'log-warn', 'וודא ש-BACKEND_URL ו-CRON_SECRET נכונים בשדות למעלה');
   }
 }
 </script>
