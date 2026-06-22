@@ -205,6 +205,18 @@
   .log-placeholder { color: #484f58; font-style: italic; }
   .cursor { display: inline-block; width: 8px; height: 14px; background: #58a6ff; animation: blink 1s step-end infinite; vertical-align: middle; margin-right: 4px; }
   @keyframes blink { 50% { opacity: 0; } }
+
+  .arch-note { background: #1c2128; border-right: 3px solid #d29922; border-radius: 8px; padding: 16px 18px; margin: 16px 0; }
+  .arch-note-title { font-weight: 700; color: #d29922; font-size: 0.95rem; margin-bottom: 12px; }
+  .arch-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .arch-list li { color: #c9d1d9; font-size: 0.88rem; line-height: 1.5; padding-right: 16px; position: relative; }
+  .arch-list li::before { content: "•"; color: #6e7681; position: absolute; right: 0; }
+  .arch-list code { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 5px; font-family: 'Consolas', monospace; font-size: 0.8rem; color: #79c0ff; }
+  .arch-list .c-accent { color: #79c0ff; }
+
+  .page-footer { margin-top: 28px; padding-top: 22px; border-top: 1px solid #21262d; display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; }
+  .page-footer a { font-size: 0.95rem; font-weight: 600; }
+  .footer-hint { color: #8b949e; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -390,8 +402,13 @@
   </div>
   <div class="demo-note">* רק נתוני ה<em>קלט</em> מזויפים — ההחלטות של ה-LLM אמיתיות לחלוטין.</div>
 
-  <div class="note">
-    <strong>שתי ארכיטקטורות — בכוונה:</strong> בדמו הסוכן <strong>קורא בעצמו</strong> ל-<code>scan_guru_portfolio</code> — כדי שתראו את לולאת ה-ReAct ב-action. בפרודקשן (cron) ה-13F נאסף <strong>מראש, מחוץ לסוכן</strong>, עובר <code>dedup</code> מול Firestore ומוזרק כ-context. הסיבות: state של "על מה כבר התרעתי" חייב להיות דטרמיניסטי (לא ב-LLM), עמידות לתקלות סקרייפר, ופחות קריאות Gemini. <em>המחירים</em>, לעומת זאת, נמשכים ע"י הסוכן בשני המצבים — כי אין עליהם dedup. כל גישה מיוּעֶלֶת למשהו אחר: פרודקשן ל-state ויעילות, הדמו להדגמת הלולאה.
+  <div class="arch-note">
+    <div class="arch-note-title">שתי ארכיטקטורות — בכוונה</div>
+    <ul class="arch-list">
+      <li><b class="c-accent">דמו:</b> הסוכן קורא בעצמו ל-<code>scan_guru_portfolio</code> — כדי לראות את לולאת ה-ReAct ב-action.</li>
+      <li><b class="c-accent">פרודקשן (cron):</b> <code>scan_guru_portfolio</code> רץ מראש מחוץ לסוכן, עובר <code>dedup</code> מול Firestore ומוזרק כ-context.</li>
+      <li><b class="c-accent">הסבר:</b> ה-state של "על מה כבר התרעתי" חייב להיות דטרמיניסטי, עמידות לתקלות סקרייפר, ופחות קריאות Gemini.</li>
+    </ul>
   </div>
 
   <div class="demo-config">
