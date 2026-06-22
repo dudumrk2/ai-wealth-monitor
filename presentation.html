@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<title>Stock Agent — AI Wealth Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background:
+      radial-gradient(900px 500px at 85% -8%, rgba(31,111,235,0.16), transparent 60%),
+      radial-gradient(700px 420px at 10% 0%, rgba(46,160,67,0.08), transparent 55%),
+      #0d1117;
+    background-attachment: fixed;
+    color: #e6edf3;
+    padding: 40px 24px 64px;
+    line-height: 1.7;
+    direction: rtl;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+
+  /* ─── Hero ─── */
+  .hero { margin-bottom: 30px; padding-bottom: 22px; border-bottom: 1px solid #21262d; }
+  h1 {
+    font-size: 2.3rem; font-weight: 800; letter-spacing: -0.01em;
+    background: linear-gradient(95deg, #79c0ff, #58a6ff 40%, #d2a8ff);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px; line-height: 1.2;
+  }
+  .subtitle { color: #8b949e; font-size: 1.02rem; }
+  .hero-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .hero-tag { font-size: 0.74rem; font-weight: 600; color: #adbac7; background: #161b22; border: 1px solid #30363d; border-radius: 999px; padding: 4px 12px; }
+
+  .section {
+    position: relative;
+    background: linear-gradient(180deg, #161b22, #13181f);
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -16px rgba(0,0,0,0.8);
+  }
+  .section-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff; border-radius: 9px;
+    width: 30px; height: 30px; font-weight: 800; font-size: 0.95rem; margin-left: 12px; flex-shrink: 0;
+    box-shadow: 0 4px 12px -4px rgba(31,111,235,0.6);
+  }
+  .section-title {
+    font-size: 1.3rem; font-weight: 700; color: #f0f6fc;
+    margin-bottom: 14px; display: flex; align-items: center;
+  }
+  .section p { color: #c9d1d9; margin-bottom: 10px; font-size: 0.95rem; }
+  .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .tool-card {
+    background: #0d1117; border: 1px solid #30363d;
+    border-radius: 10px; padding: 14px 16px;
+    transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+  }
+  .tool-card:hover { border-color: #388bfd; transform: translateY(-2px); box-shadow: 0 10px 24px -16px rgba(56,139,253,0.7); }
+  .tool-card.new-tool { border-color: #2ea043; }
+  .tool-name { font-family: 'Consolas', monospace; color: #79c0ff; font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
+  .tool-card.new-tool .tool-name { color: #56d364; }
+  .tool-desc { color: #8b949e; font-size: 0.83rem; line-height: 1.55; }
+  .new-badge {
+    display: inline-block; background: #2ea043; color: #fff;
+    border-radius: 4px; font-size: 0.68rem; padding: 1px 6px; margin-right: 6px; font-weight: 700;
+  }
+  /* ─── Animated ReAct loop ─── */
+  .react-loop { display: flex; gap: 26px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 20px 0 8px; }
+  .rl-diagram { position: relative; width: 240px; height: 240px; flex-shrink: 0; }
+  .rl-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .rl-track { fill: none; stroke: #21262d; stroke-width: 2; stroke-dasharray: 3 7; }
+  .rl-dot { fill: #58a6ff; filter: drop-shadow(0 0 6px #58a6ff); }
+  .rl-node {
+    position: absolute; width: 94px; height: 94px; border-radius: 50%;
+    transform: translate(-50%, -50%); background: #0d1117; border: 2px solid #30363d;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; font-size: 1.45rem; animation: rlPulse 4.5s infinite ease-in-out;
+  }
+  .rl-node b { font-size: 0.76rem; margin-top: 1px; }
+  .rl-node small { font-size: 0.58rem; color: #8b949e; font-weight: 400; }
+  .rl-think { left: 50%;   top: 13.5%; --glow: #58a6ff; animation-delay: 0s; }
+  .rl-think b { color: #79c0ff; }
+  .rl-act   { left: 80.7%; top: 70%;   --glow: #f78166; animation-delay: 1.5s; }
+  .rl-act b { color: #f78166; }
+  .rl-obs   { left: 19.3%; top: 70%;   --glow: #56d364; animation-delay: 3s; }
+  .rl-obs b { color: #56d364; }
+  @keyframes rlPulse {
+    0%, 100% { border-color: #30363d; box-shadow: none; transform: translate(-50%, -50%) scale(1); }
+    6%, 20%  { border-color: var(--glow); box-shadow: 0 0 18px -2px var(--glow); transform: translate(-50%, -50%) scale(1.07); }
+    32%      { border-color: #30363d; box-shadow: none; transform: translate(-50%, -50%) scale(1); }
+  }
+  .rl-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; font-size: 0.66rem; color: #8b949e; width: 86px; }
+  .rl-center b { display: block; color: #d2a8ff; font-size: 0.82rem; }
+  .rl-trace { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; font-family: 'Consolas', monospace; font-size: 0.8rem; line-height: 1.9; min-width: 280px; flex: 1; }
+  .rl-trace .tl { display: flex; gap: 8px; }
+  .rl-trace .ph { flex-shrink: 0; font-weight: 700; width: 92px; }
+  .rl-think-c { color: #79c0ff; } .rl-act-c { color: #f78166; } .rl-obs-c { color: #56d364; } .rl-done-c { color: #56d364; }
+  .rl-trace .tx { color: #c9d1d9; }
+  .rl-trace .mono { color: #a5d6ff; }
+
+  .loop-flow { display: flex; align-items: center; justify-content: center; gap: 0; margin: 16px 0; flex-wrap: wrap; }
+  .loop-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; text-align: center; min-width: 110px; }
+  .loop-label { font-size: 0.68rem; color: #8b949e; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .loop-val { font-weight: 700; font-size: 0.95rem; }
+  .sense { color: #56d364; border-color: #2ea043; }
+  .think { color: #79c0ff; border-color: #1f6feb; }
+  .act   { color: #f78166; border-color: #da3633; }
+  .arrow { color: #484f58; font-size: 1.3rem; padding: 0 6px; }
+  pre {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    padding: 16px 18px; overflow-x: auto;
+    font-family: 'Consolas', 'Courier New', monospace; font-size: 0.8rem; line-height: 1.6; margin-top: 14px;
+  }
+  .kw  { color: #ff7b72; }
+  .fn  { color: #d2a8ff; }
+  .str { color: #a5d6ff; }
+  .cm  { color: #8b949e; font-style: italic; }
+  .var { color: #ffa657; }
+  a { color: #58a6ff; text-decoration: none; font-size: 0.83rem; display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; }
+  a:hover { text-decoration: underline; }
+  .note { background: #1c2128; border-right: 3px solid #d29922; border-radius: 6px; padding: 10px 14px; margin-top: 12px; font-size: 0.86rem; color: #c9d1d9; }
+  .note strong { color: #d29922; }
+  .cron-flow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .cron-step { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 9px 12px; font-size: 0.82rem; color: #c9d1d9; text-align: center; }
+
+  .news-flow { display: flex; align-items: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .nf-step { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 9px 13px; font-size: 0.84rem; font-weight: 600; text-align: center; min-width: 120px; }
+  .nf-step small { display: block; font-weight: 400; color: #8b949e; font-size: 0.72rem; margin-top: 2px; }
+  .nf-sense { border-color: #2ea043; color: #56d364; }
+  .nf-think { border-color: #1f6feb; color: #79c0ff; }
+  .nf-act   { border-color: #da3633; color: #f78166; }
+
+  .guard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+  .guard-card { background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 15px 17px; border-right: 3px solid #1f6feb; transition: border-color 0.18s, transform 0.18s; }
+  .guard-card:hover { transform: translateY(-2px); border-color: #30363d; border-right-color: #388bfd; }
+  .guard-icon { font-size: 1.2rem; margin-bottom: 4px; }
+  .guard-head { font-weight: 700; color: #79c0ff; font-size: 0.92rem; margin-bottom: 4px; }
+  .guard-desc { color: #8b949e; font-size: 0.82rem; line-height: 1.55; }
+  .guard-desc code, .note code { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 5px; font-family: 'Consolas', monospace; font-size: 0.78rem; color: #79c0ff; }
+
+  .demo-arch { display: flex; align-items: stretch; gap: 6px; margin: 6px 0 18px; flex-wrap: wrap; }
+  .da-step { background: #0d1117; border: 1px dashed #30363d; border-radius: 8px; padding: 10px 13px; font-size: 0.82rem; text-align: center; flex: 1; min-width: 130px; }
+  .da-step b { color: #79c0ff; display: block; margin-bottom: 3px; font-size: 0.8rem; }
+  .da-step small { color: #8b949e; font-size: 0.72rem; }
+  .da-real { border-style: solid; border-color: #2ea043; }
+  .da-real b { color: #56d364; }
+
+  /* ─── DEMO SECTION ─── */
+  .demo-section {
+    background:
+      radial-gradient(600px 200px at 50% 0%, rgba(31,111,235,0.12), transparent 70%),
+      linear-gradient(180deg, #161b22, #13181f);
+    border: 1px solid #1f6feb;
+    border-radius: 14px; padding: 28px 32px; margin-top: 24px;
+    box-shadow: 0 12px 40px -24px rgba(31,111,235,0.8);
+  }
+  .demo-title { font-size: 1.4rem; font-weight: 800; color: #58a6ff; margin-bottom: 6px; }
+  .demo-config { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 14px; padding: 14px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; }
+  .cfg-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 220px; }
+  .cfg-field label { font-size: 0.74rem; font-weight: 700; color: #8b949e; }
+  .cfg-field label code { color: #79c0ff; font-family: 'Consolas', monospace; }
+  .cfg-field input {
+    background: #161b22; border: 1px solid #30363d; border-radius: 7px;
+    color: #e6edf3; padding: 8px 11px; font-size: 0.82rem; font-family: 'Consolas', monospace;
+    direction: ltr; text-align: left; transition: border-color 0.15s;
+  }
+  .cfg-field input:focus { outline: none; border-color: #388bfd; }
+  .cfg-field input::placeholder { color: #484f58; }
+  .cfg-saved { font-size: 0.72rem; color: #56d364; align-self: flex-end; padding-bottom: 9px; min-height: 1em; }
+  .demo-subtitle { color: #8b949e; font-size: 0.88rem; margin-bottom: 6px; }
+  .demo-note { color: #484f58; font-size: 0.78rem; margin-bottom: 18px; font-style: italic; }
+  .scenario-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .btn {
+    border: none; border-radius: 8px; padding: 10px 18px;
+    font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-price  { background: #f78166; color: #0d1117; }
+  .btn-risk   { background: #da3633; color: #fff; }
+  .btn-alpha  { background: #56d364; color: #0d1117; }
+  .btn-clear  { background: #30363d; color: #e6edf3; }
+  .btn-reset  { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+
+  .log-panel {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    padding: 16px 18px; font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.8rem; line-height: 1.7; min-height: 120px;
+    max-height: 400px; overflow-y: auto;
+  }
+  .log-line { display: flex; gap: 10px; margin-bottom: 2px; opacity: 0; animation: fadeIn 0.3s forwards; }
+  @keyframes fadeIn { to { opacity: 1; } }
+  .log-ts { color: #484f58; flex-shrink: 0; }
+  .log-info  { color: #79c0ff; }
+  .log-warn  { color: #d29922; }
+  .log-ok    { color: #56d364; }
+  .log-alert { color: #f78166; }
+  .log-tool  { color: #d2a8ff; }
+  .log-err   { color: #da3633; }
+  .log-news  { color: #a5d6ff; }
+  .log-placeholder { color: #484f58; font-style: italic; }
+  .cursor { display: inline-block; width: 8px; height: 14px; background: #58a6ff; animation: blink 1s step-end infinite; vertical-align: middle; margin-right: 4px; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .arch-note { background: #1c2128; border-right: 3px solid #d29922; border-radius: 8px; padding: 16px 18px; margin: 16px 0; }
+  .arch-note-title { font-weight: 700; color: #d29922; font-size: 0.95rem; margin-bottom: 12px; }
+  .arch-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .arch-list li { color: #c9d1d9; font-size: 0.88rem; line-height: 1.5; padding-right: 16px; position: relative; }
+  .arch-list li::before { content: "•"; color: #6e7681; position: absolute; right: 0; }
+  .arch-list code { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 5px; font-family: 'Consolas', monospace; font-size: 0.8rem; color: #79c0ff; }
+  .arch-list .c-accent { color: #79c0ff; }
+
+  .page-footer { margin-top: 28px; padding-top: 22px; border-top: 1px solid #21262d; display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; }
+  .page-footer a { font-size: 0.95rem; font-weight: 600; }
+  .footer-hint { color: #8b949e; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hero">
+  <h1>🤖 Stock Agent — AI Wealth Monitor</h1>
+  <p class="subtitle">סוכן פיננסי אוטונומי מבוסס LangGraph + Gemini 2.5 Flash</p>
+  <div class="hero-tags">
+    <span class="hero-tag">LangGraph ReAct</span>
+    <span class="hero-tag">Gemini 2.5 Flash</span>
+    <span class="hero-tag">5 Tools</span>
+    <span class="hero-tag">Cloud Scheduler</span>
+    <span class="hero-tag">Guardrails</span>
+  </div>
+</div>
+
+<!-- SECTION 1 -->
+<div class="section">
+  <div class="section-title"><span class="section-num">1</span>דף הבורסה באפליקציה</div>
+  <p>דף <strong>תיק המניות</strong> מציג את כלל נירות הערך של המשפחה — מניות אמריקאיות (USD) ומניות/קרנות ישראליות (ILS).</p>
+  <p>לכל ניר מוצגים: שער אחרון, שינוי יומי, רווח/הפסד כולל, וכמות. הנתונים מגיעים מ-<strong>yfinance</strong> לשוק האמריקאי ומ-<strong>Bizportal</strong> לשוק הישראלי.</p>
+  <p>המניות שמצויות בתיק הן ה<strong>קלט</strong> שהסוכן מקבל בכל הרצה — הוא בודק אותן ומתריע בהתאם.</p>
+</div>
+
+<!-- SECTION 2 -->
+<div class="section">
+  <div class="section-title"><span class="section-num">2</span>תפקיד הסוכן וכלים</div>
+  <p>הסוכן הוא <strong>אנליסט פיננסי אוטונומי</strong> שרץ אוטומטית כל יום. לשם כך יש לו <strong>5 כלים</strong>:</p>
+  <div class="tools-grid">
+    <div class="tool-card">
+      <div class="tool-name">get_us_stock_data(ticker)</div>
+      <div class="tool-desc">שער עדכני ממניה אמריקאית — yfinance</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">get_il_stock_data(ticker)</div>
+      <div class="tool-desc">שער קרן/מניה ישראלית — Bizportal (קוד מספרי TASE)</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">scan_guru_portfolio(guru)</div>
+      <div class="tool-desc">סריקת 13F מ-Dataroma — פוזיציות חדשות וחיסולים של Buffett, Ackman, Burry</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">search_financial_news(ticker)</div>
+      <div class="tool-desc">עד 3 כותרות מ-7 הימים האחרונים בלבד, עם תאריך ולינק — נקרא אוטומטית כשמניה זזה ≥5%</div>
+    </div>
+    <div class="tool-card" style="grid-column: span 2;">
+      <div class="tool-name">send_telegram_alert(message)</div>
+      <div class="tool-desc">שליחת התראה ל-Telegram. אם לא מוגדר — הסוכן מסכם בטקסט וה-router שולח מייל</div>
+    </div>
+  </div>
+  <a href="https://github.com/dudumrk2/ai-wealth-monitor/blob/master/backend/stock_agent_tools.py" target="_blank">📄 קוד הכלים — stock_agent_tools.py</a>
+
+  <p style="margin-top:18px;"><strong>זרימת העשרת התראה בחדשות (כשמניה זזה ≥5%):</strong></p>
+  <div class="news-flow">
+    <div class="nf-step nf-sense">📈 מהלך מחיר<br><small>AAPL +6.1%</small></div>
+    <div class="arrow">→</div>
+    <div class="nf-step nf-think">🔍 search_financial_news<br><small>3 כותרות, 7 ימים</small></div>
+    <div class="arrow">→</div>
+    <div class="nf-step nf-think">🧠 הסוכן שוקל<br><small>מה רלוונטי למהלך?</small></div>
+    <div class="arrow">→</div>
+    <div class="nf-step nf-act">📱 התראה + לינק<br><small>הסוכן מסכם ומצרף</small></div>
+  </div>
+  <div class="note">
+    <strong>החלוקה החשובה:</strong> הכלי מחזיר טקסט <em>גולמי</em> (כותרות + תאריך + URL). ה<strong>סיכום ובחירת הלינק הרלוונטי הם החלטה של ה-LLM</strong> — לא של הכלי. סינון 7 הימים מוודא שההקשר שייך למהלך הנוכחי ולא לכתבה ישנה.
+  </div>
+
+  <p style="margin-top:18px;"><strong>הפעלה אוטומטית — Google Cloud Scheduler:</strong></p>
+  <div class="cron-flow">
+    <div class="cron-step">🕐 Cloud Scheduler<br><small>כל יום בבוקר</small></div>
+    <div class="arrow">→</div>
+    <div class="cron-step">⚡ POST /api/cron/<br>analyze-stocks</div>
+    <div class="arrow">→</div>
+    <div class="cron-step">🤖 הסוכן רץ<br><small>לכל משפחה</small></div>
+    <div class="arrow">→</div>
+    <div class="cron-step">📱 Telegram<br>או 📧 Email</div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="section">
+  <div class="section-title"><span class="section-num">3</span>לופ הסוכן — ReAct עם LangGraph</div>
+  <p>הסוכן בנוי על <strong>LangGraph ReAct</strong> — ה-LLM חושב ופועל בלולאה עד שמגיע לתשובה. הוא מחליט <em>לבד</em> איזה tool לקרוא ובאיזה סדר.</p>
+  <div class="react-loop">
+    <div class="rl-diagram">
+      <svg class="rl-ring" viewBox="0 0 240 240">
+        <circle class="rl-track" cx="120" cy="120" r="88"/>
+        <circle class="rl-dot" r="6">
+          <animateMotion dur="4.5s" repeatCount="indefinite"
+            path="M120,32 A88,88 0 1,1 120,208 A88,88 0 1,1 120,32"/>
+        </circle>
+      </svg>
+      <div class="rl-center"><b>LLM</b>Gemini 2.5</div>
+      <div class="rl-node rl-think">🧠<b>THINK</b><small>מה לעשות?</small></div>
+      <div class="rl-node rl-act">⚡<b>ACT</b><small>קורא ל-tool</small></div>
+      <div class="rl-node rl-obs">👁<b>OBSERVE</b><small>תוצאת הכלי</small></div>
+    </div>
+    <div class="rl-trace">
+      <div class="tl"><span class="ph rl-think-c">🧠 THINK</span><span class="tx">"AAPL זינק +6% — אבדוק למה"</span></div>
+      <div class="tl"><span class="ph rl-act-c">⚡ ACT</span><span class="tx"><span class="mono">search_financial_news("AAPL")</span></span></div>
+      <div class="tl"><span class="ph rl-obs-c">👁 OBSERVE</span><span class="tx">"Apple AI partnership with OpenAI…"</span></div>
+      <div class="tl"><span class="ph rl-think-c">🧠 THINK</span><span class="tx">"משמעותי — שולח התראה"</span></div>
+      <div class="tl"><span class="ph rl-act-c">⚡ ACT</span><span class="tx"><span class="mono">send_telegram_alert("📊 PRICE ALERT…")</span></span></div>
+      <div class="tl"><span class="ph rl-done-c">✅ DONE</span><span class="tx">אין עוד פעולות — הלולאה נעצרת</span></div>
+    </div>
+  </div>
+  <p style="text-align:center; color:#8b949e; font-size:0.82rem; margin-top:4px;">
+    כל סיבוב = צעד בלולאה: הסוכן <b style="color:#79c0ff;">חושב</b> → <b style="color:#f78166;">פועל</b> → <b style="color:#56d364;">מתבונן</b> בתוצאה, עד שאין עוד מה לעשות.
+  </p>
+  <pre><span class="cm"># LLM — Gemini 2.5 Flash, temperature=0 (דטרמיניסטי)</span>
+<span class="var">llm</span> = <span class="fn">ChatGoogleGenerativeAI</span>(model=<span class="str">"gemini-2.5-flash"</span>, temperature=<span class="var">0</span>)
+
+<span class="cm"># שורה אחת שמרכיבה את כל הלופ</span>
+<span class="kw">return</span> <span class="fn">create_react_agent</span>(
+    model=<span class="var">llm</span>,
+    tools=<span class="var">AGENT_TOOLS</span>,    <span class="cm"># 5 כלים</span>
+    prompt=<span class="var">SYSTEM_PROMPT</span>,  <span class="cm"># חוקי SENSE → THINK → ACT</span>
+)</pre>
+  <a href="https://github.com/dudumrk2/ai-wealth-monitor/blob/master/backend/stock_agent.py#L241" target="_blank">📄 קוד הסוכן — stock_agent.py שורה 241</a>
+</div>
+
+<!-- SECTION 4 -->
+<div class="section">
+  <div class="section-title"><span class="section-num">4</span>Guardrails — הגנות על הסוכן</div>
+  <p>סוכן אוטונומי מחליט <em>לבד</em> מה להריץ — ולכן עוטפים אותו בשכבת הגנות שמונעת התנהגות חריגה, בזבוז עלות ושגיאות שקטות.</p>
+  <div class="guard-grid">
+    <div class="guard-card">
+      <div class="guard-icon">🔁</div>
+      <div class="guard-head">תקרת לולאה</div>
+      <div class="guard-desc"><code>recursion_limit=50</code> על ה-ReAct. LLM שנכנס ללולאה נעצר ב-<code>GraphRecursionError</code> במקום קריאות Gemini אינסופיות.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🛡️</div>
+      <div class="guard-head">ולידציית קלט</div>
+      <div class="guard-desc">לפני yfinance / הסקרייפר — בדיקת תקינות <code>ticker</code>: US דורש אות, IL דורש 4–9 ספרות. קלט פסול מוחזר כשגיאה ברורה שהסוכן מתקן.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">✂️</div>
+      <div class="guard-head">הגבלת פלט</div>
+      <div class="guard-desc">התראת טלגרם ריקה נדחית; הודעה מעל 4096 תווים נחתכת — שליחה מקוצרת במקום כשל 400 שקט.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🎯</div>
+      <div class="guard-head">בדיקת הזיה</div>
+      <div class="guard-desc">PRICE ALERT שנשלח על ניר <strong>שלא בתיק</strong> מסומן ב-<code>warning</code> — מזהה אם הסוכן "המציא" התראה.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🎲</div>
+      <div class="guard-head">דטרמיניזם</div>
+      <div class="guard-desc"><code>temperature=0</code> — ה-LLM בוחר תמיד את התשובה הסבירה ביותר. אותו קלט → אותה התנהגות, בלי "יצירתיות" בהתראות פיננסיות.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">⏱️</div>
+      <div class="guard-head">תקרת זמן</div>
+      <div class="guard-desc">כל הרצה עטופה ב-<code>timeout</code> 180s. סוכן תקוע (סקרייפר/API איטי) נקטע ולא תוקע את ה-cron או צובר עלות.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">🗂️</div>
+      <div class="guard-head">dedup התראות</div>
+      <div class="guard-desc">מפתחות <code>גורו:טיקר:רבעון</code> נשמרים ב-Firestore. 13F רבעוני לא יתריע כל יום מחדש — התראה אחת לכל אירוע.</div>
+    </div>
+    <div class="guard-card">
+      <div class="guard-icon">📊</div>
+      <div class="guard-head">תקציר ground-truth</div>
+      <div class="guard-desc">מה הסוכן באמת עשה נקרא מ<strong>היסטוריית קריאות-הכלים</strong>, לא מהטקסט החופשי של ה-LLM — מקור אמת אובייקטיבי שעליו בנויות הבדיקות.</div>
+    </div>
+  </div>
+  <a href="https://github.com/dudumrk2/ai-wealth-monitor/blob/master/backend/stock_agent_tools.py" target="_blank">📄 ההגנות בקוד — stock_agent_tools.py</a>
+</div>
+
+<!-- DEMO SECTION -->
+<div class="demo-section">
+  <div class="demo-title">▶ Demo — הרצה אמיתית עם Mock Data</div>
+  <div class="demo-subtitle">הסוכן האמיתי (Gemini + LangGraph) רץ עם נתונים מוכנים מראש — ההחלטות אמיתיות</div>
+
+  <div class="demo-arch">
+    <div class="da-step"><b>1 · תרחיש</b><small>הכפתור בוחר scenario ושולח ל-/api/demo/run-scenario</small></div>
+    <div class="arrow">→</div>
+    <div class="da-step"><b>2 · כלים מזויפים</b><small>build_demo_tools() מחזיר @tool עם פלט מוגדר מראש (אותן חתימות)</small></div>
+    <div class="arrow">→</div>
+    <div class="da-step da-real"><b>3 · הסוכן האמיתי</b><small>create_react_agent + Gemini מחליט לבד מה לקרוא ומה לשלוח</small></div>
+    <div class="arrow">→</div>
+    <div class="da-step"><b>4 · לוגים אמיתיים</b><small>כל tool_call וכל החלטה חוזרים ומוצגים למטה</small></div>
+  </div>
+  <div class="demo-note">* רק נתוני ה<em>קלט</em> מזויפים — ההחלטות של ה-LLM אמיתיות לחלוטין.</div>
+
+  <div class="arch-note">
+    <div class="arch-note-title">שתי ארכיטקטורות — בכוונה</div>
+    <ul class="arch-list">
+      <li><b class="c-accent">דמו:</b> הסוכן קורא בעצמו ל-<code>scan_guru_portfolio</code> — כדי לראות את לולאת ה-ReAct ב-action.</li>
+      <li><b class="c-accent">פרודקשן (cron):</b> <code>scan_guru_portfolio</code> רץ מראש מחוץ לסוכן, עובר <code>dedup</code> מול Firestore ומוזרק כ-context.</li>
+      <li><b class="c-accent">הסבר:</b> ה-state של "על מה כבר התרעתי" חייב להיות דטרמיניסטי, עמידות לתקלות סקרייפר, ופחות קריאות Gemini.</li>
+    </ul>
+  </div>
+
+  <div class="demo-config">
+    <div class="cfg-field">
+      <label for="cfgBackend"><code>BACKEND_URL</code> — כתובת ה-Cloud Run</label>
+      <input id="cfgBackend" type="text" dir="ltr" placeholder="https://your-service.run.app" oninput="saveConfig()">
+    </div>
+    <div class="cfg-field">
+      <label for="cfgSecret"><code>CRON_SECRET</code> — הסוד מ-env vars</label>
+      <input id="cfgSecret" type="password" dir="ltr" placeholder="••••••••" oninput="saveConfig()">
+    </div>
+    <span class="cfg-saved" id="cfgSaved"></span>
+  </div>
+
+  <div class="scenario-btns">
+    <button class="btn btn-price"  onclick="runScenario('price')">📊 מניה זזה +6%</button>
+    <button class="btn btn-risk"   onclick="runScenario('risk')">🚨 גורו עזב פוזיציה</button>
+    <button class="btn btn-alpha"  onclick="runScenario('alpha')">💡 גורו נכנס חדש</button>
+    <button class="btn btn-clear"  onclick="runScenario('clear')">✅ הכל תקין</button>
+    <button class="btn btn-reset"  onclick="resetLog()">↺ איפוס</button>
+  </div>
+
+  <div class="log-panel" id="logPanel">
+    <span class="log-placeholder">← בחר תרחיש למעלה כדי להתחיל</span>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <a href="https://console.cloud.google.com/cloudscheduler?project=finance-family-management" target="_blank">🕐 דף ה-Cron — Google Cloud Scheduler</a>
+  <span class="footer-hint">הפעלה ידנית של ה-cron היומי (Run now) ישירות מ-GCP</span>
+</footer>
+</div><!-- /.wrap -->
+
+<script>
+// Config is entered in the UI fields (saved to localStorage between refreshes).
+const CFG_KEY = 'stockAgentDemoConfig';
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+    if (saved.backend) document.getElementById('cfgBackend').value = saved.backend;
+    if (saved.secret)  document.getElementById('cfgSecret').value  = saved.secret;
+  } catch (e) { /* ignore corrupt storage */ }
+}
+
+function saveConfig() {
+  const backend = document.getElementById('cfgBackend').value.trim();
+  const secret  = document.getElementById('cfgSecret').value.trim();
+  localStorage.setItem(CFG_KEY, JSON.stringify({ backend, secret }));
+  const el = document.getElementById('cfgSaved');
+  el.textContent = '✓ נשמר';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ''; }, 1500);
+}
+
+function getConfig() {
+  return {
+    backend: document.getElementById('cfgBackend').value.trim().replace(/\/+$/, ''),
+    secret:  document.getElementById('cfgSecret').value.trim(),
+  };
+}
+
+window.addEventListener('DOMContentLoaded', loadConfig);
+
+let running = false;
+let timers = [];
+
+function now() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
+function resetLog() {
+  timers.forEach(clearTimeout);
+  timers = [];
+  running = false;
+  document.getElementById('logPanel').innerHTML = '<span class="log-placeholder">← בחר תרחיש למעלה כדי להתחיל</span>';
+}
+
+function appendLog(panel, cls, msg) {
+  const prev = panel.querySelector('.cursor');
+  if (prev) prev.remove();
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.style.animationDelay = '0s';
+  div.innerHTML = `<span class="log-ts">${now()}</span><span class="${cls}"><span class="cursor"></span>${escHtml(msg)}</span>`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderLogs(panel, logs, duration) {
+  let delay = 0;
+  logs.forEach(entry => {
+    const d = delay;
+    setTimeout(() => {
+      if (entry.type === 'tool_call') {
+        const argsStr = Object.entries(entry.args).map(([k,v]) => `${k}="${v}"`).join(', ');
+        appendLog(panel, 'log-tool', `→ TOOL CALL: ${entry.name}(${argsStr})`);
+      } else if (entry.type === 'tool_result') {
+        const cls = entry.content.startsWith('ERROR') ? 'log-err'
+                  : entry.content.includes('ALERT') || entry.content.includes('✅ Telegram') ? 'log-alert'
+                  : entry.content.startsWith('Recent news') ? 'log-news'
+                  : 'log-ok';
+        entry.content.split('\n').forEach((line, i) => {
+          if (line.trim()) appendLog(panel, i === 0 ? cls : 'log-news', (i === 0 ? '← ' : '   ') + line);
+        });
+      } else if (entry.type === 'final_output') {
+        appendLog(panel, 'log-info', '');
+        entry.content.split('\n').forEach(line => {
+          if (line.trim()) appendLog(panel, 'log-info', line);
+        });
+      }
+    }, d);
+    delay += entry.type === 'tool_result' ? Math.min(entry.content.split('\n').length * 80, 400) : 200;
+  });
+
+  setTimeout(() => {
+    appendLog(panel, 'log-ok', `✅ הרצה הסתיימה תוך ${duration}s`);
+    const c = panel.querySelector('.cursor');
+    if (c) c.remove();
+  }, delay + 200);
+}
+
+async function runScenario(name) {
+  resetLog();
+  const panel = document.getElementById('logPanel');
+  panel.innerHTML = '';
+
+  const { backend, secret } = getConfig();
+  if (!backend || !secret) {
+    appendLog(panel, 'log-warn', 'מלא קודם את BACKEND_URL ו-CRON_SECRET בשדות למעלה.');
+    return;
+  }
+
+  running = true;
+  appendLog(panel, 'log-info', `[AGENT] מריץ סנריו: ${name} — הסוכן האמיתי (Gemini + LangGraph)`);
+  appendLog(panel, 'log-info', 'ממתין לתגובה...');
+
+  try {
+    const res = await fetch(`${backend}/api/demo/run-scenario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Cron-Secret': secret,
+      },
+      body: JSON.stringify({ scenario: name }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      appendLog(panel, 'log-err', `ERROR ${res.status}: ${err.detail || res.statusText}`);
+      return;
+    }
+
+    const data = await res.json();
+    panel.innerHTML = '';
+    appendLog(panel, 'log-info', `[AGENT] הסתיים תוך ${data.duration_seconds}s`);
+    renderLogs(panel, data.logs, data.duration_seconds);
+
+  } catch (e) {
+    panel.innerHTML = '';
+    appendLog(panel, 'log-err', `שגיאת חיבור: ${e.message}`);
+    appendLog(panel, 'log-warn', 'וודא ש-BACKEND_URL ו-CRON_SECRET נכונים בשדות למעלה');
+  }
+}
+</script>
+</body>
+</html>

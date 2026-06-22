@@ -3,23 +3,26 @@ routers/agent.py
 ================
 FastAPI router for the autonomous LangGraph Financial Analyst Agent.
 
-Exposes two endpoints:
-  POST /api/cron/analyze-stocks         — cron-secured daily trigger (all families)
-  POST /api/settings/cron/analyze-stocks/run — authenticated manual trigger (own family)
+Exposes three endpoints:
+  POST /api/cron/analyze-stocks                — cron-secured daily trigger (all families)
+  POST /api/settings/cron/analyze-stocks/run  — authenticated manual trigger (own family)
+  POST /api/demo/run-scenario                  — presentation demo with mock tools (cron-secret secured)
 """
 
 import asyncio
 import base64
 import os
 import re
+import time
 from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 import db_manager
 from auth import verify_token
-from stock_agent import analyze_portfolio_and_gurus
-from stock_agent_tools import TRACKED_GURUS, scan_guru_portfolio
+from stock_agent import analyze_portfolio_and_gurus, AGENT_RECURSION_LIMIT, SYSTEM_PROMPT
+from stock_agent_tools import TRACKED_GURUS, scan_guru_portfolio, DEMO_SCENARIOS, build_demo_tools
 
 router = APIRouter(tags=["Agent"])
 
@@ -235,6 +238,81 @@ async def analyze_stocks_cron(request: Request):
         "families_processed": len(results),
         "results": results,
     }
+
+
+@router.post("/api/demo/run-scenario")
+async def run_demo_scenario(request: Request):
+    """Presentation demo endpoint — runs the real LangGraph agent with mock tools.
+
+    Secured via X-Cron-Secret header (same secret as the cron endpoint).
+    Accepts body: {"scenario": "price" | "risk" | "alpha" | "clear"}
+
+    Returns the agent's actual tool calls and final output so the presentation
+    page can display what the real agent decided to do.
+    """
+    # Fail closed: reject if the secret is unset OR does not match (mirrors
+    # analyze_stocks_cron). This endpoint triggers paid Gemini calls, so it must
+    # never be reachable without a configured secret.
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    body = await request.json()
+    scenario_name = body.get("scenario", "clear")
+
+    if scenario_name not in DEMO_SCENARIOS:
+        raise HTTPException(status_code=400, detail=f"Unknown scenario '{scenario_name}'. Choose: {list(DEMO_SCENARIOS)}")
+
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langgraph.prebuilt import create_react_agent
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
+
+    mock_tools = build_demo_tools(scenario_name)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key, temperature=0)
+    agent = create_react_agent(model=llm, tools=mock_tools, prompt=SYSTEM_PROMPT)
+
+    tickers = ["AAPL", "ICL.TA", "5131054"]
+    human_input = (
+        f"Run a full portfolio analysis now.\n\n"
+        f"Current Holdings: {', '.join(tickers)}\n\n"
+        f"Superinvestors to scan: \"Berkshire Hathaway\", \"Pershing Square\", \"Scion Asset Management\"\n\n"
+        f"Notification config:\n"
+        f"  Telegram chat_id: demo-presentation\n"
+        f"  IMPORTANT: When calling send_telegram_alert, always pass chat_id=\"demo-presentation\".\n\n"
+        f"Follow all three steps exactly. After all tool calls, provide a brief summary."
+    )
+
+    def _run():
+        start = time.time()
+        result = agent.invoke(
+            {"messages": [HumanMessage(content=human_input)]},
+            config={"recursion_limit": AGENT_RECURSION_LIMIT},
+        )
+        logs = []
+        for msg in result["messages"]:
+            tool_calls = getattr(msg, "tool_calls", None)
+            if tool_calls:
+                for tc in tool_calls:
+                    logs.append({"type": "tool_call", "name": tc["name"], "args": tc.get("args", {})})
+            if isinstance(msg, ToolMessage):
+                logs.append({"type": "tool_result", "name": msg.name, "content": msg.content})
+            if isinstance(msg, AIMessage) and not tool_calls:
+                content = msg.content
+                if isinstance(content, list):
+                    content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
+                if content:
+                    logs.append({"type": "final_output", "content": content})
+        return {"logs": logs, "duration_seconds": round(time.time() - start, 1)}
+
+    try:
+        result = await asyncio.wait_for(asyncio.to_thread(_run), timeout=120.0)
+        return {"scenario": scenario_name, **result}
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Agent run timed out (120s)")
 
 
 @router.post("/api/settings/cron/analyze-stocks/run")
