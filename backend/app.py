@@ -1132,35 +1132,28 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
             
         print(f"📊 [CRON] Found {len(holdings)} holdings for {uid}. Proceeding to AI summary...")
             
-        # Build portfolio data string
+        # Build portfolio data string (skip cash holdings — no price to track)
         portfolio_strings = []
         for h in holdings:
-            ticker = h.get("id")
+            ticker = h.get("id", "")
+            if str(ticker).startswith("CASH_"):
+                continue
+
             shares = float(h.get("shares", 0.0))
             current_price = float(h.get("current_price", 0.0))
             average_cost = float(h.get("average_cost", 0.0))
             previous_week_price = float(h.get("previous_week_price", current_price))
-            
+
             weekly_delta_pct = ((current_price - previous_week_price) / previous_week_price * 100) if previous_week_price else 0.0
             all_time_delta_pct = ((current_price - average_cost) / average_cost * 100) if average_cost > 0 else 0.0
-            
-            if h.get("is_manual", False) and h.get("name") and str(ticker).startswith("CASH_"): 
-                name = h.get("name")
-                portfolio_strings.append(
-                    f"- 💰 מזומן ({name}): {shares:,.2f} {h.get('currency', 'ILS')}"
-                )
-            else:
-                name = h.get("name", ticker)
-                # If name is just the ticker, try to keep it clean
-                display_name = f"{name} ({ticker})" if name != ticker else ticker
-                
-                # Check why return might be 0%
-                has_prev = "previous_week_price" in h
-                
-                portfolio_strings.append(
-                    f"- 📈 {display_name}: {shares:,.2f} יחידות | מחיר נוכחי: {current_price:.2f} | "
-                    f"תשואה שבועית: {weekly_delta_pct:.2f}% (יש היסטוריה: {has_prev}) | תשואה כוללת: {all_time_delta_pct:.2f}%"
-                )
+
+            name = h.get("name", ticker)
+            display_name = f"{name} ({ticker})" if name != ticker else ticker
+
+            portfolio_strings.append(
+                f"- 📈 {display_name}: {shares:,.2f} יחידות | מחיר נוכחי: {current_price:.2f} | "
+                f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
+            )
         
         portfolio_data_string = "\n".join(portfolio_strings)
         
@@ -1181,7 +1174,11 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
         )
         
         ai_text = response.text
-        
+
+        if ai_text.strip() == "NO_SIGNIFICANT_EVENTS":
+            print(f"⏭️  [CRON] No significant events for {uid} — skipping email")
+            return {"status": "skipped", "reason": "no_significant_events"}
+
         # Convert to HTML
         html_content = markdown.markdown(ai_text)
         email_html = f"<html><head><style>body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }} h2 {{ color: #2c3e50; }} strong {{ color: #1abc9c; }}</style></head><body dir='rtl'>{html_content}</body></html>"
