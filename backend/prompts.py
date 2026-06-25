@@ -226,6 +226,15 @@ Your task is to analyze the following weekly stock portfolio data and provide a 
 Here is the current portfolio data and this week's performance:
 {portfolio_data_string}
 
+**CRITICAL RULE — SEND DECISION:**
+Before writing anything, evaluate whether there is genuinely something worth reporting.
+If ALL of the following are true, respond with ONLY the exact text `NO_SIGNIFICANT_EVENTS` and nothing else:
+- No stock moved more than 3% (up or down) this week
+- No holding shows an unusual all-time loss (below -15%)
+- There are no obvious outliers that a long-term investor should be aware of
+
+Only if at least one condition is NOT true, write the full report below.
+
 Please structure your report into two main sections:
 
 **Part 1: Weekly Portfolio Summary (סיכום התיק השבועי)**
