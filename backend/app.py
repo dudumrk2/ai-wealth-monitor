@@ -97,11 +97,22 @@ os.makedirs(MOCK_DATA_DIR, exist_ok=True)
 print(f"Data directories initialized at: {DATA_DIR}")
 sys.stdout.flush()
 
-# Add CORS middleware for frontend access
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    print(f"\n[HTTP] {request.method} {request.url.path} - Receiving...")
+    sys.stdout.flush()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    print(f"[HTTP] {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
+    sys.stdout.flush()
+    return response
+
+# Add CORS middleware for frontend access (must be added last so it is the outermost middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -125,17 +136,6 @@ app.include_router(log_monitor.router)
 async def startup_event():
     print("✅ [APP] Backend service started and ready for requests.")
     sys.stdout.flush()
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    print(f"\n[HTTP] {request.method} {request.url.path} - Receiving...")
-    sys.stdout.flush()
-    response = await call_next(request)
-    process_time = (time.time() - start_time) * 1000
-    print(f"[HTTP] {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
-    sys.stdout.flush()
-    return response
 
 @app.post("/api/auth/demo")
 async def login_demo():
@@ -1311,6 +1311,89 @@ async def _run_funder_yields_update():
     print(f"✅ [CRON] Prime rate updated: {prime_rate}%")
             
     return {"status": "success", "updatedPolices": total_updated, "prime_rate": prime_rate}
+
+
+@app.post("/api/cron/monthly")
+async def monthly_cron(request: Request):
+    """
+    Unified monthly cron: fetch-emails + update-funder-yields (including prime rate).
+    Replaces the two separate monthly jobs. Secured via X-Cron-Secret header.
+    """
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    print(f"\n{'='*50}")
+    print("📅 [CRON] monthly — starting fetch-emails + update-funder-yields")
+    print(f"{'='*50}\n")
+
+    # 1. Fetch emails
+    uids_all = db_manager.get_all_family_uids()
+    email_results = []
+    for uid in (uids_all or []):
+        res = await _process_family_emails(uid)
+        email_results.append({"uid": uid, **res})
+    total_emails = sum(r.get("processed", 0) for r in email_results)
+    print(f"✅ [CRON] fetch-emails done — {total_emails} emails processed across {len(email_results)} families")
+
+    # 2. Funder yields + prime rate
+    funder_result = await _run_funder_yields_update()
+    print(f"✅ [CRON] update-funder-yields done — {funder_result.get('updatedPolices', 0)} policies, prime rate {funder_result.get('prime_rate')}%")
+
+    return {
+        "status": "success",
+        "fetch_emails": {"families": len(email_results), "total_emails_processed": total_emails, "results": email_results},
+        "funder_yields": funder_result,
+    }
+
+
+@app.post("/api/cron/weekly")
+async def weekly_cron(request: Request):
+    """
+    Unified weekly cron: update-stock-prices + weekly-stock-summary.
+    Replaces the separate daily price update and weekly summary jobs.
+    Secured via X-Cron-Secret header.
+    """
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    incoming_secret = request.headers.get("X-Cron-Secret", "")
+    if not cron_secret or incoming_secret != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing X-Cron-Secret")
+
+    print(f"\n{'='*50}")
+    print("📅 [CRON] weekly — starting update-stock-prices + weekly-stock-summary")
+    print(f"{'='*50}\n")
+
+    # 1. Update stock prices first so summary uses fresh data
+    uids_holdings = db_manager.get_all_family_uids_for_holdings()
+    price_results = []
+    for uid in uids_holdings:
+        profile = db_manager.get_family_profile(uid)
+        if profile and profile.get("cron_stock_prices_enabled", True) is False:
+            print(f"⏭️  [CRON] Skipping update_stock_prices for {uid} (disabled in settings)")
+            continue
+        res = await _perform_stock_prices_update(uid, source_label="CRON-WEEKLY")
+        if res.get("updated", 0) > 0:
+            price_results.append({"uid": uid, "updated": res["updated"]})
+    print(f"✅ [CRON] update-stock-prices done — {len(price_results)} families updated")
+
+    # 2. Weekly stock summary (email via Gemini)
+    uids_all = db_manager.get_all_family_uids()
+    summary_results = []
+    for uid in (uids_all or []):
+        profile = db_manager.get_family_profile(uid)
+        if profile and profile.get("cron_weekly_summary_enabled", True) is False:
+            print(f"⏭️  [CRON] Skipping weekly_summary for {uid} (disabled in settings)")
+            continue
+        res = await _weekly_stock_summary_for_family(uid)
+        summary_results.append({"uid": uid, **res})
+    print(f"✅ [CRON] weekly-stock-summary done — {len(summary_results)} families processed")
+
+    return {
+        "status": "success",
+        "stock_prices": {"families_updated": len(price_results), "results": price_results},
+        "weekly_summary": {"families_processed": len(summary_results), "results": summary_results},
+    }
 
 
 @app.get("/api/settings/prime-rate")
