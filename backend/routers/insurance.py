@@ -4,9 +4,6 @@ import os
 import db_manager
 from auth import verify_token
 import config
-from google import genai
-from google.genai import types
-import config
 
 router = APIRouter(tags=["insurance"])
 
@@ -68,8 +65,10 @@ Draft the WhatsApp message now:
          return {"draft": "טיוטת וואטסאפ מדומה מטעמי מערכת חסרה."}
     
     try:
+        from google import genai
+        from google.genai import types
         client = genai.Client(api_key=api_key)
-        
+
         print(f"\n--- AI CALL (INSURANCE COMPARISON) ---")
         print(f"Model: {config.GEMINI_MODEL_NAME}")
         print(f"System Prompt: {system_prompt}")

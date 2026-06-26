@@ -4,12 +4,11 @@ from __future__ import annotations
 import os
 import re
 
-import fitz
-import numpy as np
-from google import genai
-from google.genai import types
-
 import config
+
+# fitz / numpy / google.genai are imported lazily inside the functions that use
+# them — they are heavy (~seconds) and importing this module must stay cheap so
+# routers that depend on it (e.g. dashboard_chat) don't slow down cold start.
 
 
 SECTION_MAX_CHARS = 2800  # ~700 tokens at ~4 chars/token (matches insurance-rag baseline)
@@ -24,6 +23,7 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
+        from google import genai
         _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     return _client
 
@@ -144,6 +144,7 @@ def cosine_top_k(
     if not chunk_vectors:
         return []
 
+    import numpy as np
     q = np.asarray(query, dtype=np.float32)
     matrix = np.asarray(chunk_vectors, dtype=np.float32)
 
@@ -215,6 +216,7 @@ _EXTRACT_PROMPT = (
 
 def extract_markdown_via_gemini(pdf_bytes: bytes, *, client=None) -> str:
     """Send the PDF inline to Gemini native-PDF and return structured Markdown."""
+    from google.genai import types
     c = client or _get_client()
     pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
     resp = c.models.generate_content(
@@ -226,6 +228,7 @@ def extract_markdown_via_gemini(pdf_bytes: bytes, *, client=None) -> str:
 
 def embed_documents(texts: list[str], *, client=None) -> list[list[float]]:
     """Embed chunk texts with gemini-embedding-001 (RETRIEVAL_DOCUMENT, 768d)."""
+    from google.genai import types
     c = client or _get_client()
     resp = c.models.embed_content(
         model=EMBED_MODEL,
@@ -240,6 +243,7 @@ def embed_documents(texts: list[str], *, client=None) -> list[list[float]]:
 
 def embed_query(query: str, *, client=None) -> list[float]:
     """Embed a single query with gemini-embedding-001 (RETRIEVAL_QUERY, 768d)."""
+    from google.genai import types
     c = client or _get_client()
     resp = c.models.embed_content(
         model=EMBED_MODEL,
@@ -257,6 +261,7 @@ def redact_pdf_bytes(pdf_bytes: bytes, pii_targets: list[str]) -> bytes:
 
     Targets shorter than 2 chars are skipped to avoid catastrophic over-redaction.
     """
+    import fitz
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
         for page in doc:

@@ -1,13 +1,38 @@
+# Deferred annotation evaluation so `fitz.Document` in signatures below does not
+# require importing fitz at module load (heavy import — kept lazy for fast startup).
+from __future__ import annotations
+
 import os
 import json
 import re
 import time
-import fitz
-from anthropic import Anthropic
-from google import genai
-from google.genai import types, errors
 
 import config
+
+# anthropic (~4s) and google.genai (~3s) are heavy imports only needed when an AI
+# call is actually made. They are deferred to first use so app startup / cold start
+# stays fast, while remaining patchable test seams (`flow_utils.Anthropic`,
+# `flow_utils.genai`).
+
+# Lazily-bound module global — exposed so tests can patch `flow_utils.Anthropic`.
+Anthropic = None
+
+
+def _load_anthropic():
+    global Anthropic
+    if Anthropic is None:
+        from anthropic import Anthropic as _Anthropic
+        Anthropic = _Anthropic
+    return Anthropic
+
+
+def __getattr__(name):
+    # PEP 562 lazy attribute: `from google import genai` only on first access to
+    # `flow_utils.genai` (e.g. when a test patches `flow_utils.genai.Client`).
+    if name == "genai":
+        from google import genai
+        return genai
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 def prepare_pdf_for_vision(file_bytes: bytes, f_profile: dict) -> tuple[fitz.Document, list[str], str | None]:
     """
@@ -18,6 +43,7 @@ def prepare_pdf_for_vision(file_bytes: bytes, f_profile: dict) -> tuple[fitz.Doc
       - A list of PII strings to redact
       - The ID number that was used to authenticate (None if doc was not encrypted)
     """
+    import fitz
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     
     # Extract PII targets for redaction and IDs for authentication
@@ -64,7 +90,7 @@ def call_claude_vision(api_key: str, images_b64: list[str], prompt: str) -> dict
     if not images_b64:
         raise ValueError("No images provided to Claude Vision.")
 
-    client = Anthropic(api_key=api_key)
+    client = _load_anthropic()(api_key=api_key)
     content_blocks = []
     
     # Send up to 20 pages — pension reports can be long (multiple product sections)
@@ -101,7 +127,7 @@ def call_claude_text(api_key: str, sys_prompt: str, user_prompt: str) -> list | 
     """
     Sends pure text to Claude (for advisory) and returns parsed JSON.
     """
-    client = Anthropic(api_key=api_key)
+    client = _load_anthropic()(api_key=api_key)
     
     print("🧠 [FLOW_UTILS] Sending text prompt to Claude...")
     start_time = time.time()
@@ -131,6 +157,8 @@ def call_gemini_json(api_key: str, sys_prompt: str, user_prompt: str, max_retrie
     Retries up to max_retries times with retry_delay seconds between each attempt.
     Raises a descriptive RuntimeError if all attempts fail.
     """
+    from google import genai
+    from google.genai import types, errors
     client = genai.Client(api_key=api_key)
     last_error = None
 

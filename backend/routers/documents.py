@@ -7,9 +7,7 @@ import json
 import urllib.parse
 from typing import List, Optional
 import io
-import pandas as pd
 
-import fitz
 import firebase_admin
 from firebase_admin import storage
 
@@ -53,6 +51,7 @@ def _extract_har_bituach_data(file_bytes: bytes, filename: str) -> List[dict]:
     Deterministic extraction from Israeli 'Har Bituach' CSV/Excel.
     Expects headers at row 4 (skiprows=3).
     """
+    import pandas as pd  # lazy: heavy import, only needed when parsing spreadsheets
     try:
         is_csv = filename.lower().endswith('.csv')
         
@@ -249,6 +248,7 @@ def _extract_stocks(file_bytes: bytes, filename: str) -> List[dict]:
     Deterministic extraction from Stock Portfolio CSV/Excel.
     Expects specific column headers like 'שם', 'סימבול', 'שער אחרון', 'כמות', 'מטבע'.
     """
+    import pandas as pd  # lazy: heavy import, only needed when parsing spreadsheets
     try:
         is_csv = filename.lower().endswith('.csv')
         
@@ -616,7 +616,8 @@ async def upload_document(
             detected_owner = "member_1"
             if not filename_lower.endswith(".pdf"):
                 raise HTTPException(status_code=422, detail="מסמך זה חייב להיות מסוג PDF.")
-                
+
+            import fitz  # lazy: heavy import, only needed for PDF processing
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             
             # Determine Owner & Authenticate if encrypted
