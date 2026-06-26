@@ -4,8 +4,6 @@ import json
 import base64
 import asyncio
 import difflib
-import fitz  # PyMuPDF
-from anthropic import Anthropic
 
 import market_data as market_data_module
 
@@ -34,6 +32,7 @@ def _redact_and_render_pdf(doc, target_strings: list[str]) -> list[str]:
     Skips individual pages that fail to render.
     Closes the document before returning.
     """
+    import fitz  # lazy: heavy import, only needed when rendering PDFs
     redacted_images_b64 = []
     start_page = config.PDF_SKIP_PAGES if len(doc) > config.PDF_SKIP_PAGES else 0
     skipped = 0
@@ -74,8 +73,9 @@ def _extract_funds_via_ai(redacted_images_b64: list[str], api_key: str, source_i
             "נסה לפתוח את הקובץ ב-Adobe Reader ולשמור אותו מחדש לפני ההעלאה."
         )
 
+    from anthropic import Anthropic
     anthropic_client = Anthropic(api_key=api_key)
-    
+
     content_blocks = []
     for b64 in redacted_images_b64[:10]:
         content_blocks.append({

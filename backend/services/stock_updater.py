@@ -1,7 +1,20 @@
 import datetime
-import yfinance as yf
 from services.scraper import fetch_bizportal_fund_data
 import db_manager
+
+
+# yfinance is a heavy import (~9s) only needed when prices are actually fetched.
+# It is bound lazily on first use (keeping cold start fast) and kept as a module
+# global so `stock_updater.yf` remains a patchable test seam.
+yf = None
+
+
+def _load_yf():
+    global yf
+    if yf is None:
+        import yfinance as _yf
+        yf = _yf
+    return yf
 
 def _calculate_stock_summary_data(stocks: list, fx_rate: float) -> dict:
     """Calculate aggregate totals for the stock portfolio in ILS."""
@@ -46,6 +59,8 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
     Unified logic to refresh stock prices and FX rates for a specific user.
     Called both by manual refresh and automated cron jobs.
     """
+    yf = _load_yf()  # lazy: import yfinance only when actually fetching prices
+
     # 1. Refresh USD/ILS FX Rate first
     fx_prev_close = 1.0
     new_rate = 1.0

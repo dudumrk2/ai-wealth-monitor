@@ -17,14 +17,33 @@ import time
 from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 import db_manager
 from auth import verify_token
-from stock_agent import analyze_portfolio_and_gurus, AGENT_RECURSION_LIMIT, SYSTEM_PROMPT
-from stock_agent_tools import TRACKED_GURUS, scan_guru_portfolio, DEMO_SCENARIOS, build_demo_tools
+
+# NOTE: stock_agent / stock_agent_tools / langchain are intentionally NOT imported
+# at module level — they pull in langchain_google_genai + langgraph + yfinance
+# (~20s of import time). They are exposed lazily (PEP 562 __getattr__ below) so
+# merely registering this router (on every app startup / cold start) stays cheap,
+# while `agent_module.scan_guru_portfolio` etc. remain patchable test seams.
 
 router = APIRouter(tags=["Agent"])
+
+# stock_agent / stock_agent_tools pull in langchain + langgraph + yfinance (heavy).
+# They are bound lazily on first use (keeping cold start fast) and kept as module
+# globals so tests can patch `agent.scan_guru_portfolio` / `agent.TRACKED_GURUS` /
+# `agent.analyze_portfolio_and_gurus`.
+analyze_portfolio_and_gurus = None
+TRACKED_GURUS = None
+scan_guru_portfolio = None
+
+
+def _load_agent_deps():
+    global analyze_portfolio_and_gurus, TRACKED_GURUS, scan_guru_portfolio
+    if scan_guru_portfolio is None:
+        from stock_agent import analyze_portfolio_and_gurus as _analyze
+        from stock_agent_tools import TRACKED_GURUS as _gurus, scan_guru_portfolio as _scan
+        analyze_portfolio_and_gurus, TRACKED_GURUS, scan_guru_portfolio = _analyze, _gurus, _scan
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +124,8 @@ def _analyze_stocks_for_family(uid: str) -> dict:
 
     Returns a result dict with uid, success flag, and agent output.
     """
+    _load_agent_deps()  # lazy: import langchain/langgraph/yfinance only when the agent runs
+
     print(f"\n🤖 [AGENT] Starting analysis for family: {uid}")
 
     # Step 1 — Profile & holdings
@@ -261,11 +282,15 @@ async def run_demo_scenario(request: Request):
     body = await request.json()
     scenario_name = body.get("scenario", "clear")
 
-    if scenario_name not in DEMO_SCENARIOS:
-        raise HTTPException(status_code=400, detail=f"Unknown scenario '{scenario_name}'. Choose: {list(DEMO_SCENARIOS)}")
-
+    # Lazy imports — keep langchain/langgraph/agent modules out of the cold-start path.
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langgraph.prebuilt import create_react_agent
+    from stock_agent import AGENT_RECURSION_LIMIT, SYSTEM_PROMPT
+    from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools
+
+    if scenario_name not in DEMO_SCENARIOS:
+        raise HTTPException(status_code=400, detail=f"Unknown scenario '{scenario_name}'. Choose: {list(DEMO_SCENARIOS)}")
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:

@@ -176,7 +176,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('demo_uid');
       localStorage.removeItem(STORAGE_KEYS.ONBOARDING_DONE);
       localStorage.removeItem(STORAGE_KEYS.FAMILY_CONFIG);
-      
+      // Clear any per-user cached portfolio data so it never leaks across logins.
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith(STORAGE_KEYS.PORTFOLIO_CACHE))
+        .forEach((k) => localStorage.removeItem(k));
+
       await signOut(auth);
       setUser(null);
       setFamilyConfig(null);

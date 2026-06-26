@@ -5,8 +5,6 @@ import os
 import json
 import asyncio
 import time
-from google import genai
-from google.genai import types
 import db_manager
 from db_manager import get_insurance_chunks
 from rag_utils import embed_query, cosine_top_k, bm25_top_k, rrf_merge
@@ -209,9 +207,11 @@ If the `query_insurance_policy` tool returns excerpts that do not explicitly ans
         return {"response": f"זוהי תשובת מערכת לדוגמה (חסר מפתח GEMINI_API_KEY). ההקשר שלך מבוסס על {len(filtered_funds)} מוצרים בקטגוריית {request.context_filter}."}
         
     try:
+        from google import genai
+        from google.genai import types
         client = genai.Client(api_key=api_key)
         max_retries = 5
-        
+
         # Use chats.create to support automatic tool execution loop
         chat = client.chats.create(
             model=config.GEMINI_MODEL_NAME,
@@ -361,8 +361,10 @@ async def copilot_advisor_chat(request: AdvisorChatRequest, user: dict = Depends
          return {"response": mock_res}
          
     try:
+        from google import genai
+        from google.genai import types
         client = genai.Client(api_key=api_key)
-        
+
         # Format history for Gemini SDK — all turns except the one we just saved (current user message)
         history_contents = []
         for msg in raw_history[:-1]:

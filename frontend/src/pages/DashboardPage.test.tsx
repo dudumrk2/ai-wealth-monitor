@@ -26,6 +26,7 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Clear portfolio cache so stale-while-revalidate doesn't suppress error states in tests
+    localStorage.clear();
     sessionStorage.clear();
     
     // Mock the useAuth hook

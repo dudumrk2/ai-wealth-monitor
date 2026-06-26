@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request, UploadFile, File, Form
 import firebase_admin
 import datetime
-import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
 from schemas import ManualInvestment, ManualStockRequest, GmailSettingsPayload
@@ -9,8 +8,6 @@ import os
 import shutil
 import base64
 import json
-import fitz # PyMuPDF
-from anthropic import Anthropic
 from dotenv import load_dotenv
 from firebase_admin import auth
 import re
@@ -352,6 +349,7 @@ async def process_reports(
         print(f"\n📄 [APP] Processing uploaded file: {filename}")
 
         try:
+            import fitz  # lazy: heavy import, only needed when processing reports
             pdf_bytes = await upload_file.read()
 
             # Open entirely from memory — zero disk I/O
