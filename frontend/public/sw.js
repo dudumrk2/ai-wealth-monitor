@@ -14,6 +14,23 @@
 const CACHE = 'wm-static-v1';
 const SHELL_URL = '/index.html';
 
+// Cap the asset cache so it can't grow unbounded across deploys (old hashed
+// chunks are never referenced again once index.html updates). Cache.keys()
+// returns entries in insertion order, so we evict oldest-first — but never the
+// app shell, which must stay available for offline navigations.
+const MAX_ASSET_ENTRIES = 60;
+
+async function putAndTrim(cache, request, response) {
+  await cache.put(request, response);
+  let keys = await cache.keys();
+  while (keys.length > MAX_ASSET_ENTRIES) {
+    const victim = keys.find((k) => new URL(k.url).pathname !== SHELL_URL);
+    if (!victim) break;
+    await cache.delete(victim);
+    keys = keys.filter((k) => k !== victim);
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.add(SHELL_URL)).catch(() => {})
@@ -57,7 +74,7 @@ self.addEventListener('fetch', (event) => {
         fetch(request).then((res) => {
           if (res.ok && res.type === 'basic') {
             const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, copy));
+            caches.open(CACHE).then((c) => putAndTrim(c, request, copy));
           }
           return res;
         })
