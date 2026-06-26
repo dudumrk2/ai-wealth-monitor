@@ -1,6 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "dummy-api-key",
@@ -14,4 +19,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+
+/**
+ * Firestore with on-device (IndexedDB) persistence so cached reads — e.g. the
+ * family config — are served instantly on reopen and keep working offline.
+ * Falls back to the default in-memory client where IndexedDB is unavailable
+ * (tests/SSR) or if persistence init fails.
+ */
+function createDb() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    return getFirestore(app);
+  }
+}
+
+export const db = createDb();
