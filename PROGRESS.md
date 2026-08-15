@@ -64,3 +64,11 @@ This document tracks development history, architectural decisions, and current p
 - **Action:** Added `google-cloud-logging` dependency, implemented `routers/log_monitor.py`, registered the router in `app.py`, and added unit tests in `tests/test_log_monitor.py`.
 - **Deployment:** Deployed the updated backend service containing the weekly log monitor routes to Google Cloud Run (`finance-family-backend` in `me-west1`).
 - **Cloud Scheduler:** Created and enabled the Cloud Scheduler job `log-monitor-weekly` in `us-central1` (Schedule: `0 8 * * 1` Asia/Jerusalem), verified with a successful force-run triggering HTTP 200 and generating an AI investigation brief email.
+
+### 2026-08-15 (Phase 7: LLM Model Upgrades & Saturday Morning Cron Schedule)
+- **Goal:** Upgrade system AI models to newer generation architectures and adjust the weekly stock cron schedule.
+- **Decision:** Upgraded stock agent and core system models to `gemini-3.7-flash` (via centralized `config.py`).
+- **Decision:** Migrated weekly stock advisory report and OCR pipeline to Claude Sonnet (`claude-sonnet-4-6`), optimizing prompts and ensuring pre-calculated portfolio totals in Python.
+- **Cloud Scheduler:** Updated `cron-weekly` job schedule in GCP project `finance-family-management` (`us-central1`) from Monday morning (`0 8 * * 1`) to Saturday morning (`0 8 * * 6` Asia/Jerusalem at 08:00 AM).
+
+
