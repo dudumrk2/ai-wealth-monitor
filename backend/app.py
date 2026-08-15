@@ -1094,8 +1094,6 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
     import base64
     from email.mime.text import MIMEText
     import markdown
-    from google import genai
-    from google.genai import types
     import config
     import prompts
     from anthropic import Anthropic

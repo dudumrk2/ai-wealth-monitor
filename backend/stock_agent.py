@@ -31,6 +31,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
+import config
+
 from stock_agent_tools import (
     TRACKED_GURUS,
     get_il_stock_data,
@@ -254,7 +256,6 @@ def _build_agent_executor():
         )
 
     # temperature=0: deterministic, rule-following — no creative hallucination.
-    import config
     llm = ChatGoogleGenerativeAI(
         model=config.GEMINI_MODEL_NAME,
         google_api_key=api_key,
