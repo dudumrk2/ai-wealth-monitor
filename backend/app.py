@@ -44,6 +44,7 @@ class StreamToLogger(object):
 
 sys.stdout = StreamToLogger(sys.stdout, logging.info)
 sys.stderr = StreamToLogger(sys.stderr, logging.error)
+logger = logging.getLogger("app")
 # -------------------------------
 
 # Try loading from current dir, then from parent dir (project root)
@@ -1025,10 +1026,13 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             })
 
         except Exception as e:
+            logger.error(f"[CRON] Error processing message {msg_id} for UID {uid}: {e}", exc_info=True)
             print(f"💥 [CRON] Error processing message {msg_id}: {e}")
             results.append({"msg_id": msg_id, "status": "error", "reason": str(e)})
+            if msg_id in all_msg_ids_to_label:
+                all_msg_ids_to_label.remove(msg_id)
 
-    # ── 5b. Label ALL found messages as AI_PROCESSED (including skipped) ──────
+    # ── 5b. Label successfully processed or skipped messages as AI_PROCESSED ──
     for mid in all_msg_ids_to_label:
         try:
             service.users().messages().modify(
@@ -1038,11 +1042,16 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             ).execute()
             print(f"🏷️ [CRON] Labeled message {mid} as AI_PROCESSED")
         except Exception as e:
+            logger.error(f"[CRON] Failed to label message {mid}: {e}")
             print(f"⚠️ [CRON] Failed to label message {mid}: {e}")
 
     # All relevant processing is now handled inside the PensionFlow per report.
     # We update the last_fetched_at if at least one report was successful.
     processed_count = len([r for r in results if r.get("status") == "success"])
+    failed_count = len([r for r in results if r.get("status") == "error"])
+    if failed_count > 0:
+        logger.error(f"[CRON] fetch-emails completed with {failed_count} failure(s) for family {uid}: {[r for r in results if r.get('status') == 'error']}")
+
     if processed_count > 0:
         db_manager.update_family_field(uid, "last_fetched_at", datetime.datetime.now().isoformat())
         
@@ -1050,7 +1059,7 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
         from ai_advisor import run_family_advisory
         await run_family_advisory(uid, family_profile)
     
-    print(f"\n🏁 [CRON] fetch-emails COMPLETE — {processed_count}/{len(messages)} processed.")
+    print(f"\n🏁 [CRON] fetch-emails COMPLETE — {processed_count}/{len(messages)} processed (failures: {failed_count}).")
     return {
         "status": "success",
         "processed": processed_count,

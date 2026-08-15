@@ -4,10 +4,13 @@ import json
 import base64
 import asyncio
 import difflib
+import logging
 
 import market_data as market_data_module
 
 import config
+
+logger = logging.getLogger(__name__)
 
 def _get_similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
@@ -86,7 +89,7 @@ def _extract_funds_via_ai(redacted_images_b64: list[str], api_key: str, source_i
 
     response = anthropic_client.messages.create(
         model=config.CLAUDE_MODEL_NAME,
-        max_tokens=4096,
+        max_tokens=8192,
         system=EXTRACTION_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": content_blocks}],
     )
