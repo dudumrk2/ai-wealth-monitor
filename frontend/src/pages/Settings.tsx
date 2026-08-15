@@ -749,7 +749,7 @@ export default function Settings() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
               <div className="flex-1">
                 <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">סיכום מניות שבועי מבוסס AI</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">ניתוח והפקה אוטומטית של דוח השקעות שבועי ישירות למייל (Gemini)</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">ניתוח והפקה אוטומטית של דוח השקעות שבועי ישירות למייל (Claude)</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <button
