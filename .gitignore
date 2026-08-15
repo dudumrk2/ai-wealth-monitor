@@ -18,6 +18,16 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+*.env
+*.env.*
+backend/*.env
+
+# Local logs & benchmark artifacts
+cloud_logs.json
+logs_utf8.json
+logs_all_utf8.json
+backend/scripts/.cache_*
+backend/scripts/ocr_benchmark_*
 
 # Editor directories and files
 .vscode/*

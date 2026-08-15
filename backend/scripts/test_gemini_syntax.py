@@ -13,7 +13,7 @@ def test_gemini():
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.7-flash',
             contents="Say 'OK'",
         )
         print("Response:", response.text)
