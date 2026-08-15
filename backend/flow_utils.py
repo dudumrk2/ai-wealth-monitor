@@ -2,12 +2,15 @@
 # require importing fitz at module load (heavy import — kept lazy for fast startup).
 from __future__ import annotations
 
+import logging
 import os
 import json
 import re
 import time
 
 import config
+
+logger = logging.getLogger(__name__)
 
 # anthropic (~4s) and google.genai (~3s) are heavy imports only needed when an AI
 # call is actually made. They are deferred to first use so app startup / cold start
@@ -83,6 +86,53 @@ def prepare_pdf_for_vision(file_bytes: bytes, f_profile: dict) -> tuple[fitz.Doc
             
     return doc, pii_targets, authenticated_id
 
+def _extract_and_parse_json(raw_text: str) -> dict | list:
+    """
+    Cleans markdown code fences, leading/trailing whitespace, and attempts
+    robust JSON decoding including boundary extraction and raw decoding.
+    """
+    text = raw_text.strip()
+    text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
+    text = re.sub(r'```\s*$', '', text, flags=re.MULTILINE).strip()
+
+    # 1. Direct JSON parse
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    # 2. Extract outer object { ... } or array [ ... ]
+    start_curly = text.find('{')
+    start_bracket = text.find('[')
+
+    if start_curly != -1 and (start_bracket == -1 or start_curly < start_bracket):
+        end_curly = text.rfind('}')
+        if end_curly > start_curly:
+            try:
+                return json.loads(text[start_curly:end_curly + 1])
+            except Exception:
+                pass
+    elif start_bracket != -1:
+        end_bracket = text.rfind(']')
+        if end_bracket > start_bracket:
+            try:
+                return json.loads(text[start_bracket:end_bracket + 1])
+            except Exception:
+                pass
+
+    # 3. Raw decode fallback
+    indices = [idx for idx in [text.find('{'), text.find('[')] if idx != -1]
+    if indices:
+        start_idx = min(indices)
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(text, start_idx)
+            return obj
+        except Exception:
+            pass
+
+    raise ValueError("Invalid JSON")
+
+
 def call_claude_vision(api_key: str, images_b64: list[str], prompt: str) -> dict:
     """
     Sends base64 images and a prompt to Claude Vision and returns parsed JSON.
@@ -106,19 +156,18 @@ def call_claude_vision(api_key: str, images_b64: list[str], prompt: str) -> dict
     start_time = time.time()
     response = client.messages.create(
         model=config.CLAUDE_MODEL_NAME,
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{"role": "user", "content": content_blocks}],
     )
     duration = time.time() - start_time
     print(f"✅ [FLOW_UTILS] Claude responded successfully in {duration:.2f}s")
 
     response_text = response.content[0].text.strip()
-    response_text = re.sub(r'^```(?:json)?\s*', '', response_text, flags=re.MULTILINE)
-    response_text = re.sub(r'```\s*$', '', response_text, flags=re.MULTILINE)
     
     try:
-        return json.loads(response_text)
+        return _extract_and_parse_json(response_text)
     except Exception as e:
+        logger.error(f"[FLOW_UTILS] Failed to parse Claude Vision JSON: {e}\nRaw Response (first 500 chars):\n{response_text[:500]}")
         print(f"💥 [FLOW_UTILS] Failed to parse Claude JSON: {e}\nRaw Response:\n{response_text[:300]}")
         raise ValueError("Invalid JSON returned by Claude Vision")
 
@@ -141,12 +190,11 @@ def call_claude_text(api_key: str, sys_prompt: str, user_prompt: str) -> list | 
     print(f"✅ [FLOW_UTILS] Claude responded successfully in {duration:.2f}s")
     
     response_text = response.content[0].text.strip()
-    response_text = re.sub(r'^```(?:json)?\s*', '', response_text, flags=re.MULTILINE)
-    response_text = re.sub(r'```\s*$', '', response_text, flags=re.MULTILINE)
     
     try:
-        return json.loads(response_text)
+        return _extract_and_parse_json(response_text)
     except Exception as e:
+        logger.error(f"[FLOW_UTILS] Failed to parse Claude Text JSON: {e}\nRaw Response (first 500 chars):\n{response_text[:500]}")
         print(f"💥 [FLOW_UTILS] Failed to parse Claude JSON: {e}")
         raise ValueError("Invalid JSON returned by Claude")
 

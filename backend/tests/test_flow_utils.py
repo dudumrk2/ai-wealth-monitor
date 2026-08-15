@@ -69,7 +69,7 @@ def test_call_claude_vision_raises_on_empty_images():
 
 def test_call_claude_vision_strips_json_fence_and_parses(monkeypatch):
     fake_response = MagicMock()
-    fake_response.content = [MagicMock(text='```json\n{"key": "value"}\n```')]
+    fake_response.content = [MagicMock(text='Here is the extracted data:\n```json\n{"key": "value"}\n```\nHope this helps!')]
 
     mock_client = MagicMock()
     mock_client.messages.create.return_value = fake_response
@@ -78,6 +78,8 @@ def test_call_claude_vision_strips_json_fence_and_parses(monkeypatch):
     result = flow_utils.call_claude_vision("fake-key", ["b64data"], "prompt")
 
     assert result == {"key": "value"}
+    call_args = mock_client.messages.create.call_args[1]
+    assert call_args["max_tokens"] == 8192
 
 
 def test_call_claude_vision_raises_on_invalid_json(monkeypatch):
