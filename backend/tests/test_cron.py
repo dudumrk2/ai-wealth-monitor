@@ -109,7 +109,7 @@ def test_weekly_cron_success(monkeypatch):
 async def test_weekly_stock_summary_for_family_skips_cash_and_skips_email_on_no_events():
     from app import _weekly_stock_summary_for_family
     with patch("app.db_manager") as mock_db, \
-         patch("google.genai.Client") as mock_genai_client, \
+         patch("anthropic.Anthropic") as mock_anthropic_client, \
          patch("app._get_gmail_service") as mock_gmail:
         
         # Setup mock database
@@ -122,24 +122,26 @@ async def test_weekly_stock_summary_for_family_skips_cash_and_skips_email_on_no_
             {"id": "AAPL", "shares": 10, "current_price": 150, "average_cost": 140}
         ]
         
-        # Setup mock Gemini response
+        # Setup mock Claude response
         mock_client_instance = MagicMock()
-        mock_genai_client.return_value = mock_client_instance
+        mock_anthropic_client.return_value = mock_client_instance
         mock_response = MagicMock()
-        mock_response.text = "NO_SIGNIFICANT_EVENTS"
-        mock_client_instance.models.generate_content.return_value = mock_response
+        mock_content = MagicMock()
+        mock_content.text = "NO_SIGNIFICANT_EVENTS"
+        mock_response.content = [mock_content]
+        mock_client_instance.messages.create.return_value = mock_response
         
         # Run function
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "fake_key"}):
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "fake_key"}):
             res = await _weekly_stock_summary_for_family("family_1")
             
         assert res["status"] == "skipped"
         assert res["reason"] == "no_significant_events"
         
-        # Verify CASH_ILS was filtered out and only AAPL was passed to generate_content
-        mock_client_instance.models.generate_content.assert_called_once()
-        call_args = mock_client_instance.models.generate_content.call_args[1]
-        prompt_used = call_args["contents"]
+        # Verify CASH_ILS was filtered out and only AAPL was passed to create
+        mock_client_instance.messages.create.assert_called_once()
+        call_args = mock_client_instance.messages.create.call_args[1]
+        prompt_used = call_args["messages"][0]["content"]
         assert "AAPL" in prompt_used
         assert "CASH_ILS" not in prompt_used
         
@@ -152,7 +154,7 @@ async def test_weekly_stock_summary_for_family_skips_cash_and_skips_email_on_no_
 async def test_weekly_stock_summary_for_family_sends_email_on_significant_events():
     from app import _weekly_stock_summary_for_family
     with patch("app.db_manager") as mock_db, \
-         patch("google.genai.Client") as mock_genai_client, \
+         patch("anthropic.Anthropic") as mock_anthropic_client, \
          patch("app._get_gmail_service") as mock_gmail_service:
         
         mock_db.get_family_profile.return_value = {
@@ -164,15 +166,17 @@ async def test_weekly_stock_summary_for_family_sends_email_on_significant_events
         ]
         
         mock_client_instance = MagicMock()
-        mock_genai_client.return_value = mock_client_instance
+        mock_anthropic_client.return_value = mock_client_instance
         mock_response = MagicMock()
-        mock_response.text = "Here is a weekly update about AAPL..."
-        mock_client_instance.models.generate_content.return_value = mock_response
+        mock_content = MagicMock()
+        mock_content.text = "Here is a weekly update about AAPL..."
+        mock_response.content = [mock_content]
+        mock_client_instance.messages.create.return_value = mock_response
         
         mock_service = MagicMock()
         mock_gmail_service.return_value = mock_service
         
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "fake_key"}):
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "fake_key"}):
             res = await _weekly_stock_summary_for_family("family_1")
             
         assert res["status"] == "success"

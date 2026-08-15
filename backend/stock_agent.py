@@ -31,6 +31,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
+import config
+
 from stock_agent_tools import (
     TRACKED_GURUS,
     get_il_stock_data,
@@ -215,9 +217,8 @@ You MUST call send_telegram_alert in the following scenarios:
       Message format: "💡 ALPHA IDEA: <b>[GURU]</b> initiated a NEW position in
       <b>[TICKER]</b> this quarter. Consider researching for potential addition."
 
-If NO alerts are triggered, send a single summary message:
-  "✅ Portfolio Check Complete — No significant events detected.
-   Prices stable. No guru exits or new entries overlap with your portfolio."
+If NO alerts are triggered (no price moves >= +-5%, no guru exits of held stocks, no new guru positions), DO NOT call send_telegram_alert. Do NOT send any Telegram message if there are no alerts or actionable updates.
+Simply conclude your run silently with your final text summary.
 
 ═══════════════════════════════════════════════════════════════
 OPERATING RULES
@@ -225,7 +226,8 @@ OPERATING RULES
 • Call tools sequentially — do not skip any step.
 • Do NOT fabricate data. Use ONLY the tool results.
 • Every Telegram message must be concise, factual, and actionable.
-• After all alerts are sent, provide a brief text summary of this run's findings.
+• If no alerts are triggered, stay silent on Telegram.
+• Conclude with a brief text summary of this run's findings.
 """
 
 # ---------------------------------------------------------------------------
@@ -255,7 +257,7 @@ def _build_agent_executor():
 
     # temperature=0: deterministic, rule-following — no creative hallucination.
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+        model=config.GEMINI_MODEL_NAME,
         google_api_key=api_key,
         temperature=0,
     )

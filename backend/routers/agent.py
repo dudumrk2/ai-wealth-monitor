@@ -297,7 +297,8 @@ async def run_demo_scenario(request: Request):
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
 
     mock_tools = build_demo_tools(scenario_name)
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key, temperature=0)
+    import config
+    llm = ChatGoogleGenerativeAI(model=config.GEMINI_MODEL_NAME, google_api_key=api_key, temperature=0)
     agent = create_react_agent(model=llm, tools=mock_tools, prompt=SYSTEM_PROMPT)
 
     tickers = ["AAPL", "ICL.TA", "5131054"]

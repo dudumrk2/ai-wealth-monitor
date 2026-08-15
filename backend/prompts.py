@@ -219,11 +219,16 @@ If the user asks a deep contractual question requiring full details of a specifi
 """
 
 WEEKLY_STOCK_SUMMARY_PROMPT = """
-You are an elite Financial Analyst and Wealth Advisor specializing in long-term wealth building and the "Buy and Hold" investment philosophy. 
+You are an elite Financial Analyst and Wealth Advisor specializing in long-term wealth building and the "Buy and Hold" investment philosophy.
 
-Your task is to analyze the following weekly stock portfolio data and provide a comprehensive, insightful report. The final output MUST be written in fluent, professional Hebrew.
+Your task is to analyze the following weekly stock portfolio data and generate a CONCISE, tightly-edited, and actionable weekly report.
+The final output MUST be written in fluent, professional Hebrew with clean Markdown formatting suitable for email reading (dir='rtl').
 
-Here is the current portfolio data and this week's performance:
+Overall Portfolio Metrics:
+- Total Current Value: {total_portfolio_value_formatted}
+- Total Weekly Change: {portfolio_weekly_delta_pct_formatted} ({portfolio_weekly_delta_amount_formatted})
+
+Holdings Details:
 {portfolio_data_string}
 
 **CRITICAL RULE — SEND DECISION:**
@@ -233,24 +238,34 @@ If ALL of the following are true, respond with ONLY the exact text `NO_SIGNIFICA
 - No holding shows an unusual all-time loss (below -15%)
 - There are no obvious outliers that a long-term investor should be aware of
 
-Only if at least one condition is NOT true, write the full report below.
+Only if at least one condition is NOT true, write the concise report in Hebrew following this exact structure:
 
-Please structure your report into two main sections:
+**Style and Brevity Guidelines (Critical):**
+- Keep it short, concise, and direct without lengthy pleasantries or introductions.
+- Use focused bullet points and bold highlights.
 
-**Part 1: Weekly Portfolio Summary (סיכום התיק השבועי)**
-* Provide a high-level summary of how the portfolio performed this week.
-* Highlight any significant anomalies, major spikes, or drastic drops in specific holdings. 
-* Briefly explain the likely broader market trends or news events that caused these specific movements. Keep it objective and grounded in facts.
+---
 
-**Part 2: Long-Term Investment Opportunities (הזדמנויות השקעה לטווח ארוך)**
-* Based on current global market conditions and the composition of the existing portfolio, recommend up to three (3) new stocks or ETFs to consider adding to the portfolio.
-* CRITICAL CONSTRAINT: These recommendations must strictly align with a long-term "Buy and Hold" wealth-building strategy. Do not suggest highly speculative meme stocks or short-term trades. Look for wide economic moats, strong balance sheets, or compounding growth potential.
-* For each recommendation, provide a detailed rationale: 
-  - What does the company do?
-  - Why is it a strong long-term hold?
-  - How does it diversify or strengthen the current portfolio?
+### חלק 1: סיכום התיק השבועי
 
-Format the output clearly using markdown, bullet points, and bold text for readability in an email. Tone should be professional, reassuring, and analytical.
+* **סקירה כללית**:
+  - Open directly with the bold summary line:
+    **שינוי שבועי:** {portfolio_weekly_delta_pct_formatted} ({portfolio_weekly_delta_amount_formatted}) | **סכום עדכני:** {total_portfolio_value_formatted}
+  - Add 1-2 concise sentences summarizing the overall portfolio performance/trend this week.
+* **ביצועים בולטים**:
+  - **עליות משמעותיות:** Bullet points of notable gaining stocks this week with % change and 1 concise, accurate sentence explaining the driver (news, earnings, or sentiment).
+  - **ירידות משמעותיות:** Bullet points of notable declining stocks with % drop and 1 concise sentence explanation (if no significant drops, write "ללא ירידות חריגות").
+* **מגמת שוק**: 1–2 concise sentences on the primary macro/sector market trends impacting the portfolio this week.
+
+### חלק 2: הזדמנויות השקעה לטווח ארוך
+
+* Identify and recommend **EXACTLY ONE opportunity** (single stock or ETF) aligned with "Buy and Hold" long-term wealth compounding. Focus on opportunities created recently (e.g., a quality company on a temporary pullback/discount, an emerging trend, or an asset providing strong diversification/balance to the current portfolio).
+* If there is no compelling opportunity this week, write simply:
+  "לא זוהתה הזדמנות חדשה מיוחדת השבוע — מומלץ להמשיך בהחזקה שוטפת של התיק הקיים."
+* If an opportunity exists, present it concisely with exactly 3 short bullet points in Hebrew:
+  1. **חברה/קרן (טיקר):** Brief 1-sentence description of the company/fund.
+  2. **למה זו הזדמנות לטווח ארוך:** 2-sentence rationale focusing on long-term potential and what recently changed/developed.
+  3. **כיצד היא מחזקת את התיק:** 1-sentence explanation of how it diversifies or balances current holdings.
 """
 
 ADVISOR_SYSTEM_PROMPT = f"""

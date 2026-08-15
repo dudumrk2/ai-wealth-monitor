@@ -242,8 +242,9 @@ Grouped log entries:
 {grouped_text}"""
 
     try:
+        import config
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model=config.GEMINI_MODEL_NAME,
             google_api_key=api_key,
             temperature=0,
         )

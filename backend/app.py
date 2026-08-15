@@ -1094,19 +1094,18 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
     import base64
     from email.mime.text import MIMEText
     import markdown
-    from google import genai
-    from google.genai import types
     import config
     import prompts
+    from anthropic import Anthropic
 
     try:
-        gemini_api_key = os.environ.get("GEMINI_API_KEY")
-        if not gemini_api_key:
-            print("❌ [CRON] GEMINI_API_KEY not found in environment variables!")
-            return {"status": "error", "reason": "GEMINI_API_KEY not configured."}
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_api_key:
+            print("❌ [CRON] ANTHROPIC_API_KEY not found in environment variables!")
+            return {"status": "error", "reason": "ANTHROPIC_API_KEY not configured."}
         
-        print(f"🤖 [CRON-AI] Initializing Gemini client with model: {config.GEMINI_PRO_MODEL_NAME}")
-        client = genai.Client(api_key=gemini_api_key)
+        print(f"🤖 [CRON-AI] Initializing Anthropic client with model: {config.CLAUDE_MODEL_NAME}")
+        client = Anthropic(api_key=anthropic_api_key)
         
         family_profile = db_manager.get_family_profile(uid)
         if not family_profile: 
@@ -1130,17 +1129,25 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
             
         print(f"📊 [CRON] Found {len(holdings)} holdings for {uid}. Proceeding to AI summary...")
             
-        # Build portfolio data string (skip cash holdings — no price to track)
+        # Calculate total portfolio value and performance metrics
+        total_current_value = 0.0
+        total_previous_value = 0.0
         portfolio_strings = []
+        
         for h in holdings:
             ticker = h.get("id", "")
-            if str(ticker).startswith("CASH_"):
-                continue
-
             shares = float(h.get("shares", 0.0))
             current_price = float(h.get("current_price", 0.0))
             average_cost = float(h.get("average_cost", 0.0))
             previous_week_price = float(h.get("previous_week_price", current_price))
+
+            current_val = shares * current_price
+            prev_val = shares * previous_week_price
+            total_current_value += current_val
+            total_previous_value += prev_val
+
+            if str(ticker).startswith("CASH_"):
+                continue
 
             weekly_delta_pct = ((current_price - previous_week_price) / previous_week_price * 100) if previous_week_price else 0.0
             all_time_delta_pct = ((current_price - average_cost) / average_cost * 100) if average_cost > 0 else 0.0
@@ -1150,28 +1157,41 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
 
             portfolio_strings.append(
                 f"- 📈 {display_name}: {shares:,.2f} יחידות | מחיר נוכחי: {current_price:.2f} | "
-                f"תשואה שבועית: {weekly_delta_pct:.2f}% | תשואה כוללת: {all_time_delta_pct:.2f}%"
+                f"תשואה שבועית: {weekly_delta_pct:+.2f}% | תשואה כוללת: {all_time_delta_pct:+.2f}% | שווי: ₪{current_val:,.0f}"
             )
         
         portfolio_data_string = "\n".join(portfolio_strings)
         
-        final_prompt = prompts.WEEKLY_STOCK_SUMMARY_PROMPT.format(portfolio_data_string=portfolio_data_string)
+        portfolio_weekly_delta_amount = total_current_value - total_previous_value
+        portfolio_weekly_delta_pct = ((portfolio_weekly_delta_amount) / total_previous_value * 100) if total_previous_value > 0 else 0.0
         
-        # Call Gemini
+        total_portfolio_value_formatted = f"₪{total_current_value:,.0f}"
+        portfolio_weekly_delta_pct_formatted = f"{portfolio_weekly_delta_pct:+.2f}%"
+        delta_sign = "+" if portfolio_weekly_delta_amount >= 0 else "-"
+        portfolio_weekly_delta_amount_formatted = f"{delta_sign}₪{abs(portfolio_weekly_delta_amount):,.0f}"
+        
+        final_prompt = prompts.WEEKLY_STOCK_SUMMARY_PROMPT.format(
+            portfolio_data_string=portfolio_data_string,
+            total_portfolio_value_formatted=total_portfolio_value_formatted,
+            portfolio_weekly_delta_pct_formatted=portfolio_weekly_delta_pct_formatted,
+            portfolio_weekly_delta_amount_formatted=portfolio_weekly_delta_amount_formatted,
+        )
+        
+        # Call Claude
         print(f"\n{'='*20} FULL AI PROMPT (WEEKLY SUMMARY) {'='*20}")
         print(final_prompt)
         print(f"{'='*60}\n")
         
-        print(f"🤖 [CRON-AI] Calling Gemini {config.GEMINI_PRO_MODEL_NAME} for weekly summary...")
-        response = client.models.generate_content(
-            model=config.GEMINI_PRO_MODEL_NAME,
-            contents=final_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.5
-            )
+        print(f"🤖 [CRON-AI] Calling Claude {config.CLAUDE_MODEL_NAME} for weekly summary...")
+        response = client.messages.create(
+            model=config.CLAUDE_MODEL_NAME,
+            max_tokens=4096,
+            system="אתה יועץ השקעות מומחה. ניתוח תיק מניות שבועי עבור לקוח.",
+            messages=[{"role": "user", "content": final_prompt}],
+            temperature=0.5
         )
         
-        ai_text = response.text
+        ai_text = response.content[0].text
 
         if ai_text.strip() == "NO_SIGNIFICANT_EVENTS":
             print(f"⏭️  [CRON] No significant events for {uid} — skipping email")
@@ -1208,7 +1228,7 @@ async def _weekly_stock_summary_for_family(uid: str) -> dict:
 @app.post("/api/cron/weekly-stock-summary")
 async def weekly_stock_summary_cron(request: Request):
     """
-    Weekly cron endpoint to analyze stock portfolios using Gemini 2.5 Pro and email the results.
+    Weekly cron endpoint to analyze stock portfolios using Claude Sonnet and email the results.
     Secured via X-Cron-Secret header.
     """
     cron_secret = os.environ.get("CRON_SECRET", "")
