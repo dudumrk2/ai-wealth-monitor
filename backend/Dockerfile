@@ -3,6 +3,7 @@ FROM python:3.11-slim
 
 # Set the working directory to /app
 WORKDIR /app
+ENV PYTHONIOENCODING=utf-8
 
 # Copy requirements.txt and install dependencies
 COPY requirements.txt .
