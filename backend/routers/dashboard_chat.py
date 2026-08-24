@@ -10,7 +10,7 @@ from db_manager import get_insurance_chunks
 from rag_utils import embed_query, cosine_top_k, bm25_top_k, rrf_merge
 from auth import verify_token
 import config
-from services.demo_constants import DEMO_CHAT_RESPONSES
+from services.demo_constants import get_demo_chat_responses, is_english_demo_enabled, DEMO_CHAT_RESPONSES
 
 router = APIRouter(tags=["dashboard"])
 
@@ -131,14 +131,20 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
     # --- DEMO BYPASS ---
     if uid == config.DEMO_UID:
         q = request.question.lower()
-        if "פנסיה" in q or "קרן" in q or "חיסכון" in q or "גמל" in q or "השתלמות" in q:
-            ans = DEMO_CHAT_RESPONSES["pension"]
-        elif "מניה" in q or "בורסה" in q or "תיק" in q:
-            ans = DEMO_CHAT_RESPONSES["stocks"]
-        elif "ביטוח" in q:
-            ans = DEMO_CHAT_RESPONSES["insurance"]
+        has_hebrew = any("\u0590" <= c <= "\u05ea" for c in request.question)
+        lang = "he" if (has_hebrew and not is_english_demo_enabled()) else ("en" if (not has_hebrew or is_english_demo_enabled()) else "he")
+        responses = get_demo_chat_responses(lang)
+
+        if any(w in q for w in ["experimental", "abroad", "treatment", "overseas", "aetna", "surgery", "critical", "rider", "rag", "כיסוי", "חו\"ל", "טיפולים", "ניתוח", "ניסיונ"]):
+            ans = responses.get("treatment", responses.get("rag", responses["default"]))
+        elif any(w in q for w in ["pension", "401k", "retirement", "vanguard", "blackrock", "פנסיה", "קרן", "חיסכון", "גמל", "השתלמות"]):
+            ans = responses["pension"]
+        elif any(w in q for w in ["stock", "equity", "apple", "nvidia", "microsoft", "shares", "holding", "מניה", "בורסה", "תיק", "מניות"]):
+            ans = responses["stocks"]
+        elif any(w in q for w in ["insurance", "policy", "coverage", "prudential", "geico", "ביטוח", "פוליסה", "פוליסות"]):
+            ans = responses["insurance"]
         else:
-            ans = DEMO_CHAT_RESPONSES["default"]
+            ans = responses["default"]
         return {"response": ans}
 
     family_profile = db_manager.get_family_profile(uid)

@@ -44,6 +44,13 @@ def test_seed_demo_data_success(mock_db_manager):
     assert args[0] == config.DEMO_UID
     assert args[1] == DEMO_ALT_INVESTMENT
 
+    # 4. Insurance RAG chunks assertions
+    mock_db_manager.save_policy_chunks.assert_called_once()
+    args, _ = mock_db_manager.save_policy_chunks.call_args
+    assert args[0] == config.DEMO_UID
+    assert args[1] == "demo-aetna-health"
+    assert len(args[2]) > 0
+
 def test_seed_demo_data_exception_on_delete(mock_db_manager):
     """Test that seeding continues successfully even if deleting existing alt_projects throws an exception."""
     # Arrange

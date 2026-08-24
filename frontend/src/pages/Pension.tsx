@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ActionItems from '../components/dashboard/ActionItems';
 import AssetTable from '../components/dashboard/AssetTable';
@@ -9,13 +9,12 @@ import type { Fund, FundCategory, ActionItem, AlternativeInvestment } from '../t
 import { CATEGORY_LABELS } from '../types/portfolio';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Info } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
 import { API_URL } from '../lib/api';
+import { getTranslation } from '../utils/i18n';
 
 /** Same cache key as DashboardPage — both pages fetch the same /api/portfolio endpoint */
 const PORTFOLIO_CACHE_KEY = 'portfolio_cache';
@@ -33,16 +32,28 @@ const CATEGORY_COLORS: Record<FundCategory, string> = {
 };
 
 /** Build SummaryRow[] from a funds list, grouping by category. */
-function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit'): SummaryRow[] {
+function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit' = 'balance', isEn = false): SummaryRow[] {
   const map = new Map<FundCategory, number>();
   for (const f of funds) {
     if (f.category === 'alternative') continue; // Alternatives handled separately
     map.set(f.category, (map.get(f.category) ?? 0) + (f[field] ?? 0));
   }
+  
+  const DEMO_CATEGORY_LABELS: Record<string, string> = {
+    pension: '401(k) / Pension Plan',
+    study: 'Education / Tax-Advantaged Fund',
+    provident: 'IRA / Provident Fund',
+    investment_provident: 'Brokerage / Investment Provident',
+    managers: 'Executive Insurance',
+    stocks: 'Equities / Stocks',
+    alternative: 'Alternative Investments',
+    insurance: 'Insurance Portfolio',
+  };
+
   return Array.from(map.entries())
     .filter(([, v]) => v > 0)
     .map(([cat, val]) => ({
-      label: CATEGORY_LABELS[cat],
+      label: isEn ? (DEMO_CATEGORY_LABELS[cat] || cat) : CATEGORY_LABELS[cat],
       balance: val,
       color: '',
       hex: CATEGORY_COLORS[cat],
@@ -50,7 +61,12 @@ function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit'): Summary
 }
 
 export default function Pension() {
-  const { user, familyConfig } = useAuth();
+  const { user, familyConfig, isDemo, isEnglishDemo } = useAuth();
+  const t = getTranslation(isEnglishDemo);
+  const member1Name = familyConfig?.member1?.name?.split(' ')[0] || (isEnglishDemo ? 'David' : 'המבוטח הראשי');
+  const member2Name = familyConfig?.member2?.name?.split(' ')[0] || (isEnglishDemo ? 'Sarah' : 'בן/בת הזוג');
+  const householdName = familyConfig?.householdName || (isEnglishDemo ? 'Miller Family' : 'כלל המשפחה');
+
   const [activeTab, setActiveTab] = useState<TabView>('joint');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +118,6 @@ export default function Pension() {
       if (!silent) setLoading(false);
     }
   }, [user]);
-
-  const { member1Name, member2Name, householdName } = useMemo(() => ({
-    member1Name: familyConfig?.member1?.name?.split(' ')[0] || 'המבוטח הראשי',
-    member2Name: familyConfig?.member2?.name?.split(' ')[0] || 'בן/בת הזוג',
-    householdName: familyConfig?.householdName || 'המשפחה',
-  }), [familyConfig]);
 
   // Initial portfolio fetch — stale-while-revalidate using shared Dashboard cache
   useEffect(() => {
@@ -247,7 +257,6 @@ export default function Pension() {
   };
 
 
-
   const userFunds    = portfolioData?.portfolios?.user?.funds as Fund[] || [];
   const spouseFunds  = portfolioData?.portfolios?.spouse?.funds as Fund[] || [];
   const jointStocks  = (portfolioData?.portfolios?.joint?.stock_investments || []) as Fund[];
@@ -257,8 +266,8 @@ export default function Pension() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'user': {
-        const balanceRows  = buildRows(userFunds, 'balance');
-        const monthlyRows  = buildRows(userFunds.filter(f => f.monthly_deposit > 0), 'monthly_deposit');
+        const balanceRows  = buildRows(userFunds, 'balance', isDemo);
+        const monthlyRows  = buildRows(userFunds.filter(f => f.monthly_deposit > 0), 'monthly_deposit', isDemo);
         const categories = [...new Set(userFunds.map(f => f.category))];
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -273,7 +282,7 @@ export default function Pension() {
                       summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    סיכום צבירה
+                    {isDemo ? "Accumulation" : "סיכום צבירה"}
                   </button>
                   <button
                     onClick={() => setSummaryTab('monthly')}
@@ -282,22 +291,22 @@ export default function Pension() {
                       summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    הפקדות חודשיות
+                    {isDemo ? "Monthly" : "הפקדות חודשיות"}
                   </button>
                 </div>
                 {summaryTab === 'balance' ? (
-                  <PortfolioSummaryCard title={`סך החשבון שצברת`} rows={balanceRows} variant="balance" />
+                  <PortfolioSummaryCard title={isDemo ? `${member1Name}'s Total Retirement Balance` : `סך החשבון שצברת`} rows={balanceRows} variant="balance" />
                 ) : (
-                  <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+                  <PortfolioSummaryCard title={isDemo ? `${member1Name}'s Monthly Contributions` : "סך ההפקדות החודשי"} rows={monthlyRows} variant="monthly" />
                 )}
               </div>
 
               {/* Desktop Side-by-Side View */}
               <div className="hidden lg:block h-full">
-                <PortfolioSummaryCard title={`סך החשבון שצברת`} rows={balanceRows} variant="balance" />
+                <PortfolioSummaryCard title={isDemo ? `${member1Name}'s Total Retirement Balance` : `סך החשבון שצברת`} rows={balanceRows} variant="balance" />
               </div>
               <div className="hidden lg:block h-full">
-                <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+                <PortfolioSummaryCard title={isDemo ? `${member1Name}'s Monthly Contributions` : "סך ההפקדות החודשי"} rows={monthlyRows} variant="monthly" />
               </div>
             </div>
             {categories.map(cat => (
@@ -308,8 +317,8 @@ export default function Pension() {
         );
       }
       case 'spouse': {
-        const balanceRows  = buildRows(spouseFunds, 'balance');
-        const monthlyRows  = buildRows(spouseFunds.filter(f => f.monthly_deposit > 0), 'monthly_deposit');
+        const balanceRows  = buildRows(spouseFunds, 'balance', isDemo);
+        const monthlyRows  = buildRows(spouseFunds.filter(f => f.monthly_deposit > 0), 'monthly_deposit', isDemo);
         const categories   = [...new Set(spouseFunds.map(f => f.category))];
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -324,7 +333,7 @@ export default function Pension() {
                       summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    סיכום צבירה
+                    {isDemo ? "Accumulation" : "סיכום צבירה"}
                   </button>
                   <button
                     onClick={() => setSummaryTab('monthly')}
@@ -333,22 +342,22 @@ export default function Pension() {
                       summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    הפקדות חודשיות
+                    {isDemo ? "Monthly" : "הפקדות חודשיות"}
                   </button>
                 </div>
                 {summaryTab === 'balance' ? (
-                  <PortfolioSummaryCard title="סך החשבון שצברת" rows={balanceRows} variant="balance" />
+                  <PortfolioSummaryCard title={isDemo ? `${member2Name}'s Total Retirement Balance` : "סך החשבון שצברת"} rows={balanceRows} variant="balance" />
                 ) : (
-                  <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+                  <PortfolioSummaryCard title={isDemo ? `${member2Name}'s Monthly Contributions` : "סך ההפקדות החודשי"} rows={monthlyRows} variant="monthly" />
                 )}
               </div>
 
               {/* Desktop Side-by-Side View */}
               <div className="hidden lg:block h-full">
-                <PortfolioSummaryCard title="סך החשבון שצברת" rows={balanceRows} variant="balance" />
+                <PortfolioSummaryCard title={isDemo ? `${member2Name}'s Total Retirement Balance` : "סך החשבון שצברת"} rows={balanceRows} variant="balance" />
               </div>
               <div className="hidden lg:block h-full">
-                <PortfolioSummaryCard title="סך ההפקדות החודשי" rows={monthlyRows} variant="monthly" />
+                <PortfolioSummaryCard title={isDemo ? `${member2Name}'s Monthly Contributions` : "סך ההפקדות החודשי"} rows={monthlyRows} variant="monthly" />
               </div>
             </div>
             {categories.map(cat => (
@@ -360,8 +369,8 @@ export default function Pension() {
       case 'joint':
       default: {
         const allFundsForSummary = [...userFunds, ...spouseFunds, ...jointStocks];
-        const balanceRows = buildRows(allFundsForSummary, 'balance');
-        const monthlyRows = buildRows(allFundsForSummary.filter(f => f.monthly_deposit > 0), 'monthly_deposit');
+        const balanceRows = buildRows(allFundsForSummary, 'balance', isEnglishDemo);
+        const monthlyRows = buildRows(allFundsForSummary.filter(f => f.monthly_deposit > 0), 'monthly_deposit', isEnglishDemo);
         const jointUserFunds   = userFunds.map(f  => ({ ...f, _owner: member1Name }));
         const jointSpouseFunds = spouseFunds.map(f => ({ ...f, _owner: member2Name }));
         const categories = [...new Set([...userFunds, ...spouseFunds].map(f => f.category))];
@@ -378,7 +387,7 @@ export default function Pension() {
                       summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    סיכום משפחתי
+                    {isDemo ? "Family Total" : "סיכום משפחתי"}
                   </button>
                   <button
                     onClick={() => setSummaryTab('monthly')}
@@ -387,27 +396,27 @@ export default function Pension() {
                       summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    הפקדות חודשיות
+                    {isDemo ? "Monthly" : "הפקדות חודשיות"}
                   </button>
                 </div>
                 {summaryTab === 'balance' ? (
-                  <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
+                  <PortfolioSummaryCard title={isDemo ? `Family Total Assets — ${householdName}` : `סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
                 ) : (
-                  <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
+                  <PortfolioSummaryCard title={isDemo ? "Total Family Monthly Contributions" : "סך ההפקדות החודשיות"} rows={monthlyRows} variant="monthly" />
                 )}
               </div>
 
               {/* Desktop Side-by-Side View */}
               <div className="hidden lg:block h-full">
-                <PortfolioSummaryCard title={`סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
+                <PortfolioSummaryCard title={isDemo ? `Family Total Assets — ${householdName}` : `סך החשבון המשפחתי — ${householdName}`} rows={balanceRows} variant="balance" />
               </div>
               <div className="hidden lg:block h-full">
-                <PortfolioSummaryCard title="סך ההפקדות החודשיות" rows={monthlyRows} variant="monthly" />
+                <PortfolioSummaryCard title={isDemo ? "Total Family Monthly Contributions" : "סך ההפקדות החודשיות"} rows={monthlyRows} variant="monthly" />
               </div>
             </div>
             <ActionItems 
               items={(portfolioData.action_items as ActionItem[] || []).filter(item => 
-                ['פנסיה', 'בורסה', 'כללי', 'equity', 'מניות'].includes(item.category || 'כללי')
+                ['פנסיה', 'בורסה', 'כללי', 'equity', 'מניות', 'pension'].includes(item.category || 'כללי')
               )} 
               onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
               member1Name={member1Name}
@@ -416,9 +425,9 @@ export default function Pension() {
             {categories.map(cat => {
               const catFunds = [...jointUserFunds.filter(f => f.category === cat), ...jointSpouseFunds.filter(f => f.category === cat)];
               if (catFunds.length === 0) return null;
-              return <AssetTable key={cat} title={`${CATEGORY_LABELS[cat]} — כלל המשפחה`} funds={catFunds} ownerColumn={catFunds.some(f => f._owner)} />;
+              return <AssetTable key={cat} title={isDemo ? (cat === 'pension' ? '401(k) / Pension Accounts' : cat) : `${CATEGORY_LABELS[cat]} — כלל המשפחה`} funds={catFunds} ownerColumn={catFunds.some(f => f._owner)} />;
             })}
-            {jointStocks.length > 0 && <AssetTable title="תיק מניות משפחתי" funds={jointStocks} />}
+            {jointStocks.length > 0 && <AssetTable title={isDemo ? "Family Stock Holdings" : "תיק מניות משפחתי"} funds={jointStocks} />}
             {altInvest.length > 0 && <AlternativeInvestmentsTable items={altInvest} />}
             
             {/* Bottom Analysis Cards */}
@@ -436,7 +445,7 @@ export default function Pension() {
                           : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                       )}
                     >
-                      פיזור נכסים
+                      {isDemo ? "Asset Allocation" : "פיזור נכסים"}
                     </button>
                     <button
                       onClick={() => setChartTab('providers')}
@@ -447,62 +456,26 @@ export default function Pension() {
                           : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                       )}
                     >
-                      חשיפה לספקים
+                      {isDemo ? "Provider Exposure" : "חשיפה לספקים"}
                     </button>
                   </div>
-                  <Info className="w-5 h-5 text-slate-400 hidden sm:block" />
+                  <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                    <Info className="w-4 h-4" />
+                    <span>{isDemo ? "Consolidated Family Analysis" : "ניתוח מצרפי של כלל המוצרים"}</span>
+                  </div>
                 </div>
 
                 {chartTab === 'assets' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                    <div className="relative h-[220px] md:h-[280px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={[
-                              { name: 'מניות', value: joint.asset_allocation_percentages?.stocks ?? 0, color: '#3b82f6' },
-                              { name: 'אג״ח', value: joint.asset_allocation_percentages?.bonds ?? 0, color: '#10b981' },
-                              { name: 'מזומן', value: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: '#f59e0b' },
-                            ].filter(d => d.value > 0)}
-                            cx="50%" cy="50%"
-                            innerRadius="60%" outerRadius="85%"
-                            paddingAngle={5}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            {[
-                              { color: '#3b82f6' },
-                              { color: '#10b981' },
-                              { color: '#f59e0b' }
-                            ].map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ 
-                              borderRadius: '12px', 
-                              border: 'none', 
-                              boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                              direction: 'rtl'
-                            }} 
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">פיזור</span>
-                        <span className="text-xl md:text-2xl font-black text-slate-800 dark:text-white">נכסים</span>
-                      </div>
-                    </div>
-                    
+                  <div className="space-y-4">
                     <div className="space-y-4">
                       {[
-                        { label: 'מניות', pct: joint.asset_allocation_percentages?.stocks ?? 0, color: 'bg-blue-600' },
-                        { label: 'אג״ח', pct: joint.asset_allocation_percentages?.bonds ?? 0, color: 'bg-emerald-500' },
-                        { label: 'מזומן ושווי מזומן', pct: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: 'bg-amber-400' },
+                        { label: isDemo ? 'Equities / Stocks' : 'מניות', pct: joint.asset_allocation_percentages?.stocks ?? 0, color: 'bg-blue-600' },
+                        { label: isDemo ? 'Fixed Income / Bonds' : 'אג״ח', pct: joint.asset_allocation_percentages?.bonds ?? 0, color: 'bg-emerald-500' },
+                        { label: isDemo ? 'Cash & Equivalents' : 'מזומן ושווי מזומן', pct: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: 'bg-amber-400' },
                       ].map(({ label, pct, color }) => (
-                        <div key={label} className="group">
-                          <div className="flex justify-between text-sm font-bold mb-1.5">
-                            <span className="text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">{label}</span>
+                        <div key={label} className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-bold">
+                            <span className="text-slate-600 dark:text-slate-400">{label}</span>
                             <span className="text-slate-900 dark:text-slate-100">{pct}%</span>
                           </div>
                           <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
@@ -531,12 +504,12 @@ export default function Pension() {
 
               {/* Desktop Separate Analysis View */}
               <div className="hidden lg:block h-full bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">פיזור נכסים</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">{isDemo ? "Asset Allocation" : "פיזור נכסים"}</h3>
                 <div className="space-y-4">
                   {[
-                    { label: 'מניות', pct: joint.asset_allocation_percentages?.stocks ?? 0, color: 'bg-blue-600' },
-                    { label: 'אג״ח', pct: joint.asset_allocation_percentages?.bonds ?? 0, color: 'bg-emerald-500' },
-                    { label: 'מזומן ושווי מזומן', pct: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: 'bg-amber-400' },
+                    { label: isDemo ? 'Equities / Stocks' : 'מניות', pct: joint.asset_allocation_percentages?.stocks ?? 0, color: 'bg-blue-600' },
+                    { label: isDemo ? 'Fixed Income / Bonds' : 'אג״ח', pct: joint.asset_allocation_percentages?.bonds ?? 0, color: 'bg-emerald-500' },
+                    { label: isDemo ? 'Cash & Equivalents' : 'מזומן ושווי מזומן', pct: joint.asset_allocation_percentages?.cash_equivalents ?? 0, color: 'bg-amber-400' },
                   ].map(({ label, pct, color }) => (
                     <div key={label}>
                       <div className="flex justify-between text-sm font-semibold mb-1.5"><span className="text-slate-600 dark:text-slate-400">{label}</span><span className="text-slate-900 dark:text-slate-100">{pct}%</span></div>
@@ -546,7 +519,7 @@ export default function Pension() {
                 </div>
               </div>
               <div className="hidden lg:block h-full bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">חשיפה לספקים</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-lg">{isDemo ? "Provider Exposure" : "חשיפה לספקים"}</h3>
                 <div className="space-y-3">
                   {Object.entries(joint.provider_exposure || {}).map(([provider, value]) => (
                     <div key={provider} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-sm font-semibold">
@@ -589,31 +562,31 @@ export default function Pension() {
       {loading ? (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
           <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-          <p className="text-slate-500 font-medium">טוען ננתונים פיננסיים...</p>
+          <p className="text-slate-500 font-medium">{isEnglishDemo ? t.dashboard.loading : 'טוען ננתונים פיננסיים...'}</p>
         </div>
       ) : error || !portfolioData ? (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4 max-w-md mx-auto text-center">
           <div className="bg-red-50 p-4 rounded-full">
             <AlertCircle className="w-10 h-10 text-red-500" />
           </div>
-          <h2 className="text-xl font-bold text-slate-800">אופס, משהו השתבש</h2>
-          <p className="text-slate-500">{error || 'לא הצלחנו לטעון את תיק ההשקעות שלך. וודא שהשרת רץ ונסה שוב.'}</p>
+          <h2 className="text-xl font-bold text-slate-800">{t.dashboard.errorTitle}</h2>
+          <p className="text-slate-500">{error || (isEnglishDemo ? 'Failed to load portfolio.' : 'לא הצלחנו לטעון את תיק ההשקעות שלך. וודא שהשרת רץ ונסה שוב.')}</p>
           <button onClick={() => fetchPortfolio()} className="mt-4 flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-slate-800 transition-colors">
-            <RefreshCw className="w-4 h-4" /> טען שוב
+            <RefreshCw className="w-4 h-4" /> {t.dashboard.retry}
           </button>
         </div>
       ) : (
         <>
           <div className="mb-4 md:mb-8 animate-fade-in-up">
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">סקירת תיק פנסיוני</h1>
-            <p className="text-slate-500 dark:text-slate-500 text-sm md:text-base mt-1 italic">עקוב, נתח ומטב את עתיד משפחתך.</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">{t.pension.title}</h1>
+            <p className="text-slate-500 dark:text-slate-500 text-sm md:text-base mt-1 italic">{t.pension.subtitle}</p>
           </div>
 
           <div className="flex flex-col gap-4 md:gap-8">
             <div className="min-w-0">
               <div className="bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl inline-flex mb-4 md:mb-6 overflow-x-auto max-w-full">
                 {([
-                  { id: 'joint',  label: 'תצוגה משותפת' },
+                  { id: 'joint',  label: isDemo ? 'Consolidated View' : 'תצוגה משותפת' },
                   { id: 'user',   label: member1Name },
                   { id: 'spouse', label: member2Name },
                 ] as const).map(tab => (

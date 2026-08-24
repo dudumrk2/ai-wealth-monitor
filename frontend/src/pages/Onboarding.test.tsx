@@ -53,6 +53,9 @@ describe('Onboarding Component', () => {
 
       familyConfig: null,
       loading: false,
+      isDemo: false,
+      isEnglishDemo: false,
+      setDemoLanguage: vi.fn(),
       logout: vi.fn(),
       familyId: null,
     });

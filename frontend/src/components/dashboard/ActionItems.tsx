@@ -3,7 +3,8 @@ import { CheckCircle2, Circle, AlertTriangle, Info, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import type { ActionItem, Severity } from '../../types/portfolio';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
-
+import { useAuth } from '../../context/AuthContext';
+import { getTranslation } from '../../utils/i18n';
 
 interface ActionItemsProps {
   items: ActionItem[];
@@ -28,11 +29,22 @@ const PRIORITY_BORDER: Record<Severity, string> = {
 export default function ActionItems({ 
   items: initialItems = [], 
   onRefreshAI, 
-  title = "פעולות נדרשות לשיפור התיק", 
+  title, 
   className,
-  member1Name = "חבר 1",
-  member2Name = "חבר 2"
+  member1Name,
+  member2Name
 }: ActionItemsProps) {
+  let isEn = false;
+  try {
+    const auth = useAuth();
+    isEn = auth?.isEnglishDemo ?? false;
+  } catch {
+    isEn = false;
+  }
+  const t = getTranslation(isEn);
+  const displayTitle = title || t.actionItems.title;
+  const m1 = member1Name || (isEn ? "David" : "חבר 1");
+  const m2 = member2Name || (isEn ? "Sarah" : "חבר 2");
   const [items, setItems] = useState<ActionItem[]>(initialItems);
   const [selectedItem, setSelectedItem] = useState<ActionItem | null>(null);
   const [mobileTab, setMobileTab] = useState<'user' | 'spouse' | 'shared'>('shared');
@@ -101,7 +113,7 @@ export default function ActionItems({
       <Card className={className}>
         <CardHeader className="flex flex-row items-center justify-between gap-2 p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/60">
             <CardTitle className="text-base md:text-xl font-black text-slate-800 dark:text-slate-100 truncate flex-1">
-              {title}
+              {displayTitle}
             </CardTitle>
             
             <div className="shrink-0">
@@ -111,8 +123,8 @@ export default function ActionItems({
                   className="flex items-center justify-center gap-1.5 text-[10px] md:text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-xl border border-blue-100 dark:border-blue-800 active:scale-95"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline">רענן המלצות</span>
-                  <span className="xs:hidden text-[9px]">רענן</span>
+                  <span className="hidden xs:inline">{isEn ? "Refresh AI" : "רענן המלצות"}</span>
+                  <span className="xs:hidden text-[9px]">{isEn ? "Refresh" : "רענן"}</span>
                 </button>
               )}
             </div>
@@ -122,7 +134,7 @@ export default function ActionItems({
           {items.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-slate-400">
                <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
-               <p>הכל מעודכן! אין פעולות ממתינות.</p>
+               <p>{isEn ? "All caught up! No pending optimizations." : "הכל מעודכן! אין פעולות ממתינות."}</p>
             </div>
           ) : (
             <>
@@ -131,10 +143,10 @@ export default function ActionItems({
                 {(userItems.length > 0 || spouseItems.length > 0) && (
                   <div className={clsx("grid", userItems.length > 0 && spouseItems.length > 0 ? "grid-cols-2" : "grid-cols-1")}>
                     {userItems.length > 0 && (
-                      <div className={clsx(spouseItems.length > 0 && "border-l border-slate-100 dark:border-slate-800/60")}>
+                      <div className={clsx(spouseItems.length > 0 && (isEn ? "border-r border-slate-100 dark:border-slate-800/60" : "border-l border-slate-100 dark:border-slate-800/60"))}>
                         <div className="px-5 py-2 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/60 sticky top-0 z-10 backdrop-blur-sm">
                           <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <span>👤</span> {member1Name}
+                            <span>👤</span> {m1}
                           </span>
                         </div>
                         {getSortedItems(userItems).map(renderItem)}
@@ -144,7 +156,7 @@ export default function ActionItems({
                       <div>
                         <div className="px-5 py-2 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/60 sticky top-0 z-10 backdrop-blur-sm">
                           <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <span>👤</span> {member2Name}
+                            <span>👤</span> {m2}
                           </span>
                         </div>
                         {getSortedItems(spouseItems).map(renderItem)}
@@ -156,12 +168,12 @@ export default function ActionItems({
                   <div className={clsx((userItems.length > 0 || spouseItems.length > 0) && "border-t border-slate-100 dark:border-slate-800/60")}>
                     <div className="px-5 py-2 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/60 sticky top-0 z-10 backdrop-blur-sm">
                       <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <span>🔗</span> משותף
+                        <span>🔗</span> {t.actionItems.shared}
                       </span>
                     </div>
                     <div className={clsx("grid", sharedItems.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
                       {getSortedItems(sharedItems).map((item, idx) => (
-                        <div key={item.id} className={clsx("border-slate-100 dark:border-slate-800", sharedItems.length > 1 && idx % 2 === 0 && "border-l")}>
+                        <div key={item.id} className={clsx("border-slate-100 dark:border-slate-800", sharedItems.length > 1 && idx % 2 === 0 && (isEn ? "border-r" : "border-l"))}>
                           {renderItem(item)}
                         </div>
                       ))}
@@ -193,7 +205,7 @@ export default function ActionItems({
                           mobileTab === 'user' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500"
                         )}
                       >
-                        {member1Name}
+                        {m1}
                       </button>
                     )}
                     {spouseItems.length > 0 && (
@@ -204,7 +216,7 @@ export default function ActionItems({
                           mobileTab === 'spouse' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500"
                         )}
                       >
-                        {member2Name}
+                        {m2}
                       </button>
                     )}
                     {sharedItems.length > 0 && (
@@ -215,7 +227,7 @@ export default function ActionItems({
                           mobileTab === 'shared' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500"
                         )}
                       >
-                        משותף
+                        {t.actionItems.shared}
                       </button>
                     )}
                   </div>
@@ -236,7 +248,7 @@ export default function ActionItems({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
              onClick={() => setSelectedItem(null)}>
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" 
-               onClick={e => e.stopPropagation()} dir="rtl">
+               onClick={e => e.stopPropagation()} dir={isEn ? "ltr" : "rtl"}>
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between">
                <div className="flex items-center gap-3">
                  <button 
@@ -245,7 +257,7 @@ export default function ActionItems({
                  >
                    {selectedItem.is_completed ? <CheckCircle2 className="w-7 h-7" /> : <Circle className="w-7 h-7" />}
                  </button>
-                                   <h2 className={clsx("font-bold text-xl", selectedItem.is_completed ? "line-through text-slate-500" : "text-slate-900 dark:text-slate-100")}>
+                 <h2 className={clsx("font-bold text-xl", selectedItem.is_completed ? "line-through text-slate-500" : "text-slate-900 dark:text-slate-100")}>
                    {selectedItem.title}
                  </h2>
                </div>
@@ -261,9 +273,9 @@ export default function ActionItems({
                  <>
                    {selectedItem.problem_explanation && (
                      <div>
-                                               <h4 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2 mb-2">
+                       <h4 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2 mb-2">
                          <AlertTriangle className="w-5 h-5" />
-                         הסבר בעיה
+                         {t.actionItems.problemExplanation}
                        </h4>
                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed bg-red-50/50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30">
                          {selectedItem.problem_explanation}
@@ -272,9 +284,9 @@ export default function ActionItems({
                    )}
                    {selectedItem.action_required && (
                      <div>
-                                               <h4 className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-2 mb-2">
+                       <h4 className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-2 mb-2">
                          <Zap className="w-5 h-5" />
-                         מה צריך לעשות
+                         {t.actionItems.actionRequired}
                        </h4>
                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30">
                          {selectedItem.action_required}
@@ -285,11 +297,11 @@ export default function ActionItems({
                ) : (
                  // Fallback for older data that only has 'description'
                  <div>
-                   <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
+                   <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-2">
                      <Info className="w-5 h-5 text-blue-500" />
-                     פירוט ההמלצה
+                     {isEn ? "Recommendation Details" : "פירוט ההמלצה"}
                    </h4>
-                   <p className="text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
+                   <p className="text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                      {selectedItem.description}
                    </p>
                  </div>
@@ -301,7 +313,7 @@ export default function ActionItems({
                 onClick={() => setSelectedItem(null)}
                 className="px-6 py-2 bg-slate-900 dark:bg-blue-600 text-white rounded-lg font-medium hover:bg-slate-800 dark:hover:bg-blue-700 transition-colors"
               >
-                סגור
+                {t.actionItems.close}
               </button>
             </div>
           </div>

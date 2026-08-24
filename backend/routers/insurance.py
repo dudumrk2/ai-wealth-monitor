@@ -16,7 +16,7 @@ async def compare_insurance(request: CompareRequest, user: dict = Depends(verify
     
     # --- DEMO BYPASS ---
     if uid == config.DEMO_UID:
-        return {"draft": "שלום, בדקתי את תנאי הפוליסה שלי וראיתי שישנן חלופות עם דמי ניהול נמוכים משמעותית. אשמח לבחון הוזלה בעלויות הנוכחיות שלי כדי שאוכל להישאר אצלכם. תודה!"}
+        return {"draft": "Dear Agent,\n\nI reviewed my recent policy terms and market benchmarks, and noticed competitive alternatives offering equivalent comprehensive coverage with lower administrative fees. I would like to review our current rates to discuss matching options before renewal.\n\nBest regards,\nDavid Miller"}
 
     portfolio_doc = db_manager.get_processed_portfolio(uid)
     if not portfolio_doc:

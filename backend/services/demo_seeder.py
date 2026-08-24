@@ -3,23 +3,39 @@ import datetime
 import config
 import copy
 from services.demo_constants import (
-    DEMO_FAMILY_PROFILE,
-    DEMO_PORTFOLIO_DATA,
-    DEMO_ALT_INVESTMENT
+    get_demo_family_profile,
+    get_demo_portfolio_data,
+    get_demo_insurance_chunks,
+    DEMO_INSURANCE_CHUNKS_EN,
+    DEMO_INSURANCE_CHUNKS_HE,
+    is_english_demo_enabled
 )
 
-def seed_demo_data():
+DEMO_ALT_INVESTMENT = {
+    "id": "demo-alt-1",
+    "name": "Eagle Real Estate Income Fund",
+    "developer": "Eagle Invest",
+    "originalAmount": 85000,
+    "currency": "USD",
+    "startDate": "2023-01-15",
+    "durationMonths": 36,
+    "expectedReturn": 8.5,
+    "status": "Active"
+}
+
+def seed_demo_data(lang: str | None = None):
     """Seed the demo user with realistic data from constants in Firestore."""
     uid = config.DEMO_UID
-    print(f"🌱 [DEMO_SEEDER] Seeding data for {uid}...")
+    target_lang = lang if lang else ("en" if is_english_demo_enabled() else "he")
+    print(f"🌱 [DEMO_SEEDER] Seeding demo data for {uid} (lang={target_lang})...")
 
     # 1. Family Profile
-    profile = copy.deepcopy(DEMO_FAMILY_PROFILE)
+    profile = copy.deepcopy(get_demo_family_profile(target_lang))
     profile["created_at"] = datetime.datetime.now().isoformat()
     db_manager.save_family_profile(uid, profile)
 
     # 2. Processed Portfolio
-    portfolio = copy.deepcopy(DEMO_PORTFOLIO_DATA)
+    portfolio = copy.deepcopy(get_demo_portfolio_data(target_lang))
     portfolio["last_updated"] = datetime.datetime.now().isoformat()
     db_manager.save_processed_portfolio(uid, portfolio)
 
@@ -33,6 +49,24 @@ def seed_demo_data():
         print(f"⚠️ [DEMO_SEEDER] Could not clear alt_projects: {e}")
 
     db_manager.add_alt_project(uid, copy.deepcopy(DEMO_ALT_INVESTMENT))
+
+    # 4. Seed Insurance Policy RAG chunks (Seeds both EN & HE chunks)
+    try:
+        combined_chunks = copy.deepcopy(DEMO_INSURANCE_CHUNKS_EN + DEMO_INSURANCE_CHUNKS_HE)
+        try:
+            from rag_utils import embed_documents
+            texts = [c.get("content", c.get("text", "")) for c in combined_chunks]
+            embeddings = embed_documents(texts)
+            for c, emb in zip(combined_chunks, embeddings):
+                c["embedding"] = emb
+            print(f"✨ [DEMO_SEEDER] Generated live embeddings for {len(combined_chunks)} demo policy chunks")
+        except Exception as emb_err:
+            print(f"ℹ️ [DEMO_SEEDER] Using predefined chunk embeddings ({emb_err})")
+
+        db_manager.save_policy_chunks(uid, "demo-aetna-health", combined_chunks)
+        print(f"✅ [DEMO_SEEDER] Seeded {len(combined_chunks)} insurance RAG chunks for {uid}")
+    except Exception as e:
+        print(f"⚠️ [DEMO_SEEDER] Could not seed insurance chunks: {e}")
 
     print(f"✅ [DEMO_SEEDER] Seeding complete for {uid}")
 

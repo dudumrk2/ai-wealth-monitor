@@ -29,18 +29,16 @@ import ManualStockModal from '../components/stocks/ManualStockModal';
 
 import { API_URL } from '../lib/api';
 import { formatCurrency } from '../utils/format';
+import { getTranslation } from '../utils/i18n';
 
 const STOCKS_CACHE_KEY = 'stocks_holdings_cache';
 const FX_CACHE_KEY = 'stocks_fx_cache';
-// ─────────────────────────────────────────────────────────────────
-// MOCK DATA REMOVED - using live API
-// ─────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
 const formatILS = (val: number | undefined | null) => {
-  if (val === undefined || val === null || isNaN(val)) return '₪0';
+  if (val === undefined || val === null || isNaN(val)) return '$0';
   return formatCurrency(val);
 };
 
@@ -79,7 +77,8 @@ function getSortValue(h: StockHolding, key: SortKey, rate: number): number | str
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────
 const StocksDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemo, isEnglishDemo } = useAuth();
+  const t = getTranslation(isEnglishDemo);
   const [fxRate, setFxRate]       = useState<ExchangeRate | null>(null);
   const [fxLoading, setFxLoading] = useState(true);
   const [holdings, setHoldings]   = useState<StockHolding[]>([]);
@@ -266,13 +265,13 @@ const StocksDashboard: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout onRefresh={handleRefresh} isRefreshing={isRefreshing}>
-      <div className="max-w-7xl mx-auto w-full space-y-5 md:space-y-6" dir="rtl">
+      <div className="max-w-7xl mx-auto w-full space-y-5 md:space-y-6" dir={isDemo ? "ltr" : "rtl"}>
 
         {/* ── Page Header ─────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">תיק מניות</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5 italic">ניהול ומעקב תיק ניירות הערך המשפחתי</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">{t.stocks.title}</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5 italic">{t.stocks.subtitle}</p>
           </div>
           <div className="hidden lg:flex lg:flex-wrap items-center gap-2 w-full lg:w-auto">
             <button
@@ -280,14 +279,14 @@ const StocksDashboard: React.FC = () => {
               className="inline-flex items-center justify-center gap-1.5 px-3 lg:px-4 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[13px] lg:text-sm transition-all group whitespace-nowrap"
             >
               <Plus className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
-              הוספת נייר
+              {isDemo ? "Add Security" : "הוספת נייר"}
             </button>
             <Link
               to="/settings"
               className="inline-flex items-center justify-center gap-1.5 px-3 lg:px-4 py-2.5 rounded-xl border-2 border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-[13px] lg:text-sm transition-all hover:border-blue-500/70 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] group whitespace-nowrap"
             >
               <Upload className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-              העלאת נתונים
+              {isDemo ? "Import CSV" : "העלאת נתונים"}
             </Link>
           </div>
         </div>
@@ -301,9 +300,8 @@ const StocksDashboard: React.FC = () => {
               : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
           )}>
             {fxRate.isFallback ? <AlertCircle className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            <span>שער המרה: 1$ = ₪{fxRate.rate.toFixed(3)}</span>
-            <span className="opacity-60">({fxRate.date})</span>
-            {fxRate.isFallback && <span className="opacity-70">— שימוש בשער ברירת מחדל</span>}
+            <span>{isDemo ? "Base Currency: USD ($)" : `שער המרה: 1$ = ₪${fxRate.rate.toFixed(3)}`}</span>
+            {!isDemo && <span className="opacity-60">({fxRate.date})</span>}
           </div>
         )}
 
@@ -356,7 +354,7 @@ const StocksDashboard: React.FC = () => {
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                   )}
                 >
-                  פיזור מגזרי
+                  {isDemo ? "Sector Allocation" : "פיזור מגזרי"}
                 </button>
                 <button
                   id="stocks-chart-tab-geo"
@@ -368,7 +366,7 @@ const StocksDashboard: React.FC = () => {
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                   )}
                 >
-                  פיזור גיאוגרפי
+                  {isDemo ? "Geographic Exposure" : "פיזור גיאוגרפי"}
                 </button>
               </div>
               <Info className="w-3.5 h-3.5 text-slate-400" />
@@ -397,7 +395,7 @@ const StocksDashboard: React.FC = () => {
                     contentStyle={{
                       backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(51,65,85,0.5)',
                       borderRadius: '0.75rem', color: '#f8fafc', backdropFilter: 'blur(8px)',
-                      fontSize: '12px', fontWeight: 700, direction: 'rtl',
+                      fontSize: '12px', fontWeight: 700,
                     }}
                     formatter={(value: any, name: any) => [
                       `${formatILS(value)} (${activeTotal2 > 0 ? ((value / activeTotal2) * 100).toFixed(1) : 0}%)`, name,
@@ -407,10 +405,10 @@ const StocksDashboard: React.FC = () => {
               </ResponsiveContainer>
               {/* Center label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <p className="text-slate-400 text-[10px] font-bold mb-0.5">סה"כ</p>
+                <p className="text-slate-400 text-[10px] font-bold mb-0.5">{isDemo ? 'TOTAL' : 'סה"כ'}</p>
                 <p className="text-slate-900 dark:text-white text-lg font-black">
                   {totalValueILS > 1_000_000
-                    ? `₪${(totalValueILS / 1_000_000).toFixed(2)}M`
+                    ? (isDemo ? `$${(totalValueILS / 1_000_000).toFixed(2)}M` : `₪${(totalValueILS / 1_000_000).toFixed(2)}M`)
                     : formatILS(totalValueILS)}
                 </p>
               </div>
@@ -445,7 +443,7 @@ const StocksDashboard: React.FC = () => {
                     {/* Card 1 — Total Value */}
                     <div className="col-span-2 lg:col-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 lg:p-5 shadow-sm hover:border-blue-500/30 lg:hover:-translate-y-0.5 transition-all group flex-1">
                       <div className="flex items-center justify-between mb-1 lg:mb-2">
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">שווי פדיון</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">{t.stocks.totalValue}</p>
                         <div className="flex w-7 h-7 lg:w-9 lg:h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 items-center justify-center group-hover:scale-110 transition-transform">
                           <DollarSign className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-blue-500" />
                         </div>
@@ -453,15 +451,15 @@ const StocksDashboard: React.FC = () => {
                       <p className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white leading-tight">{formatILS(totalValueILS)}</p>
                       <div className="flex flex-col gap-1 mt-2 lg:mt-2.5 pt-2 lg:pt-2.5 border-t border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-center text-[11px] lg:text-xs font-medium">
-                          <span className="text-slate-500 dark:text-slate-400">מושקע</span>
+                          <span className="text-slate-500 dark:text-slate-400">{isDemo ? "Invested" : "מושקע"}</span>
                           <span className="text-slate-700 dark:text-slate-300">{formatILS(totalInvestedILS)}</span>
                         </div>
                         <div className="flex justify-between items-center text-[11px] lg:text-xs font-medium">
-                          <span className="text-slate-500 dark:text-slate-400">מזומן</span>
+                          <span className="text-slate-500 dark:text-slate-400">{isDemo ? "Cash" : "מזומן"}</span>
                           <span className="text-slate-700 dark:text-slate-300">{formatILS(totalCashILS)}</span>
                         </div>
                       </div>
-                      <p className="hidden lg:block text-[10px] text-slate-400 mt-2">{holdings.length} ניירות ערך</p>
+                      <p className="hidden lg:block text-[10px] text-slate-400 mt-2">{holdings.length} {isDemo ? "Holdings" : "ניירות ערך"}</p>
                     </div>
 
                     {/* Card 2 — Daily Change */}
@@ -470,7 +468,7 @@ const StocksDashboard: React.FC = () => {
                       totalDailyILS >= 0 ? 'border-slate-200 dark:border-slate-800 hover:border-emerald-500/30' : 'border-slate-200 dark:border-slate-800 hover:border-red-500/30'
                     )}>
                       <div className="flex items-center justify-between mb-0.5 lg:mb-2">
-                        <p className="text-slate-500 dark:text-slate-400 text-[10px] lg:text-xs font-bold uppercase tracking-wider">שינוי יומי</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-[10px] lg:text-xs font-bold uppercase tracking-wider">{t.stocks.dailyPnl}</p>
                         <div className={clsx(
                           'hidden lg:flex w-9 h-9 rounded-xl items-center justify-center group-hover:scale-110 transition-transform',
                           totalDailyILS >= 0 ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20' : 'bg-gradient-to-br from-red-500/20 to-rose-500/20'
@@ -496,7 +494,7 @@ const StocksDashboard: React.FC = () => {
                       totalPnlILS_val >= 0 ? 'border-slate-200 dark:border-slate-800 hover:border-violet-500/30' : 'border-slate-200 dark:border-slate-800 hover:border-red-500/30'
                     )}>
                       <div className="flex items-center justify-between mb-0.5 lg:mb-2">
-                        <p className="text-slate-500 dark:text-slate-400 text-[10px] lg:text-xs font-bold uppercase tracking-wider">סנ"כ רווח</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-[10px] lg:text-xs font-bold uppercase tracking-wider">{t.stocks.totalReturn}</p>
                         <div className={clsx(
                           'hidden lg:flex w-9 h-9 rounded-xl items-center justify-center group-hover:scale-110 transition-transform',
                           totalPnlILS_val >= 0 ? 'bg-gradient-to-br from-violet-500/20 to-purple-500/20' : 'bg-gradient-to-br from-red-500/20 to-rose-500/20'
@@ -523,12 +521,12 @@ const StocksDashboard: React.FC = () => {
               <div className="order-2 lg:order-4 lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-2 lg:mb-0">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-3">
-                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base">אחזקות התיק</h2>
+                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base">{isDemo ? "Portfolio Holdings" : "אחזקות התיק"}</h2>
                     <span className="text-[11px] lg:text-xs text-slate-400 font-medium">
-                      עודכן: {fxRate?.date ? new Date(fxRate.date).toLocaleDateString('he-IL') : '...'}
+                      {isDemo ? "Real-time" : `עודכן: ${fxRate?.date ? new Date(fxRate.date).toLocaleDateString('he-IL') : '...'}`}
                     </span>
                   </div>
-                  <span className="hidden lg:inline text-xs text-slate-400 font-semibold">{holdings.length} ניירות ערך</span>
+                  <span className="hidden lg:inline text-xs text-slate-400 font-semibold">{holdings.length} {isDemo ? "Holdings" : "ניירות ערך"}</span>
                 </div>
 
                 {/* Table Wrapper (Responsive) */}
@@ -537,22 +535,25 @@ const StocksDashboard: React.FC = () => {
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                         <SortableTh 
-                          label="שם / סימבול"    
+                          label={isDemo ? "Asset / Symbol" : "שם / סימבול"}    
                           sortKey="name"               
                           current={sortKey} 
                           dir={sortDir} 
                           onSort={handleSort} 
-                          className="sticky right-0 z-20 bg-slate-50 dark:bg-slate-800/90 backdrop-blur-sm shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b] max-w-[160px] md:max-w-[300px]" 
+                          className={clsx(
+                            "sticky z-20 bg-slate-50 dark:bg-slate-800/90 backdrop-blur-sm max-w-[160px] md:max-w-[300px]",
+                            isDemo ? "left-0 shadow-[1px_0_0_0_#e2e8f0] dark:shadow-[1px_0_0_0_#1e293b]" : "right-0 shadow-[-1px_0_0_0_#e2e8f0] dark:shadow-[-1px_0_0_0_#1e293b]"
+                          )} 
                         />
-                        <SortableTh label="שינוי יומי %"   sortKey="dailyChangePercent" current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortableTh label="תשואה %"        sortKey="totalReturnPercent" current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">שער אחרון</th>
-                        <SortableTh label="כמות"           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortableTh label="שווי (₪)"       sortKey="valueILS"           current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortableTh label="רווח/הפסד יומי" sortKey="dailyPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
-                        <SortableTh label="רווח/הפסד כולל" sortKey="totalPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortableTh label={isDemo ? "Daily %" : "שינוי יומי %"}   sortKey="dailyChangePercent" current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortableTh label={isDemo ? "Return %" : "תשואה %"}        sortKey="totalReturnPercent" current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{isDemo ? "Price" : "שער אחרון"}</th>
+                        <SortableTh label={isDemo ? "Shares" : "כמות"}           sortKey="qty"                current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortableTh label={isDemo ? "Market Value" : "שווי (₪)"}       sortKey="valueILS"           current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortableTh label={isDemo ? "Daily P&L" : "רווח/הפסד יומי"} sortKey="dailyPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortableTh label={isDemo ? "Total Return" : "רווח/הפסד כולל"} sortKey="totalPnlILS"        current={sortKey} dir={sortDir} onSort={handleSort} />
                         <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap w-[60px]">
-                          פעולות
+                          {isDemo ? "Actions" : "פעולות"}
                         </th>
                       </tr>
                     </thead>

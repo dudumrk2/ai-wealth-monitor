@@ -9,6 +9,9 @@ import { STORAGE_KEYS } from '../lib/storageKeys';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isDemo: boolean;
+  isEnglishDemo: boolean;
+  setDemoLanguage: (lang: 'he' | 'en') => void;
   familyId: string | null;
   familyConfig: (FamilyConfig & { familyId: string }) | null;
   refreshFamily: () => Promise<void>;
@@ -22,6 +25,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [demoLang, setDemoLang] = useState<'he' | 'en'>(() => {
+    if (typeof window === 'undefined') return 'he';
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlLang = urlParams.get('lang') || urlParams.get('demo_lang');
+    if (urlLang === 'en' || urlParams.get('english_demo') === 'true') return 'en';
+    if (urlLang === 'he' || urlParams.get('english_demo') === 'false') return 'he';
+    const stored = localStorage.getItem('demo_language');
+    if (stored === 'en' || stored === 'he') return stored;
+    return import.meta.env?.VITE_ENABLE_ENGLISH_DEMO === 'true' ? 'en' : 'he';
+  });
+
   const [familyConfig, setFamilyConfig] = useState<(FamilyConfig & { familyId: string }) | null>(() => {
     // Optimistic cache read — avoids blank screen for returning users.
     // Firestore will still verify/refresh in the background via loadFamily().
@@ -176,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('demo_uid');
       localStorage.removeItem(STORAGE_KEYS.ONBOARDING_DONE);
       localStorage.removeItem(STORAGE_KEYS.FAMILY_CONFIG);
+      localStorage.removeItem('demo_language');
       // Clear any per-user cached portfolio data so it never leaks across logins.
       Object.keys(localStorage)
         .filter((k) => k.startsWith(STORAGE_KEYS.PORTFOLIO_CACHE))
@@ -190,6 +205,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const isDemo = Boolean(
+    localStorage.getItem('is_demo') === 'true' ||
+    (typeof window !== 'undefined' && window.location.search.includes('demo=true')) ||
+    user?.uid === 'demo-user-12345' ||
+    user?.uid === 'demo-user'
+  );
+
+  const isEnglishDemo = isDemo && demoLang === 'en';
+
+  const setDemoLanguage = (lang: 'he' | 'en') => {
+    setDemoLang(lang);
+    localStorage.setItem('demo_language', lang);
+  };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dir = isEnglishDemo ? 'ltr' : 'rtl';
+      document.documentElement.lang = isEnglishDemo ? 'en' : 'he';
+    }
+  }, [isEnglishDemo]);
+
   // Show a minimal, non-blocking indicator only on the very first load
   // when neither cache nor Firebase has resolved yet.
   // ProtectedRoute handles all redirect logic, so we can render safely.
@@ -198,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-          <p className="text-slate-400 text-sm">טוען...</p>
+          <p className="text-slate-400 text-sm">{isEnglishDemo ? 'Loading...' : 'טוען...'}</p>
         </div>
       </div>
     );
@@ -208,6 +244,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       loading,
+      isDemo,
+      isEnglishDemo,
+      setDemoLanguage,
       familyId: familyConfig?.familyId ?? null,
       familyConfig,
       refreshFamily,

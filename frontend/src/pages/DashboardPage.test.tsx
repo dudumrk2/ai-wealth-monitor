@@ -37,6 +37,9 @@ describe('DashboardPage', () => {
 
       familyConfig: null,
       loading: false,
+      isDemo: false,
+      isEnglishDemo: false,
+      setDemoLanguage: vi.fn(),
       logout: vi.fn(),
       familyId: null,
       refreshFamily: vi.fn(),

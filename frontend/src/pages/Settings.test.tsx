@@ -49,9 +49,10 @@ describe('Settings Component', () => {
       signInWithGoogle: vi.fn(),
       signInWithDemo: vi.fn(),
       loading: false,
+      isDemo: false,
+      isEnglishDemo: false,
+      setDemoLanguage: vi.fn(),
       logout: vi.fn(),
-
-
     });
 
     // Mock Theme hook
