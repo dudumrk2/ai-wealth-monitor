@@ -91,6 +91,7 @@ export const CopilotChat: React.FC = () => {
         role: 'ai',
         content: data.response || (isDemo ? 'Processing error. Please try again.' : 'מצטער, משהו השתבש בעיבוד התשובה.'),
       };
+      setMessages((prev) => [...prev, aiResponse]);
     } catch (error) {
       console.error('Chat error:', error);
       let fallbackText = isDemo ? 'Communication error with AI service.' : 'מצטער, הייתה לי שגיאת תקשורת. נסה שוב מאוחר יותר.';

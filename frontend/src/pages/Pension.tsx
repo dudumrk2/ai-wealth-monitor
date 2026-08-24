@@ -13,7 +13,6 @@ import { Loader2, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
-import { formatCurrency } from '../utils/format';
 import { getTranslation } from '../utils/i18n';
 import { DEMO_PORTFOLIO_DATA_EN } from '../data/demoData';
 

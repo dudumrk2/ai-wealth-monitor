@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import {
   RefreshCcw,
@@ -27,7 +27,7 @@ const portfolioCacheKey = (uid?: string) =>
   uid ? `${STORAGE_KEYS.PORTFOLIO_CACHE}_${uid}` : null;
 
 export default function DashboardPage() {
-  const { user, familyConfig, isDemo, isEnglishDemo } = useAuth();
+  const { user, isDemo, isEnglishDemo } = useAuth();
   const t = getTranslation(isEnglishDemo);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
