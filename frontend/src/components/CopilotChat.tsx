@@ -3,6 +3,7 @@ import { Bot, Send, MessageSquarePlus, User, Copy, Sparkles } from 'lucide-react
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../lib/api';
 import { getTranslation } from '../utils/i18n';
+import { DEMO_CHAT_RESPONSES_EN } from '../data/demoData';
 
 export interface Message {
   id: string;
@@ -90,13 +91,27 @@ export const CopilotChat: React.FC = () => {
         role: 'ai',
         content: data.response || (isDemo ? 'Processing error. Please try again.' : 'מצטער, משהו השתבש בעיבוד התשובה.'),
       };
-      setMessages((prev) => [...prev, aiResponse]);
     } catch (error) {
       console.error('Chat error:', error);
+      let fallbackText = isDemo ? 'Communication error with AI service.' : 'מצטער, הייתה לי שגיאת תקשורת. נסה שוב מאוחר יותר.';
+      if (isEnglishDemo) {
+        const q = newUserMessage.content.toLowerCase();
+        if (['experimental', 'abroad', 'treatment', 'overseas', 'aetna', 'surgery', 'critical', 'rider', 'rag'].some(w => q.includes(w))) {
+          fallbackText = DEMO_CHAT_RESPONSES_EN.treatment;
+        } else if (['pension', '401k', 'retirement', 'vanguard', 'blackrock'].some(w => q.includes(w))) {
+          fallbackText = DEMO_CHAT_RESPONSES_EN.pension;
+        } else if (['stock', 'equity', 'apple', 'nvidia', 'microsoft', 'shares', 'holding'].some(w => q.includes(w))) {
+          fallbackText = DEMO_CHAT_RESPONSES_EN.stocks;
+        } else if (['insurance', 'policy', 'coverage', 'prudential', 'geico'].some(w => q.includes(w))) {
+          fallbackText = DEMO_CHAT_RESPONSES_EN.insurance;
+        } else {
+          fallbackText = DEMO_CHAT_RESPONSES_EN.default;
+        }
+      }
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: 'ai',
-        content: isDemo ? 'Communication error with AI service.' : 'מצטער, הייתה לי שגיאת תקשורת. נסה שוב מאוחר יותר.',
+        content: fallbackText,
       };
       setMessages((prev) => [...prev, aiResponse]);
     } finally {

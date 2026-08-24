@@ -20,25 +20,30 @@ import { API_URL } from '../lib/api';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { formatCurrency } from '../utils/format';
 import { getTranslation } from '../utils/i18n';
+import { DEMO_PORTFOLIO_DATA_EN } from '../data/demoData';
 
 /** Per-user cache key — keeps one family's data from ever showing under another's login. */
 const portfolioCacheKey = (uid?: string) =>
   uid ? `${STORAGE_KEYS.PORTFOLIO_CACHE}_${uid}` : null;
 
-const DashboardPage: React.FC = () => {
-  const { user, isDemo, isEnglishDemo } = useAuth();
+export default function DashboardPage() {
+  const { user, familyConfig, isDemo, isEnglishDemo } = useAuth();
   const t = getTranslation(isEnglishDemo);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [portfolioData, setPortfolioData] = useState<any>(null);
+  const [portfolioData, setPortfolioData] = useState<any>(() => isEnglishDemo ? DEMO_PORTFOLIO_DATA_EN : null);
 
   const fetchPortfolio = useCallback(async (options?: { silent?: boolean, refreshMarket?: boolean, refreshAi?: boolean } | boolean) => {
     const silent = typeof options === 'boolean' ? options : options?.silent ?? false;
     const refreshMarket = typeof options === 'object' ? options.refreshMarket ?? false : false;
     const refreshAi = typeof options === 'object' ? options.refreshAi ?? false : false;
 
+    if (isEnglishDemo) {
+      setPortfolioData(DEMO_PORTFOLIO_DATA_EN);
+    }
+
     try {
-      if (!silent) setLoading(true);
+      if (!silent && !isEnglishDemo) setLoading(true);
       setError(null);
       const idToken = await user?.getIdToken();
       if (!idToken) return;
@@ -59,13 +64,20 @@ const DashboardPage: React.FC = () => {
       try { if (key) localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota */ }
     } catch (err: any) {
       console.error('Portfolio fetch error:', err);
-      if (!silent) setError(isDemo ? 'Failed to load financial data.' : 'אירעה שגיאה בטעינת הנתונים.');
+      if (isEnglishDemo) {
+        setPortfolioData(DEMO_PORTFOLIO_DATA_EN);
+      } else if (!silent) {
+        setError(isDemo ? 'Failed to load financial data.' : 'אירעה שגיאה בטעינת הנתונים.');
+      }
     } finally {
       if (!silent) setLoading(false);
     }
   }, [user, isDemo, isEnglishDemo]);
 
   useEffect(() => {
+    if (isEnglishDemo) {
+      setPortfolioData(DEMO_PORTFOLIO_DATA_EN);
+    }
     fetchPortfolio();
   }, [fetchPortfolio, isEnglishDemo]);
 
@@ -349,6 +361,4 @@ const DashboardPage: React.FC = () => {
       </div>
     </DashboardLayout>
   );
-};
-
-export default DashboardPage;
+}

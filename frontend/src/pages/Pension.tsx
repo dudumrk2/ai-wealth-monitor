@@ -13,8 +13,11 @@ import { Loader2, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
-import { API_URL } from '../lib/api';
+import { formatCurrency } from '../utils/format';
 import { getTranslation } from '../utils/i18n';
+import { DEMO_PORTFOLIO_DATA_EN } from '../data/demoData';
+
+import { API_URL } from '../lib/api';
 
 /** Same cache key as DashboardPage — both pages fetch the same /api/portfolio endpoint */
 const PORTFOLIO_CACHE_KEY = 'portfolio_cache';
@@ -93,8 +96,12 @@ export default function Pension() {
     const refreshMarket = typeof options === 'object' ? options.refreshMarket ?? false : false;
     const refreshAi = typeof options === 'object' ? options.refreshAi ?? false : false;
 
+    if (isEnglishDemo) {
+      setPortfolioData(DEMO_PORTFOLIO_DATA_EN);
+    }
+
     try {
-      if (!silent) setLoading(true);
+      if (!silent && !isEnglishDemo) setLoading(true);
       setError(null);
       const idToken = await user?.getIdToken();
 
@@ -114,7 +121,11 @@ export default function Pension() {
       try { sessionStorage.setItem(PORTFOLIO_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
     } catch (err: any) {
       console.error('Portfolio fetch error:', err);
-      if (!silent) setError('אירעה שגיאה בטעינת הנתונים.');
+      if (isEnglishDemo) {
+        setPortfolioData(DEMO_PORTFOLIO_DATA_EN);
+      } else if (!silent) {
+        setError('אירעה שגיאה בטעינת הנתונים.');
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -122,6 +133,9 @@ export default function Pension() {
 
   // Initial portfolio fetch — stale-while-revalidate using shared Dashboard cache
   useEffect(() => {
+    if (isEnglishDemo) {
+      setPortfolioData(DEMO_PORTFOLIO_DATA_EN);
+    }
     fetchPortfolio();
   }, [fetchPortfolio, isEnglishDemo]);
 

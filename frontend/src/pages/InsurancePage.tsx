@@ -10,6 +10,7 @@ import PolicyUploadModal from '../components/PolicyUploadModal';
 import { API_URL } from '../lib/api';
 import { formatCurrency } from '../utils/format';
 import { getTranslation } from '../utils/i18n';
+import { DEMO_PORTFOLIO_DATA_EN } from '../data/demoData';
 
 export default function InsurancePage() {
   const navigate = useNavigate();
@@ -89,10 +90,28 @@ export default function InsurancePage() {
       if (cost > 0) setTotalCost(cost);
     } catch (e) {
         console.error("Fetch error:", e);
+        if (isEnglishDemo) {
+          const enFunds = [
+            ...(DEMO_PORTFOLIO_DATA_EN.portfolios.user.funds.filter(f => f.category === 'insurance')),
+            ...(DEMO_PORTFOLIO_DATA_EN.portfolios.spouse.funds.filter(f => f.category === 'insurance')),
+          ];
+          setFunds(enFunds);
+          setActionItems(DEMO_PORTFOLIO_DATA_EN.action_items.filter(a => a.category === 'insurance'));
+          setTotalCost(820);
+        }
     }
   }, [user, isDemo, isEnglishDemo]);
 
   useEffect(() => {
+    if (isEnglishDemo) {
+      const enFunds = [
+        ...(DEMO_PORTFOLIO_DATA_EN.portfolios.user.funds.filter(f => f.category === 'insurance')),
+        ...(DEMO_PORTFOLIO_DATA_EN.portfolios.spouse.funds.filter(f => f.category === 'insurance')),
+      ];
+      setFunds(enFunds);
+      setActionItems(DEMO_PORTFOLIO_DATA_EN.action_items.filter(a => a.category === 'insurance'));
+      setTotalCost(820);
+    }
     fetchPortfolio();
   }, [fetchPortfolio, isEnglishDemo]);
 
@@ -149,7 +168,20 @@ export default function InsurancePage() {
         const data = await res.json();
         setCompareDraft(data.draft);
     } catch (e) {
-        setCompareDraft(isEnglishDemo ? "Error generating negotiation draft." : "שגיאה בעת הפקת טיוטת וואטסאפ.");
+        if (isEnglishDemo) {
+          setCompareDraft(`Subject: Policy Negotiation & Rate Review - Policy #${policyId}
+
+Dear Insurance Broker,
+
+I am writing regarding my current policy (#${policyId}). Following an AI portfolio review, we identified that comparable comprehensive global health and auto policies offer identical coverages at lower market premiums.
+
+Could you please review our account and provide updated rate matching or deductible optimization options?
+
+Best regards,
+David Miller`);
+        } else {
+          setCompareDraft("שגיאה בעת הפקת טיוטת וואטסאפ.");
+        }
     } finally {
         setComparingId(null);
     }

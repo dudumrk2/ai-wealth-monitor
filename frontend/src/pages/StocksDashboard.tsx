@@ -30,6 +30,7 @@ import ManualStockModal from '../components/stocks/ManualStockModal';
 import { API_URL } from '../lib/api';
 import { formatCurrency } from '../utils/format';
 import { getTranslation } from '../utils/i18n';
+import { DEMO_PORTFOLIO_DATA_EN } from '../data/demoData';
 
 const STOCKS_CACHE_KEY = 'stocks_holdings_cache';
 const FX_CACHE_KEY = 'stocks_fx_cache';
@@ -94,35 +95,35 @@ const StocksDashboard: React.FC = () => {
 
   // ── Live Data Fetch ─────────────────────────────────────────────
   const fetchPortfolioData = useCallback(async (silent = false) => {
-    if (!silent) {
-      setDataLoading(true);
-      setFxLoading(true);
+    if (isEnglishDemo) {
+      setHoldings(DEMO_PORTFOLIO_DATA_EN.stocks as any);
     }
+
     try {
-      if (!user) return;
-      const token = await user.getIdToken();
-
-      const params = new URLSearchParams();
-      if (isDemo) {
-        params.append('lang', isEnglishDemo ? 'en' : 'he');
+      if (!silent && !isEnglishDemo) {
+        setDataLoading(true);
+        setFxLoading(true);
       }
-      const query = params.toString() ? `?${params.toString()}` : '';
 
-      // Parallel fetch for portfolio and FX rate
+      const idToken = await user?.getIdToken();
+      if (!idToken) return;
+
       const [portRes, fxRes] = await Promise.all([
-        fetch(`${API_URL}/api/portfolio${query}`, {
-          headers: { Authorization: `Bearer ${token}` }
+        fetch(`${API_URL}/api/portfolio${isDemo ? `?lang=${isEnglishDemo ? 'en' : 'he'}` : ''}`, {
+          headers: { Authorization: `Bearer ${idToken}` }
         }),
         fetch(`${API_URL}/api/portfolio/fx-rate`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${idToken}` }
         })
       ]);
 
       if (portRes.ok) {
         const portData = await portRes.json();
         const newHoldings = portData.data?.stocks || portData.stocks || [];
-        setHoldings(newHoldings);
-        try { sessionStorage.setItem(STOCKS_CACHE_KEY, JSON.stringify(newHoldings)); } catch { /* quota */ }
+        if (newHoldings.length > 0) {
+          setHoldings(newHoldings);
+          try { sessionStorage.setItem(STOCKS_CACHE_KEY, JSON.stringify(newHoldings)); } catch { /* quota */ }
+        }
       }
 
       if (fxRes.ok) {
@@ -138,6 +139,9 @@ const StocksDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching stock data:', err);
+      if (isEnglishDemo) {
+        setHoldings(DEMO_PORTFOLIO_DATA_EN.stocks as any);
+      }
       setFxRate({ rate: 3.70, date: new Date().toISOString().slice(0, 10), source: 'fallback', isFallback: true });
     } finally {
       if (!silent) {
