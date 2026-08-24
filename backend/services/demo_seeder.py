@@ -42,9 +42,12 @@ def seed_demo_data(lang: str | None = None):
     # 4. Seed Insurance Policy RAG chunks (Seeds both EN & HE chunks)
     try:
         combined_chunks = copy.deepcopy(DEMO_INSURANCE_CHUNKS_EN + DEMO_INSURANCE_CHUNKS_HE)
+        for c in combined_chunks:
+            c["chunk_id"] = c.get("chunk_id", c.get("id"))
+            c["text"] = c.get("text", c.get("content", ""))
         try:
             from rag_utils import embed_documents
-            texts = [c.get("content", c.get("text", "")) for c in combined_chunks]
+            texts = [c.get("text", "") for c in combined_chunks]
             embeddings = embed_documents(texts)
             for c, emb in zip(combined_chunks, embeddings):
                 c["embedding"] = emb

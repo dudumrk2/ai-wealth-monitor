@@ -42,6 +42,9 @@ class StreamToLogger(object):
     def flush(self):
         self.terminal.flush()
 
+    def isatty(self):
+        return getattr(self.terminal, 'isatty', lambda: False)()
+
 sys.stdout = StreamToLogger(sys.stdout, logging.info)
 sys.stderr = StreamToLogger(sys.stderr, logging.error)
 logger = logging.getLogger("app")
