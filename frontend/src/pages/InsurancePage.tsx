@@ -19,8 +19,8 @@ export default function InsurancePage() {
   const defaultTab = isEnglishDemo ? 'Health & Critical' : 'רכב';
   const [activeTab, setActiveTab] = useState(defaultTab);
   
-  const member1Name = familyConfig?.member1?.name?.split(' ')[0] || (isEnglishDemo ? 'David' : 'המבוטח הראשי');
-  const member2Name = familyConfig?.member2?.name?.split(' ')[0] || (isEnglishDemo ? 'Sarah' : 'בן/בת הזוג');
+  const member1Name = familyConfig?.member1?.name?.split(' ')[0] || (isEnglishDemo ? 'David' : 'אבי');
+  const member2Name = familyConfig?.member2?.name?.split(' ')[0] || (isEnglishDemo ? 'Sarah' : 'דנה');
   
   const [funds, setFunds] = useState<any[]>([]);
   const [actionItems, setActionItems] = useState<any[]>([]);
@@ -40,6 +40,7 @@ export default function InsurancePage() {
       const token = await user.getIdToken();
       const params = new URLSearchParams();
       if (options?.refreshAi) params.append('refresh_ai', 'true');
+      if (isDemo) params.append('lang', isEnglishDemo ? 'en' : 'he');
       const query = params.toString() ? `?${params.toString()}` : '';
 
       const res = await fetch(`${API_URL}/api/portfolio${query}`, {
@@ -89,14 +90,18 @@ export default function InsurancePage() {
     } catch (e) {
         console.error("Fetch error:", e);
     }
-  }, [user]);
+  }, [user, isDemo, isEnglishDemo]);
 
   useEffect(() => {
     fetchPortfolio();
-  }, [fetchPortfolio]);
+  }, [fetchPortfolio, isEnglishDemo]);
+
+  useEffect(() => {
+    setActiveTab(isEnglishDemo ? 'Health & Critical' : 'רכב');
+  }, [isEnglishDemo]);
 
   const handleDeleteFund = async (fundId: string) => {
-    if (!window.confirm(isDemo ? "Are you sure you want to delete this policy?" : "האם ברצונך למחוק פוליסה זו? הפעולה אינה הפיכה.")) return;
+    if (!window.confirm(isEnglishDemo ? "Are you sure you want to delete this policy?" : "האם ברצונך למחוק פוליסה זו? הפעולה אינה הפיכה.")) return;
     try {
       const token = await user?.getIdToken();
       const res = await fetch(`${API_URL}/api/portfolio/fund/${fundId}`, {
@@ -144,13 +149,13 @@ export default function InsurancePage() {
         const data = await res.json();
         setCompareDraft(data.draft);
     } catch (e) {
-        setCompareDraft(isDemo ? "Error generating negotiation draft." : "שגיאה בעת הפקת טיוטת וואטסאפ.");
+        setCompareDraft(isEnglishDemo ? "Error generating negotiation draft." : "שגיאה בעת הפקת טיוטת וואטסאפ.");
     } finally {
         setComparingId(null);
     }
   };
 
-  const tabs = isDemo ? [
+  const tabs = isEnglishDemo ? [
     { id: 'Health & Critical', label: 'Health & Life', icon: HeartPulse },
     { id: 'Auto & Vehicle', label: 'Auto', icon: Car },
     { id: 'Property & Umbrella', label: 'Home & Umbrella', icon: Home }
@@ -180,7 +185,7 @@ export default function InsurancePage() {
             className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-5 py-2 rounded-lg font-bold text-[11px] md:text-sm transition-all shadow-lg hover:shadow-blue-500/20 w-full md:w-auto"
           >
             <UploadCloud className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            <span>{isDemo ? "Upload Policy Document" : "העלאת מסמך / הר ביטוח"}</span>
+            <span>{isEnglishDemo ? "Upload Policy Document" : "העלאת מסמך / הר ביטוח"}</span>
           </button>
         </div>
 
@@ -201,7 +206,7 @@ export default function InsurancePage() {
               <FileText className="w-5 h-5 md:w-6 md:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">{isDemo ? "Active Policies" : "פוליסות פעילות"}</p>
+              <p className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 mb-0.5 md:mb-1 truncate">{isEnglishDemo ? "Active Policies" : "פוליסות פעילות"}</p>
               <p className="text-base md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{funds.length}</p>
             </div>
           </div>
@@ -211,7 +216,7 @@ export default function InsurancePage() {
         <ActionItems 
             items={actionItems}
             onRefreshAI={() => fetchPortfolio({ refreshAi: true })}
-            title={isDemo ? "Insurance AI Optimizations & Coverage Warnings" : "התראות AI ופעולות לביצוע בתיק הביטוח"}
+            title={isEnglishDemo ? "Insurance AI Optimizations & Coverage Warnings" : "התראות AI ופעולות לביצוע בתיק הביטוח"}
             member1Name={member1Name}
             member2Name={member2Name}
         />
@@ -249,7 +254,7 @@ export default function InsurancePage() {
                             <div className="bg-blue-500/10 p-2.5 text-blue-500 rounded-lg">
                                 <Shield size={24} />
                             </div>
-                            <h3 className="font-bold text-base md:text-lg text-slate-900 dark:text-slate-100">{fund.name || fund.track_name || (isDemo ? 'Insurance Policy' : 'פוליסת ביטוח')}</h3>
+                            <h3 className="font-bold text-base md:text-lg text-slate-900 dark:text-slate-100">{fund.name || fund.track_name || (isEnglishDemo ? 'Insurance Policy' : 'פוליסת ביטוח')}</h3>
                         </div>
                         <div className="flex items-center gap-2">
                            <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold px-2.5 py-1 rounded-full">{t.insurance.activeStatus}</span>
@@ -262,11 +267,11 @@ export default function InsurancePage() {
                     <div className="p-6 py-4 flex-1 space-y-3.5">
                         <div className="flex justify-between text-sm pb-2 border-b border-slate-100 dark:border-slate-800">
                             <span className="text-slate-400">{t.insurance.provider}:</span>
-                            <span className="font-bold text-slate-900 dark:text-slate-200">{fund.provider_name || fund.provider || (isDemo ? 'Aetna International' : 'לא צוין')}</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-200">{fund.provider_name || fund.provider || (isEnglishDemo ? 'Aetna International' : 'לא צוין')}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-400">{t.insurance.insured}:</span>
-                            <span className="font-medium text-slate-800 dark:text-slate-200">{fund.owner_name || (isDemo ? 'David & Sarah Miller' : 'לא ידוע')}</span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{fund.owner_name || (isEnglishDemo ? 'David & Sarah Miller' : 'לא ידוע')}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-400">{t.insurance.policyNumber}:</span>
@@ -277,16 +282,16 @@ export default function InsurancePage() {
                             <span className="font-semibold text-slate-900 dark:text-white">
                                 {formatCurrency(Number((fund.premium_type === 'שנתית' ? fund.original_premium : fund.monthly_deposit) || 0))} 
                                 <span className="text-xs font-normal text-slate-500">
-                                    {fund.premium_type === 'שנתית' ? (isDemo ? ' / yr' : ' / לשנה') : (isDemo ? ' / mo' : ' / לחודש')}
+                                    {fund.premium_type === 'שנתית' ? (isEnglishDemo ? ' / yr' : ' / לשנה') : (isEnglishDemo ? ' / mo' : ' / לחודש')}
                                 </span>
                             </span>
                         </div>
                         <div className="flex justify-between text-sm items-center mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                            <span className="text-slate-400 font-medium">{isDemo ? "Policy Document (RAG):" : "מסמך מקור:"}</span>
+                            <span className="text-slate-400 font-medium">{isEnglishDemo ? "Policy Document (RAG):" : "מסמך מקור:"}</span>
                             {fund.source_document_url ? (
                                 <a href={fund.source_document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-bold text-blue-500 hover:text-blue-600 transition-colors underline">
                                     <FileText size={14} />
-                                    {isDemo ? "View PDF" : "צפה במסמך"}
+                                    {isEnglishDemo ? "View PDF" : "צפה במסמך"}
                                 </a>
                             ) : (
                                 <button 
@@ -297,7 +302,7 @@ export default function InsurancePage() {
                                   className="inline-flex items-center gap-1.5 font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
                                 >
                                     <FileText size={14} />
-                                    {isDemo ? "Indexed for RAG" : "העלאת פוליסה"}
+                                    {isEnglishDemo ? "Indexed for RAG" : "העלאת פוליסה"}
                                 </button>
                             )}
                         </div>
@@ -309,7 +314,7 @@ export default function InsurancePage() {
                             className="flex-1 inline-flex items-center justify-center gap-2 text-sm font-medium bg-blue-600/10 text-blue-600 dark:text-blue-400 hover:bg-blue-600/20 py-2 rounded-lg transition-colors cursor-pointer"
                         >
                             {comparingId === fund.id ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
-                            {isDemo ? "Generate Agent Letter" : "השווה והפק הודעה"}
+                            {isEnglishDemo ? "Generate Agent Letter" : "השווה והפק הודעה"}
                         </button>
                     </div>
                 </div>
@@ -322,7 +327,7 @@ export default function InsurancePage() {
                         <FileText size={32} />
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 font-medium">
-                      {isDemo ? `No active policies under "${activeTab}"` : `לא נמצאו פוליסות בקטגוריית "${activeTab}"`}
+                      {isEnglishDemo ? `No active policies under "${activeTab}"` : `לא נמצאו פוליסות בקטגוריית "${activeTab}"`}
                     </p>
                 </div>
             )}
@@ -332,7 +337,7 @@ export default function InsurancePage() {
       {/* --- Compare WhatsApp / Email Modal --- */}
       {compareDraft && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl relative" dir={isDemo ? "ltr" : "rtl"}>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl relative" dir={isEnglishDemo ? "ltr" : "rtl"}>
                 <button onClick={() => setCompareDraft(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
                     <X size={20} />
                 </button>
@@ -341,8 +346,8 @@ export default function InsurancePage() {
                         <MessageCircle size={24} />
                     </div>
                     <div>
-                        <h3 className="font-bold text-white text-lg">{isDemo ? "Negotiation Message Draft" : "טיוטת הודעה לסוכן"}</h3>
-                        <p className="text-sm text-slate-400">{isDemo ? "AI-crafted rate matching draft ready to send to your insurance agent." : "הודעה זו יוצרה אישית ע\"י מנוע ה-AI למשא ומתן."}</p>
+                        <h3 className="font-bold text-white text-lg">{isEnglishDemo ? "Negotiation Message Draft" : "טיוטת הודעה לסוכן"}</h3>
+                        <p className="text-sm text-slate-400">{isEnglishDemo ? "AI-crafted rate matching draft ready to send to your insurance agent." : "הודעה זו יוצרה אישית ע\"י מנוע ה-AI למשא ומתן."}</p>
                     </div>
                 </div>
                 <div className="p-6">
@@ -357,7 +362,7 @@ export default function InsurancePage() {
                             }}
                             className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg font-medium transition-colors cursor-pointer"
                         >
-                            {isDemo ? "Copy & Close" : "העתק טקסט וסגור"}
+                            {isEnglishDemo ? "Copy & Close" : "העתק טקסט וסגור"}
                         </button>
                     </div>
                 </div>
