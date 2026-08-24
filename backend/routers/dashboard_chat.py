@@ -10,7 +10,7 @@ from db_manager import get_insurance_chunks
 from rag_utils import embed_query, cosine_top_k, bm25_top_k, rrf_merge
 from auth import verify_token
 import config
-from services.demo_constants import get_demo_chat_responses, is_english_demo_enabled, DEMO_CHAT_RESPONSES
+from services.demo_constants import get_demo_chat_responses, is_english_demo_enabled
 
 router = APIRouter(tags=["dashboard"])
 
