@@ -129,7 +129,8 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
     uid = user.get("uid")
     
     # --- DEMO BYPASS ---
-    if uid == config.DEMO_UID:
+    if uid in [config.DEMO_UID, "demo-user-12345", "demo-user-en"]:
+        await asyncio.sleep(1.0)
         q = request.question.lower()
         has_hebrew = any("\u0590" <= c <= "\u05ea" for c in request.question)
         lang = "he" if has_hebrew else "en"
@@ -333,6 +334,7 @@ async def copilot_advisor_chat(request: AdvisorChatRequest, user: dict = Depends
     
     # --- DEMO BYPASS ---
     if uid in [config.DEMO_UID, "demo-user-12345", "demo-user-en"]:
+        await asyncio.sleep(1.0)
         has_hebrew = any("\u0590" <= c <= "\u05ea" for c in request.question)
         if has_hebrew:
             reply = "אני יועץ ה-AI שלכם בסביבת הדמו. כאן תוכלו לראות איך אני מנתח את תיק ההשקעות שלכם ומציע תובנות. בגרסה האמיתית, אנתח עבורכם שינויים בשוק, אשווה בין מסלולי השקעה ואעזור לכם לקבל החלטות מושכלות."

@@ -127,7 +127,7 @@ export const TRANSLATIONS = {
     nav: {
       dashboard: 'Dashboard',
       pension: 'Retirement',
-      stocks: 'Equities',
+      stocks: 'Stocks',
       alternative: 'Alternatives',
       insurance: 'Insurance',
       settings: 'Settings',
@@ -139,7 +139,7 @@ export const TRANSLATIONS = {
       subtitle: 'Consolidated overview of global multi-asset portfolio and insurance policies',
       netWorth: 'Total Net Worth',
       pensionBalance: 'Retirement & Long-Term',
-      stocksPortfolio: 'Public Equities Portfolio',
+      stocksPortfolio: 'Public Stocks Portfolio',
       altInvestments: 'Private Equity & Real Estate',
       insuranceMonthly: 'Insurance Premiums',
       assetAllocation: 'Global Asset Allocation',
@@ -157,7 +157,7 @@ export const TRANSLATIONS = {
       close: 'Close',
     },
     stocks: {
-      title: 'Active Equity Portfolio',
+      title: 'Active Stocks Portfolio',
       subtitle: 'Real-time market valuation and performance metrics',
       totalValue: 'Total Portfolio Value',
       dailyPnl: 'Daily Change',

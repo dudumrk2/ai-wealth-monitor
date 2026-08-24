@@ -43,7 +43,7 @@ export interface ExchangeRate {
   isFallback: boolean; // true if live fetch failed
 }
 
-export const SECTOR_LABELS: Record<StockSector, string> = {
+export const SECTOR_LABELS: Record<string, string> = {
   mutual_funds:  'קרנות נאמנות',
   etf:           'קרנות סל',
   foreign_funds: 'קרנות חוץ',
@@ -51,9 +51,23 @@ export const SECTOR_LABELS: Record<StockSector, string> = {
   bonds:         'אג"ח',
   makam:         'מק"מ',
   cash:          'מזומן',
+  technology:    'טכנולוגיה',
+  semiconductors:'שבבים ומוליכים למחצה',
 };
 
-export const SECTOR_COLORS: Record<StockSector, string> = {
+export const SECTOR_LABELS_EN: Record<string, string> = {
+  mutual_funds:  'Mutual Funds',
+  etf:           'ETFs',
+  foreign_funds: 'Foreign Funds',
+  stocks:        'Equities / Stocks',
+  bonds:         'Fixed Income / Bonds',
+  makam:         'T-Bills / Short-term',
+  cash:          'Cash & Equivalents',
+  technology:    'Technology',
+  semiconductors:'Semiconductors',
+};
+
+export const SECTOR_COLORS: Record<string, string> = {
   mutual_funds:  '#a855f7', // Purple
   etf:           '#3b82f6', // Blue
   foreign_funds: '#f97316', // Orange
@@ -61,4 +75,6 @@ export const SECTOR_COLORS: Record<StockSector, string> = {
   bonds:         '#22c55e', // Green
   makam:         '#1e3a8a', // Dark blue
   cash:          '#fdba74', // Light orange
+  technology:    '#3b82f6', // Blue
+  semiconductors:'#6366f1', // Indigo
 };

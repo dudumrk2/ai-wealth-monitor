@@ -23,7 +23,7 @@ import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import type { StockHolding, ExchangeRate, StockSector } from '../types/stocks';
-import { SECTOR_LABELS, SECTOR_COLORS } from '../types/stocks';
+import { SECTOR_LABELS, SECTOR_LABELS_EN, SECTOR_COLORS } from '../types/stocks';
 import { AdvisorChat } from '../components/dashboard/AdvisorChat';
 import ManualStockModal from '../components/stocks/ManualStockModal';
 
@@ -219,7 +219,9 @@ const StocksDashboard: React.FC = () => {
   const sectorMap: Partial<Record<StockSector, number>> = {};
   holdings.forEach(h => { sectorMap[h.sector] = (sectorMap[h.sector] ?? 0) + toBase(h, rate, isEnglishDemo); });
   const donutData = (Object.keys(sectorMap) as StockSector[]).map(s => ({
-    name: SECTOR_LABELS[s] || s, value: sectorMap[s] ?? 0, color: SECTOR_COLORS[s] || '#94a3b8',
+    name: isEnglishDemo ? (SECTOR_LABELS_EN[s] || s) : (SECTOR_LABELS[s] || s),
+    value: sectorMap[s] ?? 0,
+    color: SECTOR_COLORS[s] || '#94a3b8',
   }));
 
   // Geographic split
