@@ -8,20 +8,9 @@ from services.demo_constants import (
     get_demo_insurance_chunks,
     DEMO_INSURANCE_CHUNKS_EN,
     DEMO_INSURANCE_CHUNKS_HE,
+    DEMO_ALT_INVESTMENT,
     is_english_demo_enabled
 )
-
-DEMO_ALT_INVESTMENT = {
-    "id": "demo-alt-1",
-    "name": "Eagle Real Estate Income Fund",
-    "developer": "Eagle Invest",
-    "originalAmount": 85000,
-    "currency": "USD",
-    "startDate": "2023-01-15",
-    "durationMonths": 36,
-    "expectedReturn": 8.5,
-    "status": "Active"
-}
 
 def seed_demo_data(lang: str | None = None):
     """Seed the demo user with realistic data from constants in Firestore."""

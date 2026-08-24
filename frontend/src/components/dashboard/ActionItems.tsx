@@ -3,7 +3,7 @@ import { CheckCircle2, Circle, AlertTriangle, Info, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import type { ActionItem, Severity } from '../../types/portfolio';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
-import { useAuth } from '../../context/AuthContext';
+import { useOptionalAuth } from '../../context/AuthContext';
 import { getTranslation } from '../../utils/i18n';
 
 interface ActionItemsProps {
@@ -13,6 +13,7 @@ interface ActionItemsProps {
   className?: string;
   member1Name?: string;
   member2Name?: string;
+  isEnglishDemo?: boolean;
 }
 
 const PRIORITY_DOT: Record<Severity, string> = {
@@ -32,15 +33,11 @@ export default function ActionItems({
   title, 
   className,
   member1Name,
-  member2Name
+  member2Name,
+  isEnglishDemo
 }: ActionItemsProps) {
-  let isEn = false;
-  try {
-    const auth = useAuth();
-    isEn = auth?.isEnglishDemo ?? false;
-  } catch {
-    isEn = false;
-  }
+  const auth = useOptionalAuth();
+  const isEn = isEnglishDemo ?? auth?.isEnglishDemo ?? false;
   const t = getTranslation(isEn);
   const displayTitle = title || t.actionItems.title;
   const m1 = member1Name || (isEn ? "David" : "חבר 1");

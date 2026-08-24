@@ -7,6 +7,7 @@ import {
   LayoutDashboard, 
   Landmark, 
   LineChart, 
+  HandCoins,
   Shield, 
   Sparkles
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export default function DashboardLayout({ children, onRefresh, isRefreshing }: D
     { name: t.nav.dashboard, path: '/dashboard', icon: LayoutDashboard },
     { name: t.nav.pension, path: '/pension', icon: Landmark },
     { name: t.nav.stocks, path: '/stocks', icon: LineChart },
+    { name: t.nav.alternative, path: '/alternative', icon: HandCoins },
     { name: t.nav.insurance, path: '/insurance', icon: Shield },
   ];
 
@@ -166,12 +168,45 @@ export default function DashboardLayout({ children, onRefresh, isRefreshing }: D
       </header>
 
       {/* Main Page Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-8 pb-24 lg:pb-8">
         {children}
       </main>
 
+      {/* Mobile Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex items-center justify-around py-2 px-2 lg:hidden z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+        {navLinks.map((link) => {
+          const isActive = location.pathname.startsWith(link.path);
+          const Icon = link.icon;
+          return (
+            <Link 
+              key={link.path}
+              to={link.path} 
+              className={clsx(
+                "flex flex-col items-center gap-1 flex-1 py-1 transition-all rounded-lg",
+                isActive 
+                  ? "text-blue-600 dark:text-blue-400" 
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              )}
+            >
+              <Icon className={clsx("w-5 h-5", isActive && "scale-110")} />
+              <span className="text-[10px] font-bold">{link.name}</span>
+            </Link>
+          );
+        })}
+        <button 
+          onClick={() => navigate('/settings')}
+          className={clsx(
+            "flex flex-col items-center gap-1 flex-1 py-1 text-slate-400",
+            location.pathname === '/settings' && "text-blue-600 dark:text-blue-400"
+          )}
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px] font-bold">{t.nav.settings}</span>
+        </button>
+      </nav>
+
       {/* Footer */}
-      <footer className="w-full border-t border-slate-200 dark:border-slate-800/50 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+      <footer className="w-full border-t border-slate-200 dark:border-slate-800/50 py-6 text-center text-xs text-slate-500 dark:text-slate-400 hidden lg:block">
         <p>© {new Date().getFullYear()} WealthPilot AI. {isEnglishDemo ? 'All rights reserved.' : 'כל הזכויות שמורות.'}</p>
       </footer>
     </div>

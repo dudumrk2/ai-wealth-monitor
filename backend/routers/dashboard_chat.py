@@ -132,7 +132,7 @@ async def copilot_chat_ask(request: ChatRequest, user: dict = Depends(verify_tok
     if uid == config.DEMO_UID:
         q = request.question.lower()
         has_hebrew = any("\u0590" <= c <= "\u05ea" for c in request.question)
-        lang = "he" if (has_hebrew and not is_english_demo_enabled()) else ("en" if (not has_hebrew or is_english_demo_enabled()) else "he")
+        lang = "he" if has_hebrew else "en"
         responses = get_demo_chat_responses(lang)
 
         if any(w in q for w in ["experimental", "abroad", "treatment", "overseas", "aetna", "surgery", "critical", "rider", "rag", "כיסוי", "חו\"ל", "טיפולים", "ניתוח", "ניסיונ"]):
