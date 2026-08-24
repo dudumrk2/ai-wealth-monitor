@@ -21,7 +21,7 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 
-log_file_path = os.path.join(os.path.dirname(__file__), "app.log")
+log_file_path = os.path.join("/tmp", "app.log")
 file_handler = RotatingFileHandler(log_file_path, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8")
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 root_logger = logging.getLogger()
