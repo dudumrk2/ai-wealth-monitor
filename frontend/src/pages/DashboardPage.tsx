@@ -46,6 +46,7 @@ const DashboardPage: React.FC = () => {
       const params = new URLSearchParams();
       if (refreshMarket) params.append('refresh_market', 'true');
       if (refreshAi) params.append('refresh_ai', 'true');
+      if (isDemo) params.append('lang', isEnglishDemo ? 'en' : 'he');
       const query = params.toString() ? `?${params.toString()}` : '';
 
       const response = await fetch(`${API_URL}/api/portfolio${query}`, {
@@ -62,21 +63,11 @@ const DashboardPage: React.FC = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [user, isDemo]);
+  }, [user, isDemo, isEnglishDemo]);
 
   useEffect(() => {
-    const key = portfolioCacheKey(user?.uid);
-    const cached = key ? localStorage.getItem(key) : null;
-    if (cached) {
-      try {
-        setPortfolioData(JSON.parse(cached));
-        setLoading(false);
-        fetchPortfolio(true);
-        return;
-      } catch { /* ignore bad cache */ }
-    }
     fetchPortfolio();
-  }, [fetchPortfolio, user]);
+  }, [fetchPortfolio, isEnglishDemo]);
 
   const totals = useMemo(() => {
     if (!portfolioData || !portfolioData.portfolios) {

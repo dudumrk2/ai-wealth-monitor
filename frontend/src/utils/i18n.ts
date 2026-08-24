@@ -113,6 +113,14 @@ export const TRANSLATIONS = {
       placeholder: 'שאל כל שאלה על התיק או הפוליסות שלך...',
       send: 'שלח',
       newChat: 'שיחה חדשה',
+    },
+    advisorChat: {
+      title: 'יועץ השקעות AI',
+      subtitle: 'מחובר לתיק המסחר שלך',
+      initialMessage: 'שלום! אני היועץ הפיננסי שלך (מופעל ע"י AI). פירשתי את היסטוריית תיק המניות שלך ואני מוכן לענות על כל שאלה בנוגע להרכב מניות, פיזור סיכונים או הצעות השקעה לטווח ארוך. \nאיך אוכל לעזור לך היום?',
+      placeholder: 'שאל משהו על תיק המניות שלך...',
+      copyPrompt: 'העתק פרומפט',
+      copied: 'הועתק!',
     }
   },
   en: {
@@ -197,6 +205,14 @@ export const TRANSLATIONS = {
       placeholder: 'Ask any question about your assets or insurance clauses...',
       send: 'Send',
       newChat: 'New Chat',
+    },
+    advisorChat: {
+      title: 'AI Investment Advisor',
+      subtitle: 'Live connection to your investment portfolio',
+      initialMessage: "Hello David! I am your AI Investment Advisor. I've analyzed your family's $181,010 active stock portfolio across NVIDIA, Apple, Microsoft, Alphabet, and cash reserves. How can I assist you with your equity allocations today?",
+      placeholder: 'Ask anything about your equity portfolio or sector weightings...',
+      copyPrompt: 'Copy Prompt',
+      copied: 'Copied!',
     }
   }
 };

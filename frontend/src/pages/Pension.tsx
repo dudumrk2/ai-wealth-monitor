@@ -31,6 +31,17 @@ const CATEGORY_COLORS: Record<FundCategory, string> = {
   alternative:          '#6366f1', // indigo
 };
 
+const DEMO_CATEGORY_LABELS: Record<string, string> = {
+  pension: '401(k) / Pension Plan',
+  study: 'Education / Tax-Advantaged Fund',
+  provident: 'IRA / Provident Fund',
+  investment_provident: 'Brokerage / Investment Provident',
+  managers: 'Executive Insurance',
+  stocks: 'Equities / Stocks',
+  alternative: 'Alternative Investments',
+  insurance: 'Insurance Portfolio',
+};
+
 /** Build SummaryRow[] from a funds list, grouping by category. */
 function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit' = 'balance', isEn = false): SummaryRow[] {
   const map = new Map<FundCategory, number>();
@@ -39,17 +50,6 @@ function buildRows(funds: Fund[], field: 'balance' | 'monthly_deposit' = 'balanc
     map.set(f.category, (map.get(f.category) ?? 0) + (f[field] ?? 0));
   }
   
-  const DEMO_CATEGORY_LABELS: Record<string, string> = {
-    pension: '401(k) / Pension Plan',
-    study: 'Education / Tax-Advantaged Fund',
-    provident: 'IRA / Provident Fund',
-    investment_provident: 'Brokerage / Investment Provident',
-    managers: 'Executive Insurance',
-    stocks: 'Equities / Stocks',
-    alternative: 'Alternative Investments',
-    insurance: 'Insurance Portfolio',
-  };
-
   return Array.from(map.entries())
     .filter(([, v]) => v > 0)
     .map(([cat, val]) => ({
@@ -101,6 +101,7 @@ export default function Pension() {
       const params = new URLSearchParams();
       if (refreshMarket) params.append('refresh_market', 'true');
       if (refreshAi) params.append('refresh_ai', 'true');
+      if (isDemo) params.append('lang', isEnglishDemo ? 'en' : 'he');
       const query = params.toString() ? `?${params.toString()}` : '';
 
       const response = await fetch(`${API_URL}/api/portfolio${query}`, {
@@ -117,22 +118,12 @@ export default function Pension() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [user]);
+  }, [user, isDemo, isEnglishDemo]);
 
   // Initial portfolio fetch — stale-while-revalidate using shared Dashboard cache
   useEffect(() => {
-    const cached = sessionStorage.getItem(PORTFOLIO_CACHE_KEY);
-    if (cached) {
-      try {
-        setPortfolioData(JSON.parse(cached));
-        setLoading(false);
-        // Refresh silently in background
-        fetchPortfolio(true);
-        return;
-      } catch { /* ignore bad cache */ }
-    }
     fetchPortfolio();
-  }, [fetchPortfolio]);
+  }, [fetchPortfolio, isEnglishDemo]);
 
   // Auto-scan for inbox files whenever familyConfig becomes available
   useEffect(() => {
@@ -310,15 +301,15 @@ export default function Pension() {
               </div>
             </div>
             {categories.map(cat => (
-              <AssetTable key={cat} title={CATEGORY_LABELS[cat]} funds={userFunds.filter(f => f.category === cat)} />
+              <AssetTable key={cat} title={isEnglishDemo ? (DEMO_CATEGORY_LABELS[cat] || cat) : CATEGORY_LABELS[cat]} funds={userFunds.filter(f => f.category === cat)} />
             ))}
             {altInvest.length > 0 && <AlternativeInvestmentsTable items={altInvest} />}
           </div>
         );
       }
       case 'spouse': {
-        const balanceRows  = buildRows(spouseFunds, 'balance', isDemo);
-        const monthlyRows  = buildRows(spouseFunds.filter(f => f.monthly_deposit > 0), 'monthly_deposit', isDemo);
+        const balanceRows  = buildRows(spouseFunds, 'balance', isEnglishDemo);
+        const monthlyRows  = buildRows(spouseFunds.filter(f => f.monthly_deposit > 0), 'monthly_deposit', isEnglishDemo);
         const categories   = [...new Set(spouseFunds.map(f => f.category))];
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -333,7 +324,7 @@ export default function Pension() {
                       summaryTab === 'balance' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    {isDemo ? "Accumulation" : "סיכום צבירה"}
+                    {isEnglishDemo ? "Accumulation" : "סיכום צבירה"}
                   </button>
                   <button
                     onClick={() => setSummaryTab('monthly')}
@@ -342,7 +333,7 @@ export default function Pension() {
                       summaryTab === 'monthly' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                   >
-                    {isDemo ? "Monthly" : "הפקדות חודשיות"}
+                    {isEnglishDemo ? "Monthly" : "הפקדות חודשיות"}
                   </button>
                 </div>
                 {summaryTab === 'balance' ? (
@@ -361,7 +352,7 @@ export default function Pension() {
               </div>
             </div>
             {categories.map(cat => (
-              <AssetTable key={cat} title={CATEGORY_LABELS[cat]} funds={spouseFunds.filter(f => f.category === cat)} />
+              <AssetTable key={cat} title={isEnglishDemo ? (DEMO_CATEGORY_LABELS[cat] || cat) : CATEGORY_LABELS[cat]} funds={spouseFunds.filter(f => f.category === cat)} />
             ))}
           </div>
         );
@@ -425,7 +416,7 @@ export default function Pension() {
             {categories.map(cat => {
               const catFunds = [...jointUserFunds.filter(f => f.category === cat), ...jointSpouseFunds.filter(f => f.category === cat)];
               if (catFunds.length === 0) return null;
-              return <AssetTable key={cat} title={isDemo ? (cat === 'pension' ? '401(k) / Pension Accounts' : cat) : `${CATEGORY_LABELS[cat]} — כלל המשפחה`} funds={catFunds} ownerColumn={catFunds.some(f => f._owner)} />;
+              return <AssetTable key={cat} title={isEnglishDemo ? (DEMO_CATEGORY_LABELS[cat] || cat) : `${CATEGORY_LABELS[cat]} — כלל המשפחה`} funds={catFunds} ownerColumn={catFunds.some(f => f._owner)} />;
             })}
             {jointStocks.length > 0 && <AssetTable title={isDemo ? "Family Stock Holdings" : "תיק מניות משפחתי"} funds={jointStocks} />}
             {altInvest.length > 0 && <AlternativeInvestmentsTable items={altInvest} />}

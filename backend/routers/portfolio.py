@@ -77,15 +77,26 @@ async def get_fx_rate(user: dict = Depends(verify_token)):
     print(f"💰 [PORTFOLIO-ROUTER] Using fallback FX rate: {fallback_rate}")
     return {"rate": fallback_rate, "date": fallback_date, "is_fallback": True, "cached": False}
 
+from services.demo_constants import get_demo_portfolio_data, is_english_demo_enabled
+
 @router.get("")
 async def get_portfolio(
     refresh_market: bool = False,
     refresh_ai: bool = False,
+    lang: str | None = None,
     user: dict = Depends(verify_token)
 ):
     uid = user.get("uid")
-    print(f"🔍 [PORTFOLIO-ROUTER] GET /api/portfolio - Fetching for {uid} (refresh_market={refresh_market}, refresh_ai={refresh_ai})")
-    portfolio_doc = db_manager.get_processed_portfolio(uid)
+    is_demo = uid in [config.DEMO_UID, "demo-user-12345", "demo-user-en"]
+    effective_uid = uid
+    is_en = (lang == "en") or (uid == "demo-user-en") or (is_demo and is_english_demo_enabled())
+    if is_demo:
+        effective_uid = "demo-user-en" if is_en else config.DEMO_UID
+
+    print(f"🔍 [PORTFOLIO-ROUTER] GET /api/portfolio - Fetching for {uid} (effective={effective_uid}, is_en={is_en}, refresh_market={refresh_market}, refresh_ai={refresh_ai})")
+    portfolio_doc = db_manager.get_processed_portfolio(effective_uid)
+    if not portfolio_doc and is_demo:
+        portfolio_doc = get_demo_portfolio_data("en" if is_en else "he")
     
     if portfolio_doc:
         portfolios = portfolio_doc.get("portfolios", {})
@@ -97,7 +108,7 @@ async def get_portfolio(
         # 1. Explicit AI Refresh
         if refresh_ai:
             print(f"🤖 [PORTFOLIO-ROUTER] Explicit AI refresh requested for {uid}")
-            family_profile = db_manager.get_family_profile(uid)
+            family_profile = db_manager.get_family_profile(effective_uid)
             
             # AI always needs fresh market context to be accurate
             live_market_data = await _collect_market_data_async(portfolios)
@@ -105,7 +116,7 @@ async def get_portfolio(
             
             # Generate action items using the unified Gemini-based advisor
             try:
-                if uid == config.DEMO_UID:
+                if is_demo:
                      print(f"⏭️  [PORTFOLIO-ROUTER] Skipping AI advisor for demo user.")
                 else:
                      new_action_items = ai_advisor.generate_action_items(portfolios, live_market_data, family_profile)
@@ -139,7 +150,7 @@ async def get_portfolio(
 
         if needs_save:
             print(f"☁️ [PORTFOLIO-ROUTER] Saving updated portfolio after refresh...")
-            db_manager.save_processed_portfolio(uid, portfolio_doc)
+            db_manager.save_processed_portfolio(effective_uid, portfolio_doc)
 
         # Get FX rate
         fx_rate_data = db_manager.get_fx_rate()
@@ -147,7 +158,8 @@ async def get_portfolio(
 
         # ALWAYS calculate fresh summary for the dashboard
         stocks_list = portfolio_doc.get("stocks", [])
-        stock_summary = _calculate_stock_summary_data(stocks_list, fx_rate)
+        base_curr = "USD" if is_en else "ILS"
+        stock_summary = _calculate_stock_summary_data(stocks_list, fx_rate, base_currency=base_curr)
 
         return {
             "last_updated": last_updated,

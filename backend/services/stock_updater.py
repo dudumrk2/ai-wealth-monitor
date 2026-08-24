@@ -16,40 +16,43 @@ def _load_yf():
         yf = _yf
     return yf
 
-def _calculate_stock_summary_data(stocks: list, fx_rate: float) -> dict:
-    """Calculate aggregate totals for the stock portfolio in ILS."""
+def _calculate_stock_summary_data(stocks: list, fx_rate: float, base_currency: str = "ILS") -> dict:
+    """Calculate aggregate totals for the stock portfolio in base_currency (ILS or USD)."""
     if not stocks:
         return {"total_value": 0, "daily_return": 0, "total_return": 0}
         
-    total_value_ils = 0.0
-    total_daily_pnl_ils = 0.0
-    total_pnl_ils = 0.0
-    total_invested_ils = 0.0
+    total_value = 0.0
+    total_daily_pnl = 0.0
+    total_pnl = 0.0
+    total_invested = 0.0
 
     for stock in stocks:
         symbol = stock.get("symbol")
         if not symbol: continue
         
         currency = stock.get("currency", "USD")
-        r = fx_rate if currency == "USD" else 1.0
+        if base_currency == "USD":
+            r = (1.0 / fx_rate) if currency == "ILS" else 1.0
+        else:
+            r = fx_rate if currency == "USD" else 1.0
         
         # Prefer new naming from scraper, fallback to Excel naming
         v_orig = stock.get("totalValueOriginal", stock.get("value", 0.0))
         dp_orig = stock.get("dailyPnlOriginal", stock.get("dailyPnl", 0.0))
         tp_orig = stock.get("totalPnlOriginal", stock.get("totalPnl", 0.0))
         
-        val_ils = v_orig * r
-        total_value_ils += val_ils
-        total_daily_pnl_ils += dp_orig * r
-        total_pnl_ils += tp_orig * r
-        total_invested_ils += (val_ils - (tp_orig * r))
+        val = v_orig * r
+        total_value += val
+        total_daily_pnl += dp_orig * r
+        total_pnl += tp_orig * r
+        total_invested += (val - (tp_orig * r))
 
-    daily_base = total_value_ils - total_daily_pnl_ils
-    daily_return_pct = (total_daily_pnl_ils / daily_base * 100) if daily_base > 0 else 0.0
-    total_return_pct = (total_pnl_ils / total_invested_ils * 100) if total_invested_ils > 0 else 0.0
+    daily_base = total_value - total_daily_pnl
+    daily_return_pct = (total_daily_pnl / daily_base * 100) if daily_base > 0 else 0.0
+    total_return_pct = (total_pnl / total_invested * 100) if total_invested > 0 else 0.0
     
     return {
-        "total_value": total_value_ils,
+        "total_value": total_value,
         "daily_return": daily_return_pct,
         "total_return": total_return_pct
     }

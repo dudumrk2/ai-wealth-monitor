@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LineChart, Send, User, Bot, Copy } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useOptionalAuth } from '../../context/AuthContext';
+import { getTranslation } from '../../utils/i18n';
 
 import { API_URL } from '../../lib/api';
 
@@ -12,7 +13,11 @@ export interface ChatMessage {
 }
 
 export const AdvisorChat: React.FC = () => {
-  const { user } = useAuth();
+  const auth = useOptionalAuth();
+  const user = auth?.user;
+  const isEnglishDemo = auth?.isEnglishDemo ?? false;
+  const t = getTranslation(isEnglishDemo);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,8 +40,8 @@ export const AdvisorChat: React.FC = () => {
     // Fetch History
     const fetchHistory = async () => {
       try {
-        const idToken = await user?.getIdToken();
-        const familyId = user?.uid || 'CURRENT_UID';
+        const idToken = await auth?.user?.getIdToken();
+        const familyId = auth?.user?.uid || 'CURRENT_UID';
         const res = await fetch(`${API_URL}/api/chat/advisor/history?family_id=${familyId}`, {
           headers: idToken ? { 'Authorization': `Bearer ${idToken}` } : {}
         });
@@ -48,7 +53,7 @@ export const AdvisorChat: React.FC = () => {
              // Initial greeting
              setMessages([{
                role: 'model',
-               text: 'שלום! אני היועץ הפיננסי שלך (מופעל ע"י AI). פירשתי את היסטוריית תיק המניות שלך ואני מוכן לענות על כל שאלה בנוגע להרכב מניות, פיזור סיכונים או הצעות השקעה לטווח ארוך. \nאיך אוכל לעזור לך היום?',
+               text: t.advisorChat.initialMessage,
                id: 'init'
              }]);
           }
@@ -59,12 +64,12 @@ export const AdvisorChat: React.FC = () => {
         setInitialLoading(false);
       }
     };
-    if (user) {
+    if (auth?.user) {
        fetchHistory();
     } else {
        setInitialLoading(false);
     }
-  }, [user]);
+  }, [auth?.user, isEnglishDemo]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
@@ -146,7 +151,7 @@ export const AdvisorChat: React.FC = () => {
   };
 
   return (
-    <div dir="rtl" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full w-full overflow-hidden">
+    <div dir={isEnglishDemo ? "ltr" : "rtl"} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full w-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-t-2xl">
         <div className="flex items-center gap-3">
@@ -154,13 +159,13 @@ export const AdvisorChat: React.FC = () => {
             <LineChart className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-bold text-slate-900 dark:text-slate-100">יועץ השקעות AI</h2>
+            <h2 className="font-bold text-slate-900 dark:text-slate-100">{t.advisorChat.title}</h2>
             <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                <span className="relative flex h-2 w-2">
                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                </span>
-               מחובר לתיק המסחר שלך
+               {t.advisorChat.subtitle}
             </div>
           </div>
         </div>
@@ -171,9 +176,9 @@ export const AdvisorChat: React.FC = () => {
               ? 'bg-emerald-500 text-white' 
               : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
           }`}
-          title="העתק פרומפט מלא ל-AI חיצוני"
+          title={t.advisorChat.copyPrompt}
         >
-          {isCopied ? 'הועתק!' : 'העתק פרומפט'}
+          {isCopied ? t.advisorChat.copied : t.advisorChat.copyPrompt}
           <Copy className="w-4 h-4" />
         </button>
       </div>
@@ -193,7 +198,7 @@ export const AdvisorChat: React.FC = () => {
             >
                 {/* Avatar */}
                 {msg.role === 'user' ? (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-blue-600 ml-1">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-blue-600 ml-1 text-white">
                     <User className="w-4 h-4 text-white" />
                 </div>
                 ) : (
@@ -234,21 +239,25 @@ export const AdvisorChat: React.FC = () => {
 
       {/* Input Area */}
       <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-b-2xl border-t border-slate-100 dark:border-slate-800">
-        <div className="relative group/input">
+        <div className="relative group/input flex items-center">
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="שאל משו על תיק המניות שלך..."
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full py-3 pr-4 pl-14 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50 transition-all text-slate-900 dark:text-slate-100 placeholder-slate-400 shadow-sm"
+            placeholder={t.advisorChat.placeholder}
+            className={`w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full py-3 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50 transition-all text-slate-900 dark:text-slate-100 placeholder-slate-400 shadow-sm ${
+              isEnglishDemo ? 'pl-4 pr-12' : 'pr-4 pl-12'
+            }`}
           />
           <button
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
-            className="absolute left-1.5 top-1.5 w-9 h-9 flex items-center justify-center bg-teal-500 hover:bg-teal-400 hover:scale-105 active:scale-95 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 disabled:hover:scale-100 transition-all rounded-full text-white shadow-md shadow-teal-500/20 cursor-pointer"
+            className={`absolute w-9 h-9 flex items-center justify-center bg-teal-500 hover:bg-teal-400 hover:scale-105 active:scale-95 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 disabled:hover:scale-100 transition-all rounded-full text-white shadow-md shadow-teal-500/20 cursor-pointer ${
+              isEnglishDemo ? 'right-1.5 top-1.5' : 'left-1.5 top-1.5'
+            }`}
           >
-            <Send className="w-4 h-4 -scale-x-100 transform" />
+            <Send className={`w-4 h-4 ${isEnglishDemo ? '' : '-scale-x-100'} transform`} />
           </button>
         </div>
       </div>

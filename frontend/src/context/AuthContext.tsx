@@ -205,18 +205,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const DEMO_FAMILY_CONFIG_EN = {
+    familyId: 'demo-user-12345',
+    householdName: 'Miller Family (Demo)',
+    member1: { name: 'David', email: 'david.miller@example.com', idNumber: '123456789' },
+    member2: { name: 'Sarah', email: 'sarah.miller@example.com', idNumber: '987654321' },
+    extraAuthorizedEmails: [],
+    completedAt: '2026-01-01T00:00:00Z',
+    onboarding_completed: true,
+  };
+
+  const DEMO_FAMILY_CONFIG_HE = {
+    familyId: 'demo-user-12345',
+    householdName: 'משפחת ישראלי (דמו)',
+    member1: { name: 'אבי', email: 'avi.israeli@example.com', idNumber: '123456789' },
+    member2: { name: 'דנה', email: 'dana.israeli@example.com', idNumber: '987654321' },
+    extraAuthorizedEmails: [],
+    completedAt: '2026-01-01T00:00:00Z',
+    onboarding_completed: true,
+  };
+
   const isDemo = Boolean(
     localStorage.getItem('is_demo') === 'true' ||
     (typeof window !== 'undefined' && window.location.search.includes('demo=true')) ||
     user?.uid === 'demo-user-12345' ||
+    user?.uid === 'demo-user-en' ||
     user?.uid === 'demo-user'
   );
 
   const isEnglishDemo = isDemo && demoLang === 'en';
 
+  const effectiveFamilyConfig = isDemo 
+    ? (isEnglishDemo ? DEMO_FAMILY_CONFIG_EN : DEMO_FAMILY_CONFIG_HE) as any
+    : familyConfig;
+
   const setDemoLanguage = (lang: 'he' | 'en') => {
     setDemoLang(lang);
     localStorage.setItem('demo_language', lang);
+    if (isDemo) {
+      // Clear portfolio caches so pages instantly refetch with fresh language dataset
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith(STORAGE_KEYS.PORTFOLIO_CACHE))
+        .forEach((k) => localStorage.removeItem(k));
+      sessionStorage.removeItem('stocks_cache');
+      sessionStorage.removeItem('portfolio_cache');
+    }
   };
 
   useEffect(() => {
@@ -247,8 +280,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isDemo,
       isEnglishDemo,
       setDemoLanguage,
-      familyId: familyConfig?.familyId ?? null,
-      familyConfig,
+      familyId: effectiveFamilyConfig?.familyId ?? null,
+      familyConfig: effectiveFamilyConfig,
       refreshFamily,
       signInWithGoogle,
       signInWithDemo,

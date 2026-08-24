@@ -12,23 +12,21 @@ from services.demo_constants import (
     is_english_demo_enabled
 )
 
-def seed_demo_data(lang: str | None = None):
-    """Seed the demo user with realistic data from constants in Firestore."""
-    uid = config.DEMO_UID
-    target_lang = lang if lang else ("en" if is_english_demo_enabled() else "he")
-    print(f"🌱 [DEMO_SEEDER] Seeding demo data for {uid} (lang={target_lang})...")
+def _seed_single_demo(uid: str, lang: str):
+    """Seed a specific demo user (HE or EN) into Firestore."""
+    print(f"🌱 [DEMO_SEEDER] Seeding demo data for {uid} (lang={lang})...")
 
     # 1. Family Profile
-    profile = copy.deepcopy(get_demo_family_profile(target_lang))
+    profile = copy.deepcopy(get_demo_family_profile(lang))
     profile["created_at"] = datetime.datetime.now().isoformat()
     db_manager.save_family_profile(uid, profile)
 
     # 2. Processed Portfolio
-    portfolio = copy.deepcopy(get_demo_portfolio_data(target_lang))
+    portfolio = copy.deepcopy(get_demo_portfolio_data(lang))
     portfolio["last_updated"] = datetime.datetime.now().isoformat()
     db_manager.save_processed_portfolio(uid, portfolio)
 
-    # 3. Alternative Investment (Cleanup duplicates first)
+    # 3. Alternative Investment
     try:
         alt_coll = db_manager.db.collection("families").document(uid).collection("alt_projects")
         docs = alt_coll.list_documents()
@@ -39,7 +37,7 @@ def seed_demo_data(lang: str | None = None):
 
     db_manager.add_alt_project(uid, copy.deepcopy(DEMO_ALT_INVESTMENT))
 
-    # 4. Seed Insurance Policy RAG chunks (Seeds both EN & HE chunks)
+    # 4. Seed Insurance Policy RAG chunks
     try:
         combined_chunks = copy.deepcopy(DEMO_INSURANCE_CHUNKS_EN + DEMO_INSURANCE_CHUNKS_HE)
         for c in combined_chunks:
@@ -51,16 +49,22 @@ def seed_demo_data(lang: str | None = None):
             embeddings = embed_documents(texts)
             for c, emb in zip(combined_chunks, embeddings):
                 c["embedding"] = emb
-            print(f"✨ [DEMO_SEEDER] Generated live embeddings for {len(combined_chunks)} demo policy chunks")
         except Exception as emb_err:
-            print(f"ℹ️ [DEMO_SEEDER] Using predefined chunk embeddings ({emb_err})")
+            pass
 
         db_manager.save_policy_chunks(uid, "demo-aetna-health", combined_chunks)
-        print(f"✅ [DEMO_SEEDER] Seeded {len(combined_chunks)} insurance RAG chunks for {uid}")
     except Exception as e:
         print(f"⚠️ [DEMO_SEEDER] Could not seed insurance chunks: {e}")
 
-    print(f"✅ [DEMO_SEEDER] Seeding complete for {uid}")
+    print(f"✅ [DEMO_SEEDER] Seeding complete for {uid} (lang={lang})")
+
+def seed_demo_data(lang: str | None = None):
+    """Seed both Hebrew and English demo users in Firestore."""
+    # 1. Seed Hebrew demo user (default demo-user-12345)
+    _seed_single_demo(config.DEMO_UID, "he")
+
+    # 2. Seed English demo user (demo-user-en)
+    _seed_single_demo("demo-user-en", "en")
 
 if __name__ == "__main__":
     seed_demo_data()

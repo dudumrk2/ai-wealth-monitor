@@ -332,10 +332,14 @@ async def copilot_advisor_chat(request: AdvisorChatRequest, user: dict = Depends
     uid = user.get("uid")
     
     # --- DEMO BYPASS ---
-    if uid == config.DEMO_UID:
-        reply = "אני יועץ ה-AI שלכם בסביבת הדמו. כאן תוכלו לראות איך אני מנתח את תיק ההשקעות שלכם ומציע תובנות. בגרסה האמיתית, אנתח עבורכם שינויים בשוק, אשווה בין מסלולי השקעה ואעזור לכם לקבל החלטות מושכלות."
-        db_manager.save_chat_message(config.DEMO_UID, "user", request.question)
-        db_manager.save_chat_message(config.DEMO_UID, "model", reply)
+    if uid in [config.DEMO_UID, "demo-user-12345", "demo-user-en"]:
+        has_hebrew = any("\u0590" <= c <= "\u05ea" for c in request.question)
+        if has_hebrew:
+            reply = "אני יועץ ה-AI שלכם בסביבת הדמו. כאן תוכלו לראות איך אני מנתח את תיק ההשקעות שלכם ומציע תובנות. בגרסה האמיתית, אנתח עבורכם שינויים בשוק, אשווה בין מסלולי השקעה ואעזור לכם לקבל החלטות מושכלות."
+        else:
+            reply = "I am your AI Investment Advisor in demo mode. I have analyzed your family's $181,010 active stock portfolio across NVIDIA, Apple, Microsoft, Alphabet, and cash reserves. In production, I provide automated rebalancing alerts, risk factor decomposition, and earnings catalysts."
+        db_manager.save_chat_message(uid, "user", request.question)
+        db_manager.save_chat_message(uid, "model", reply)
         return {"response": reply}
 
     uid_to_use = uid if request.family_id == "CURRENT_UID" else uid

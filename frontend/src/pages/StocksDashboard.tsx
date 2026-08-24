@@ -48,9 +48,9 @@ const formatPct = (val: number | undefined | null) => {
   return `${prefix}${val.toFixed(2)}%`;
 };
 
-const toILS       = (h: StockHolding, r: number) => h.currency === 'USD' ? h.totalValueOriginal * r : h.totalValueOriginal;
-const dailyILS    = (h: StockHolding, r: number) => h.currency === 'USD' ? h.dailyPnlOriginal  * r : h.dailyPnlOriginal;
-const totalPnlILS = (h: StockHolding, r: number) => h.currency === 'USD' ? h.totalPnlOriginal  * r : h.totalPnlOriginal;
+const toBase       = (h: StockHolding, r: number, isEn = false) => isEn ? (h.currency === 'ILS' ? h.totalValueOriginal / r : h.totalValueOriginal) : (h.currency === 'USD' ? h.totalValueOriginal * r : h.totalValueOriginal);
+const dailyBase    = (h: StockHolding, r: number, isEn = false) => isEn ? (h.currency === 'ILS' ? h.dailyPnlOriginal / r : h.dailyPnlOriginal) : (h.currency === 'USD' ? h.dailyPnlOriginal * r : h.dailyPnlOriginal);
+const totalPnlBase = (h: StockHolding, r: number, isEn = false) => isEn ? (h.currency === 'ILS' ? h.totalPnlOriginal / r : h.totalPnlOriginal) : (h.currency === 'USD' ? h.totalPnlOriginal * r : h.totalPnlOriginal);
 
 // ─────────────────────────────────────────────────────────────────
 // Sorting
@@ -58,15 +58,15 @@ const totalPnlILS = (h: StockHolding, r: number) => h.currency === 'USD' ? h.tot
 type SortKey = 'name' | 'symbol' | 'sector' | 'dailyChangePercent' | 'valueILS' | 'dailyPnlILS' | 'totalPnlILS' | 'totalReturnPercent' | 'qty';
 type SortDir = 'asc' | 'desc';
 
-function getSortValue(h: StockHolding, key: SortKey, rate: number): number | string {
+function getSortValue(h: StockHolding, key: SortKey, rate: number, isEn = false): number | string {
   switch (key) {
     case 'name':               return h.name;
     case 'symbol':             return h.symbol;
     case 'sector':             return h.sector;
     case 'dailyChangePercent': return h.dailyChangePercent;
-    case 'valueILS':           return toILS(h, rate);
-    case 'dailyPnlILS':        return dailyILS(h, rate);
-    case 'totalPnlILS':        return totalPnlILS(h, rate);
+    case 'valueILS':           return toBase(h, rate, isEn);
+    case 'dailyPnlILS':        return dailyBase(h, rate, isEn);
+    case 'totalPnlILS':        return totalPnlBase(h, rate, isEn);
     case 'totalReturnPercent': return h.totalReturnPercent;
     case 'qty':                return h.qty;
     default:                   return 0;
@@ -102,9 +102,15 @@ const StocksDashboard: React.FC = () => {
       if (!user) return;
       const token = await user.getIdToken();
 
+      const params = new URLSearchParams();
+      if (isDemo) {
+        params.append('lang', isEnglishDemo ? 'en' : 'he');
+      }
+      const query = params.toString() ? `?${params.toString()}` : '';
+
       // Parallel fetch for portfolio and FX rate
       const [portRes, fxRes] = await Promise.all([
-        fetch(`${API_URL}/api/portfolio`, {
+        fetch(`${API_URL}/api/portfolio${query}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`${API_URL}/api/portfolio/fx-rate`, {
@@ -139,24 +145,11 @@ const StocksDashboard: React.FC = () => {
          setFxLoading(false);
       }
     }
-  }, [user]);
+  }, [user, isDemo, isEnglishDemo]);
 
   useEffect(() => {
-    // Stale-while-revalidate: show cached holdings/fx instantly, refresh in background
-    const cachedHoldings = sessionStorage.getItem(STOCKS_CACHE_KEY);
-    const cachedFx = sessionStorage.getItem(FX_CACHE_KEY);
-    if (cachedHoldings && cachedFx) {
-      try {
-        setHoldings(JSON.parse(cachedHoldings));
-        setFxRate(JSON.parse(cachedFx));
-        setDataLoading(false);
-        setFxLoading(false);
-        fetchPortfolioData(true);
-        return;
-      } catch { /* ignore bad cache */ }
-    }
     fetchPortfolioData();
-  }, [fetchPortfolioData]);
+  }, [fetchPortfolioData, isEnglishDemo]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -208,11 +201,11 @@ const StocksDashboard: React.FC = () => {
   const rate = fxRate?.rate ?? 3.70;
 
   // ── Portfolio totals ────────────────────────────────────────────
-  const totalValueILS  = holdings.reduce((s, h) => s + toILS(h, rate), 0);
-  const totalDailyILS  = holdings.reduce((s, h) => s + dailyILS(h, rate), 0);
-  const totalPnlILS_val = holdings.reduce((s, h) => s + totalPnlILS(h, rate), 0);
+  const totalValueILS  = holdings.reduce((s, h) => s + toBase(h, rate, isEnglishDemo), 0);
+  const totalDailyILS  = holdings.reduce((s, h) => s + dailyBase(h, rate, isEnglishDemo), 0);
+  const totalPnlILS_val = holdings.reduce((s, h) => s + totalPnlBase(h, rate, isEnglishDemo), 0);
 
-  const totalCashILS = holdings.filter(h => h.sector === 'cash').reduce((s, h) => s + toILS(h, rate), 0);
+  const totalCashILS = holdings.filter(h => h.sector === 'cash').reduce((s, h) => s + toBase(h, rate, isEnglishDemo), 0);
   const totalInvestedILS = totalValueILS - totalCashILS;
 
   const dailyChangePct = totalValueILS > 0
@@ -224,7 +217,7 @@ const StocksDashboard: React.FC = () => {
     : 0;
 
   const sectorMap: Partial<Record<StockSector, number>> = {};
-  holdings.forEach(h => { sectorMap[h.sector] = (sectorMap[h.sector] ?? 0) + toILS(h, rate); });
+  holdings.forEach(h => { sectorMap[h.sector] = (sectorMap[h.sector] ?? 0) + toBase(h, rate, isEnglishDemo); });
   const donutData = (Object.keys(sectorMap) as StockSector[]).map(s => ({
     name: SECTOR_LABELS[s] || s, value: sectorMap[s] ?? 0, color: SECTOR_COLORS[s] || '#94a3b8',
   }));
@@ -233,14 +226,14 @@ const StocksDashboard: React.FC = () => {
   const geoData = useMemo(() => {
     let usa = 0, israel = 0;
     holdings.forEach(h => {
-      if (h.currency === 'USD') usa += toILS(h, rate);
-      else israel += toILS(h, rate);
+      if (h.currency === 'USD') usa += toBase(h, rate, isEnglishDemo);
+      else israel += toBase(h, rate, isEnglishDemo);
     });
     return [
-      { name: 'ארה"ב', value: usa, color: '#f97316' },
-      { name: 'ישראל', value: israel, color: '#3b82f6' },
+      { name: isEnglishDemo ? 'USA' : 'ארה"ב', value: usa, color: '#f97316' },
+      { name: isEnglishDemo ? 'Israel' : 'ישראל', value: israel, color: '#3b82f6' },
     ].filter(d => d.value > 0);
-  }, [holdings, rate]);
+  }, [holdings, rate, isEnglishDemo]);
 
   const activeDonut = chartTab === 'sector' ? donutData : geoData;
   const activeTotal2 = activeDonut.reduce((s, d) => s + d.value, 0);
@@ -248,14 +241,14 @@ const StocksDashboard: React.FC = () => {
   // ── Sorted holdings ─────────────────────────────────────────────
   const sortedHoldings = useMemo(() => {
     return [...holdings].sort((a, b) => {
-      const va = getSortValue(a, sortKey, rate);
-      const vb = getSortValue(b, sortKey, rate);
+      const va = getSortValue(a, sortKey, rate, isEnglishDemo);
+      const vb = getSortValue(b, sortKey, rate, isEnglishDemo);
       let cmp = 0;
       if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
       else cmp = String(va).localeCompare(String(vb), 'he');
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [sortKey, sortDir, rate, holdings]);
+  }, [sortKey, sortDir, rate, holdings, isEnglishDemo]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -559,9 +552,9 @@ const StocksDashboard: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {sortedHoldings.map((h) => {
-                        const vILS  = toILS(h, rate);
-                        const dILS  = dailyILS(h, rate);
-                        const pILS  = totalPnlILS(h, rate);
+                        const vILS  = toBase(h, rate, isEnglishDemo);
+                        const dILS  = dailyBase(h, rate, isEnglishDemo);
+                        const pILS  = totalPnlBase(h, rate, isEnglishDemo);
                         const pct   = (vILS / totalValueILS) * 100;
                         return (
                           <tr key={h.id || h.symbol} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
