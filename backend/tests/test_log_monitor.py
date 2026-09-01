@@ -207,3 +207,103 @@ def test_run_log_scan_sends_notifications_when_issues_found():
     assert result["email_sent"] is True
     mock_tg.assert_called_once_with(fake_digest["telegram_message"])
     mock_email.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Tests for _extract_entry_message
+# ---------------------------------------------------------------------------
+
+def test_extract_entry_message_with_dict_payload():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = {"message": "Custom error occurred"}
+    assert _extract_entry_message(entry) == "Custom error occurred"
+
+
+def test_extract_entry_message_with_str_payload():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = "Standard string log entry"
+    assert _extract_entry_message(entry) == "Standard string log entry"
+
+
+def test_extract_entry_message_with_none_payload_and_http_request():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.http_request = {
+        "status": 500,
+        "requestMethod": "POST",
+        "requestUrl": "https://api.example.com/api/cron/weekly",
+        "latency": "1.2s",
+    }
+    msg = _extract_entry_message(entry)
+    assert "HTTP 500" in msg
+    assert "POST" in msg
+    assert "/api/cron/weekly" in msg
+    assert "None" not in msg
+
+
+def test_extract_entry_message_with_none_payload_and_audit_log_proto():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.http_request = None
+    entry.to_api_repr.return_value = {
+        "protoPayload": {
+            "serviceName": "run.googleapis.com",
+            "methodName": "/Services.CreateService",
+            "status": {"code": 3, "message": "Container import failed."},
+        }
+    }
+    msg = _extract_entry_message(entry)
+    assert "Container import failed." in msg
+    assert "None" not in msg
+
+
+def test_extract_entry_message_with_http_request_object():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.proto_payload = None
+
+    class MockHttpRequest:
+        status_code = 404
+        request_method = "GET"
+        request_url = "https://api.example.com/api/unknown"
+        latency = "0.05s"
+
+    entry.http_request = MockHttpRequest()
+    msg = _extract_entry_message(entry)
+    assert "HTTP 404" in msg
+    assert "GET" in msg
+    assert "/api/unknown" in msg
+
+
+def test_extract_entry_message_with_direct_proto_payload():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.http_request = None
+    entry.proto_payload = {
+        "serviceName": "run.googleapis.com",
+        "methodName": "google.cloud.run.v2.Services.UpdateService",
+        "status": {"code": 13, "message": "Internal error importing image"},
+    }
+    msg = _extract_entry_message(entry)
+    assert "Internal error importing image" in msg
+
+
+def test_group_log_entries_ignores_empty_and_fallback_payloads():
+    from routers.log_monitor import _group_log_entries
+    entries = [
+        {"severity": "ERROR", "message": "Log entry without payload (resource: cloud_run_revision)", "timestamp": "2026-06-01T10:00:00Z"},
+        {"severity": "ERROR", "message": "None", "timestamp": "2026-06-01T10:01:00Z"},
+        {"severity": "ERROR", "message": "", "timestamp": "2026-06-01T10:02:00Z"},
+        {"severity": "WARNING", "message": "Real warning message", "timestamp": "2026-06-01T10:03:00Z"},
+    ]
+    groups = _group_log_entries(entries)
+    assert len(groups) == 1
+    assert groups[0]["signature"] == "Real warning message"
+
+
