@@ -101,22 +101,11 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     print(f"\n[HTTP] {request.method} {request.url.path} - Receiving...")
     sys.stdout.flush()
-    try:
-        response = await call_next(request)
-        process_time = (time.time() - start_time) * 1000
-        print(f"[HTTP] {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
-        sys.stdout.flush()
-        return response
-    except Exception as exc:
-        process_time = (time.time() - start_time) * 1000
-        logger.error(
-            f"[HTTP] Unhandled exception on {request.method} {request.url.path} ({process_time:.2f}ms): {exc}",
-            exc_info=True,
-        )
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Internal Server Error", "error": str(exc)},
-        )
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    print(f"[HTTP] {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
+    sys.stdout.flush()
+    return response
 
 
 @app.exception_handler(Exception)

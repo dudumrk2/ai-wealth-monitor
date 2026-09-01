@@ -261,14 +261,49 @@ def test_extract_entry_message_with_none_payload_and_audit_log_proto():
     assert "None" not in msg
 
 
-def test_extract_entry_message_fallback_when_all_empty():
+def test_extract_entry_message_with_http_request_object():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.proto_payload = None
+
+    class MockHttpRequest:
+        status_code = 404
+        request_method = "GET"
+        request_url = "https://api.example.com/api/unknown"
+        latency = "0.05s"
+
+    entry.http_request = MockHttpRequest()
+    msg = _extract_entry_message(entry)
+    assert "HTTP 404" in msg
+    assert "GET" in msg
+    assert "/api/unknown" in msg
+
+
+def test_extract_entry_message_with_direct_proto_payload():
     from routers.log_monitor import _extract_entry_message
     entry = MagicMock()
     entry.payload = None
     entry.http_request = None
-    entry.to_api_repr.return_value = {}
-    entry.resource.type = "cloud_run_revision"
+    entry.proto_payload = {
+        "serviceName": "run.googleapis.com",
+        "methodName": "google.cloud.run.v2.Services.UpdateService",
+        "status": {"code": 13, "message": "Internal error importing image"},
+    }
     msg = _extract_entry_message(entry)
-    assert "Log entry without payload" in msg
-    assert "None" not in msg
+    assert "Internal error importing image" in msg
+
+
+def test_group_log_entries_ignores_empty_and_fallback_payloads():
+    from routers.log_monitor import _group_log_entries
+    entries = [
+        {"severity": "ERROR", "message": "Log entry without payload (resource: cloud_run_revision)", "timestamp": "2026-06-01T10:00:00Z"},
+        {"severity": "ERROR", "message": "None", "timestamp": "2026-06-01T10:01:00Z"},
+        {"severity": "ERROR", "message": "", "timestamp": "2026-06-01T10:02:00Z"},
+        {"severity": "WARNING", "message": "Real warning message", "timestamp": "2026-06-01T10:03:00Z"},
+    ]
+    groups = _group_log_entries(entries)
+    assert len(groups) == 1
+    assert groups[0]["signature"] == "Real warning message"
+
 

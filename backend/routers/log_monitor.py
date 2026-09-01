@@ -77,34 +77,58 @@ def _extract_entry_message(entry: Any) -> str:
     if payload is not None and str(payload).strip() and str(payload).strip() != "None":
         return str(payload)
 
-    # If payload is None or string "None", check http_request
+    # 1. Check direct proto_payload on LogEntry (fast path for AuditLog)
+    proto = getattr(entry, "proto_payload", None)
+    if isinstance(proto, dict) and proto:
+        status_obj = proto.get("status", {})
+        status_msg = status_obj.get("message") if isinstance(status_obj, dict) else None
+        method_name = proto.get("methodName")
+        service_name = proto.get("serviceName")
+        if status_msg:
+            return f"AuditLog ({service_name or 'service'}): {status_msg}"
+        if method_name:
+            return f"AuditLog: {method_name} ({service_name or 'service'})"
+        return str(proto)
+
+    # 2. Check http_request (dict or object)
     http_req = getattr(entry, "http_request", None)
-    if isinstance(http_req, dict) and http_req:
-        status_code = http_req.get("status", "")
-        method = http_req.get("requestMethod", "")
-        url = http_req.get("requestUrl", "")
-        latency = http_req.get("latency", "")
-        parts = [p for p in [f"HTTP {status_code}" if status_code else "", method, url] if p]
-        req_line = " ".join(parts)
+    if http_req:
+        if isinstance(http_req, dict):
+            status_code = http_req.get("status") or http_req.get("status_code", "")
+            method = http_req.get("requestMethod") or http_req.get("request_method", "")
+            url = http_req.get("requestUrl") or http_req.get("request_url", "")
+            latency = http_req.get("latency", "")
+        else:
+            status_code = getattr(http_req, "status", None) or getattr(http_req, "status_code", "")
+            method = getattr(http_req, "requestMethod", None) or getattr(http_req, "request_method", "")
+            url = getattr(http_req, "requestUrl", None) or getattr(http_req, "request_url", "")
+            latency = getattr(http_req, "latency", "")
+
+        parts = [p for p in [f"HTTP {status_code}" if status_code else "", str(method), str(url)] if p]
+        req_line = " ".join(parts).strip()
         if latency:
             req_line += f" ({latency})"
         if req_line:
             return req_line
 
-    # Check protoPayload (e.g. AuditLog)
-    api_repr = entry.to_api_repr() if hasattr(entry, "to_api_repr") and callable(entry.to_api_repr) else {}
-    if isinstance(api_repr, dict):
-        proto = api_repr.get("protoPayload")
-        if isinstance(proto, dict) and proto:
-            status_obj = proto.get("status", {})
-            status_msg = status_obj.get("message") if isinstance(status_obj, dict) else None
-            method_name = proto.get("methodName")
-            service_name = proto.get("serviceName")
-            if status_msg:
-                return f"AuditLog ({service_name or 'service'}): {status_msg}"
-            if method_name:
-                return f"AuditLog: {method_name} ({service_name or 'service'})"
-            return str(proto)
+    # 3. Safe fallback via to_api_repr for serialized protoPayload
+    try:
+        if hasattr(entry, "to_api_repr") and callable(entry.to_api_repr):
+            api_repr = entry.to_api_repr()
+            if isinstance(api_repr, dict):
+                proto = api_repr.get("protoPayload")
+                if isinstance(proto, dict) and proto:
+                    status_obj = proto.get("status", {})
+                    status_msg = status_obj.get("message") if isinstance(status_obj, dict) else None
+                    method_name = proto.get("methodName")
+                    service_name = proto.get("serviceName")
+                    if status_msg:
+                        return f"AuditLog ({service_name or 'service'}): {status_msg}"
+                    if method_name:
+                        return f"AuditLog: {method_name} ({service_name or 'service'})"
+                    return str(proto)
+    except Exception:
+        pass
 
     resource = getattr(entry, "resource", None)
     res_type = getattr(resource, "type", "") if resource else ""
@@ -192,8 +216,12 @@ def _group_log_entries(entries: list[dict]) -> list[dict]:
     groups: dict[str, dict] = {}
 
     for entry in entries:
-        sig = _normalise_message(entry.get("message", ""))
-        if not sig:
+        raw_msg = entry.get("message", "")
+        if not raw_msg or raw_msg == "None" or "Log entry without payload" in raw_msg:
+            continue
+
+        sig = _normalise_message(raw_msg)
+        if not sig or sig == "None":
             continue
 
         if sig not in groups:
