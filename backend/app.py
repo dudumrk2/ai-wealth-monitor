@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request, UploadFile, File, Form
+from fastapi.responses import JSONResponse
 import firebase_admin
 import datetime
 from fastapi.middleware.cors import CORSMiddleware
@@ -100,11 +101,34 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     print(f"\n[HTTP] {request.method} {request.url.path} - Receiving...")
     sys.stdout.flush()
-    response = await call_next(request)
-    process_time = (time.time() - start_time) * 1000
-    print(f"[HTTP] {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
-    sys.stdout.flush()
-    return response
+    try:
+        response = await call_next(request)
+        process_time = (time.time() - start_time) * 1000
+        print(f"[HTTP] {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
+        sys.stdout.flush()
+        return response
+    except Exception as exc:
+        process_time = (time.time() - start_time) * 1000
+        logger.error(
+            f"[HTTP] Unhandled exception on {request.method} {request.url.path} ({process_time:.2f}ms): {exc}",
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Internal Server Error", "error": str(exc)},
+        )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        f"[APP] Unhandled global exception on {request.method} {request.url.path}: {exc}",
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal Server Error", "error": str(exc)},
+    )
 
 # Add CORS middleware for frontend access (must be added last so it is the outermost middleware)
 app.add_middleware(

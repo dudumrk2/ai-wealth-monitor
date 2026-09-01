@@ -62,6 +62,55 @@ Key backend files (for mapping errors to likely source files):
 # Step 1 — Fetch GCP Cloud Logging entries
 # ---------------------------------------------------------------------------
 
+def _extract_entry_message(entry: Any) -> str:
+    """Extract a human-readable, descriptive message from a GCP LogEntry.
+
+    Handles jsonPayload, textPayload, http_request, protoPayload (AuditLog),
+    and prevents raw 'None' strings from appearing in digests.
+    """
+    payload = getattr(entry, "payload", None)
+    if isinstance(payload, dict):
+        msg = payload.get("message") or payload.get("error") or payload.get("msg")
+        if msg:
+            return str(msg)
+        return str(payload)
+    if payload is not None and str(payload).strip() and str(payload).strip() != "None":
+        return str(payload)
+
+    # If payload is None or string "None", check http_request
+    http_req = getattr(entry, "http_request", None)
+    if isinstance(http_req, dict) and http_req:
+        status_code = http_req.get("status", "")
+        method = http_req.get("requestMethod", "")
+        url = http_req.get("requestUrl", "")
+        latency = http_req.get("latency", "")
+        parts = [p for p in [f"HTTP {status_code}" if status_code else "", method, url] if p]
+        req_line = " ".join(parts)
+        if latency:
+            req_line += f" ({latency})"
+        if req_line:
+            return req_line
+
+    # Check protoPayload (e.g. AuditLog)
+    api_repr = entry.to_api_repr() if hasattr(entry, "to_api_repr") and callable(entry.to_api_repr) else {}
+    if isinstance(api_repr, dict):
+        proto = api_repr.get("protoPayload")
+        if isinstance(proto, dict) and proto:
+            status_obj = proto.get("status", {})
+            status_msg = status_obj.get("message") if isinstance(status_obj, dict) else None
+            method_name = proto.get("methodName")
+            service_name = proto.get("serviceName")
+            if status_msg:
+                return f"AuditLog ({service_name or 'service'}): {status_msg}"
+            if method_name:
+                return f"AuditLog: {method_name} ({service_name or 'service'})"
+            return str(proto)
+
+    resource = getattr(entry, "resource", None)
+    res_type = getattr(resource, "type", "") if resource else ""
+    return f"Log entry without payload (resource: {res_type or 'cloud_run_revision'})"
+
+
 def _fetch_gcp_log_entries(days: int = 7, max_entries: int = 500) -> list[dict]:
     """Fetch WARNING+ severity log entries from GCP Cloud Logging.
 
@@ -94,11 +143,7 @@ def _fetch_gcp_log_entries(days: int = 7, max_entries: int = 500) -> list[dict]:
         entries = []
         for entry in client.list_entries(filter_=filter_str, max_results=max_entries,
                                          order_by=gcp_logging.DESCENDING):
-            payload = entry.payload
-            if isinstance(payload, dict):
-                message = payload.get("message", str(payload))
-            else:
-                message = str(payload)
+            message = _extract_entry_message(entry)
 
             entries.append({
                 "severity": entry.severity or "DEFAULT",

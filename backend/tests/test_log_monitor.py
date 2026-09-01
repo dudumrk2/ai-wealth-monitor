@@ -207,3 +207,68 @@ def test_run_log_scan_sends_notifications_when_issues_found():
     assert result["email_sent"] is True
     mock_tg.assert_called_once_with(fake_digest["telegram_message"])
     mock_email.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Tests for _extract_entry_message
+# ---------------------------------------------------------------------------
+
+def test_extract_entry_message_with_dict_payload():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = {"message": "Custom error occurred"}
+    assert _extract_entry_message(entry) == "Custom error occurred"
+
+
+def test_extract_entry_message_with_str_payload():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = "Standard string log entry"
+    assert _extract_entry_message(entry) == "Standard string log entry"
+
+
+def test_extract_entry_message_with_none_payload_and_http_request():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.http_request = {
+        "status": 500,
+        "requestMethod": "POST",
+        "requestUrl": "https://api.example.com/api/cron/weekly",
+        "latency": "1.2s",
+    }
+    msg = _extract_entry_message(entry)
+    assert "HTTP 500" in msg
+    assert "POST" in msg
+    assert "/api/cron/weekly" in msg
+    assert "None" not in msg
+
+
+def test_extract_entry_message_with_none_payload_and_audit_log_proto():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.http_request = None
+    entry.to_api_repr.return_value = {
+        "protoPayload": {
+            "serviceName": "run.googleapis.com",
+            "methodName": "/Services.CreateService",
+            "status": {"code": 3, "message": "Container import failed."},
+        }
+    }
+    msg = _extract_entry_message(entry)
+    assert "Container import failed." in msg
+    assert "None" not in msg
+
+
+def test_extract_entry_message_fallback_when_all_empty():
+    from routers.log_monitor import _extract_entry_message
+    entry = MagicMock()
+    entry.payload = None
+    entry.http_request = None
+    entry.to_api_repr.return_value = {}
+    entry.resource.type = "cloud_run_revision"
+    msg = _extract_entry_message(entry)
+    assert "Log entry without payload" in msg
+    assert "None" not in msg
+
