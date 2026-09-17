@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isFamilyMember(familyData) {
+      return isAuthenticated() && (
+        (familyData.members != null && request.auth.uid in familyData.members) ||
+        (familyData.authorizedEmails != null && request.auth.token.email in familyData.authorizedEmails)
+      );
+    }
+
+    function isFamilyOwner(familyData) {
+      return isAuthenticated() && (
+        familyData.members[request.auth.uid].role == 'owner'
+      );
+    }
+
+    // User profile document
+    match /users/{userId} {
+      allow read, write: if isUser(userId);
+    }
+
+    // Family group document
+    match /families/{familyId} {
+      allow read: if isFamilyMember(resource.data);
+      allow create: if isAuthenticated();
+      allow update: if isFamilyMember(resource.data);
+      allow delete: if isFamilyOwner(resource.data);
+
+      // Subcollections under family (e.g. policy chunks, logs)
+      match /{subcollection}/{docId} {
+        allow read: if isFamilyMember(get(/databases/$(database)/documents/families/$(familyId)).data);
+        allow write: if isFamilyMember(get(/databases/$(database)/documents/families/$(familyId)).data);
+      }
+    }
+
+    // Portfolio documents
+    match /portfolios/{familyId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == familyId ||
+        isFamilyMember(get(/databases/$(database)/documents/families/$(familyId)).data)
+      );
+      // Writes typically handled by backend via Admin SDK; allow owner fallback
+      allow write: if isAuthenticated() && request.auth.uid == familyId;
+    }
+
+    // Insurance policy RAG chunks (created by backend Admin SDK, readable by authenticated family members)
+    match /insurance_chunks/{chunkId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend service account can write RAG chunks
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

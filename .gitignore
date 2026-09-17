@@ -8,6 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 logs.json
 logs_all.json
+cloud_logs.json
+logs_utf8.json
+logs_all_utf8.json
 
 node_modules
 dist
@@ -16,22 +19,40 @@ dist-ssr
 
 # Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
 *.env
 *.env.*
 backend/*.env
+backend/.env*
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 
-# Local logs & benchmark artifacts
-cloud_logs.json
-logs_utf8.json
-logs_all_utf8.json
+# Credentials & Service Accounts
+*serviceAccount*.json
+*credentials*.json
+*.pem
+*.key
+serviceAccountKey.json
+
+# Python virtual environments & caches
+.venv/
+venv/
+env/
+__pycache__/
+backend/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local Data & caches
+data/
 backend/scripts/.cache_*
 backend/scripts/ocr_benchmark_*
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -40,32 +61,32 @@ backend/scripts/ocr_benchmark_*
 *.sln
 *.sw?
 
-# Local Data
-data/
-
-# Python
-__pycache__/
-backend/__pycache__/
-*.py[cod]
-
-# Firebase
-serviceAccountKey.json
-
 # Debug and Scratch files
 backend/debug_*.txt
 backend/_debug_*.py
+backend/scripts/_debug_*.py
 backend/test_*.py
+backend/scripts/test_*.py
+backend/scripts/nums.json
 backend/*.xlsx
 backend/*.csv
 backend/*.pdf
 
-# Test artifacts
+# Exploration & scratch dumps
+scripts/exploration/*.txt
+scripts/exploration/*.json
+scripts/exploration/*.csv
+scripts/exploration/__pycache__/
+
+# Test & Playwright artifacts
+frontend/playwright-report/
+frontend/test-results/
+playwright-report/
+test-results/
 frontend/test_output.txt
 test_output.txt
 .coverage
 htmlcov/
 coverage/
 
-# VS Code - allow settings.json for shared team config
-!.vscode/settings.json
 .vercel
