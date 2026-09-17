@@ -64,6 +64,10 @@ backend/scripts/ocr_benchmark_*
 # Debug and Scratch files
 backend/debug_*.txt
 backend/_debug_*.py
+backend/scripts/_debug_*.py
+backend/test_*.py
+backend/scripts/test_*.py
+backend/scripts/nums.json
 backend/*.xlsx
 backend/*.csv
 backend/*.pdf
