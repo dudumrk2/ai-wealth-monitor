@@ -667,6 +667,7 @@ class StocksFlow(BaseDocumentFlow):
         # Update the main family-level summary for the dashboard
         daily_base = total_value_ils - total_daily_pnl_ils
         daily_return_pct = (total_daily_pnl_ils / daily_base * 100) if daily_base > 0 else 0.0
+        total_return_pct = (total_pnl_ils / total_invested_ils * 100) if total_invested_ils > 0 else 0.0
         db_manager.update_portfolio_summary(uid, total_value_ils, daily_return_pct, total_return_pct)
 
         # Save monthly snapshot for the performance chart
