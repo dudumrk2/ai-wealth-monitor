@@ -78,8 +78,14 @@ def _group_into_quarters(monthly_points: list) -> list:
         key = f"Q{q} {year}"
         quarter_map[key] = pt  # overwrite → last month of the quarter wins
 
-    return [{"label": k, **{kk: vv for kk, vv in v.items() if kk != "label"}}
-            for k, v in quarter_map.items()]
+    def _sort_key(key: str) -> tuple:
+        parts = key.split()  # ["Q1", "2026"]
+        return (int(parts[1]), int(parts[0][1]))  # (year, quarter_num)
+
+    return [
+        {"label": k, **{kk: vv for kk, vv in v.items() if kk != "label"}}
+        for k, v in sorted(quarter_map.items(), key=lambda item: _sort_key(item[0]))
+    ]
 
 
 @router.get("/performance")
@@ -107,7 +113,7 @@ async def get_performance(
     if view == "yearly":
         # Fetch everything (no lower bound — we go back as far as data exists)
         # Use a far-past from_month so we get all records
-        from_month = "2020-01"
+        from_month = None  # fetch all historical data
     else:
         from_month = f"{current_year}-01"
 
@@ -138,7 +144,10 @@ async def get_performance(
         points = _compute_return_points(snapshots, deposits)
 
     final_return = points[-1].get("return_pct") if points else None
-    deposit_suggestion = _detect_deposit_suggestion(uid)
+    # For deposit detection we need ALL historical snapshots.
+    # If yearly view already fetched all, reuse them; otherwise fetch full history separately.
+    all_snapshots = snapshots if view == "yearly" else db_manager.get_portfolio_snapshots(uid, from_month=None)
+    deposit_suggestion = _detect_deposit_suggestion(uid, all_snapshots)
 
     return {
         "points": points,
@@ -149,7 +158,7 @@ async def get_performance(
     }
 
 
-def _detect_deposit_suggestion(uid: str) -> dict | None:
+def _detect_deposit_suggestion(uid: str, snapshots: list) -> dict | None:
     """
     Check if the latest monthly snapshot shows an unexplained surge compared
     to the previous month (indicating a large cash injection/deposit, e.g. 30,000 ILS to Psagot).
@@ -157,8 +166,6 @@ def _detect_deposit_suggestion(uid: str) -> dict | None:
     Returns a deposit suggestion dict if detected, or None.
     """
     try:
-        # Get all historical snapshots sorted by month
-        snapshots = db_manager.get_portfolio_snapshots(uid, from_month="")
         if len(snapshots) < 2:
             return None
 
@@ -195,7 +202,7 @@ def _detect_deposit_suggestion(uid: str) -> dict | None:
                 "current_value": current_val,
                 "prev_month": prev_snap.get("month"),
                 "current_month": target_month,
-                "default_date": datetime.datetime.now().strftime("%Y-%m-%d"),
+                "default_date": f"{target_month}-01",
             }
         return None
     except Exception as e:
@@ -210,11 +217,13 @@ async def record_deposit(body: DepositRequest, user: dict = Depends(verify_token
     if body.amount_ils <= 0:
         raise HTTPException(status_code=400, detail="סכום ההפקדה חייב להיות חיובי")
 
-    # Basic date validation
+    # Date validation: format + no future dates
     try:
-        datetime.datetime.strptime(body.date, "%Y-%m-%d")
+        deposit_date = datetime.datetime.strptime(body.date, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="פורמט תאריך לא תקין (YYYY-MM-DD)")
+    if deposit_date > datetime.date.today():
+        raise HTTPException(status_code=400, detail="תאריך ההפקדה לא יכול להיות בעתיד")
 
     ok = db_manager.save_portfolio_deposit(uid, body.amount_ils, body.date)
     if not ok:
