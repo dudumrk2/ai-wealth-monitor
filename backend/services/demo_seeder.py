@@ -20,7 +20,13 @@ def seed_demo_data():
 
     # 2. Processed Portfolio
     portfolio = copy.deepcopy(DEMO_PORTFOLIO_DATA)
-    portfolio["last_updated"] = datetime.datetime.now().isoformat()
+    now_iso = datetime.datetime.now().isoformat()
+    portfolio["last_updated"] = now_iso
+    if "portfolios" in portfolio:
+        if "user" in portfolio["portfolios"]:
+            portfolio["portfolios"]["user"]["last_updated"] = now_iso
+        if "spouse" in portfolio["portfolios"]:
+            portfolio["portfolios"]["spouse"]["last_updated"] = now_iso
     db_manager.save_processed_portfolio(uid, portfolio)
 
     # 3. Alternative Investment (Cleanup duplicates first)

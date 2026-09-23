@@ -1027,7 +1027,7 @@ async def _process_family_emails(uid: str, bypass_schedule: bool = False) -> dic
             
             # --- Phase A: Use PensionFlow to extract and save funds only ---
             from document_flows import PensionFlow
-            flow = PensionFlow(f_profile=family_profile)
+            flow = PensionFlow(f_profile=family_profile, owner_key=detected_owner)
             flow_result = await flow.process(pdf_bytes, f"{detected_owner}_gmail_report.pdf", uid, skip_advisory=True)
             
             results.append({

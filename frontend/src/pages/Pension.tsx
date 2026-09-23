@@ -9,13 +9,45 @@ import type { Fund, FundCategory, ActionItem, AlternativeInvestment } from '../t
 import { CATEGORY_LABELS } from '../types/portfolio';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Calendar, Info } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Info } from 'lucide-react';
 import RedactionPreviewModal, { type FilePreviewGroup } from '../components/onboarding/RedactionPreviewModal';
 import ProcessingStatusModal, { type ProcessingStatus } from '../components/onboarding/ProcessingStatusModal';
 
 import { API_URL } from '../lib/api';
+
+/** Format ISO timestamp to Israeli date format (DD/MM/YYYY) */
+function formatLastUpdated(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return '';
+  }
+}
+
+/** Format ISO timestamp to full date and time for tooltip */
+function formatFullDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('he-IL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
 
 /** Same cache key as DashboardPage — both pages fetch the same /api/portfolio endpoint */
 const PORTFOLIO_CACHE_KEY = 'portfolio_cache';
@@ -253,6 +285,25 @@ export default function Pension() {
   const jointStocks  = (portfolioData?.portfolios?.joint?.stock_investments || []) as Fund[];
   const altInvest    = (portfolioData?.portfolios?.user?.alternative_investments || []) as AlternativeInvestment[];
   const joint        = portfolioData?.portfolios?.joint || { total_family_wealth: 0, asset_allocation_percentages: {}, provider_exposure: {} };
+
+  const currentTabUpdatedDate = useMemo(() => {
+    if (!portfolioData) return null;
+    const userDate = portfolioData.portfolios?.user?.last_updated;
+    const spouseDate = portfolioData.portfolios?.spouse?.last_updated;
+    const rootDate = portfolioData.last_updated;
+
+    if (activeTab === 'user') {
+      return userDate || rootDate || null;
+    }
+    if (activeTab === 'spouse') {
+      return spouseDate || rootDate || null;
+    }
+    // 'joint' view: return the newest of userDate and spouseDate, or rootDate
+    if (userDate && spouseDate) {
+      return new Date(userDate).getTime() >= new Date(spouseDate).getTime() ? userDate : spouseDate;
+    }
+    return userDate || spouseDate || rootDate || null;
+  }, [portfolioData, activeTab]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -611,22 +662,37 @@ export default function Pension() {
 
           <div className="flex flex-col gap-4 md:gap-8">
             <div className="min-w-0">
-              <div className="bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl inline-flex mb-4 md:mb-6 overflow-x-auto max-w-full">
-                {([
-                  { id: 'joint',  label: 'תצוגה משותפת' },
-                  { id: 'user',   label: member1Name },
-                  { id: 'spouse', label: member2Name },
-                ] as const).map(tab => (
-                  <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                    className={clsx(
-                      "px-4 md:px-6 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap",
-                      activeTab === tab.id 
-                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" 
-                        : "text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                    )}>
-                    {tab.label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-4 md:mb-6">
+                <div className="bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl inline-flex overflow-x-auto max-w-full">
+                  {([
+                    { id: 'joint',  label: 'תצוגה משותפת' },
+                    { id: 'user',   label: member1Name },
+                    { id: 'spouse', label: member2Name },
+                  ] as const).map(tab => (
+                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                      className={clsx(
+                        "px-4 md:px-6 py-2 md:py-2.5 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap",
+                        activeTab === tab.id 
+                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" 
+                          : "text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      )}>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {currentTabUpdatedDate && (
+                  <div
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 md:py-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs md:text-sm text-slate-600 dark:text-slate-400 font-medium"
+                    title={formatFullDateTime(currentTabUpdatedDate)}
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                    <span>עדכון אחרון:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200" dir="ltr">
+                      {formatLastUpdated(currentTabUpdatedDate)}
+                    </span>
+                  </div>
+                )}
               </div>
               {renderTabContent()}
             </div>
