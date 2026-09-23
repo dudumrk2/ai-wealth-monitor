@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import {
   Plus,
@@ -18,6 +19,11 @@ import {
   DollarSign,
   Info,
   AlertCircle,
+  BarChart2,
+  PlusCircle,
+  Sparkles,
+  Check,
+  X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -35,6 +41,55 @@ const FX_CACHE_KEY = 'stocks_fx_cache';
 // ─────────────────────────────────────────────────────────────────
 // MOCK DATA REMOVED - using live API
 // ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────
+type PerfView = 'monthly' | 'quarterly' | 'yearly';
+
+interface PerfPoint {
+  label: string;          // "YYYY-MM" | "Q1 2026" | "2026"
+  total_value_ils: number;
+  return_pct: number | null;
+}
+
+interface DepositSuggestion {
+  detected: boolean;
+  suggested_amount: number;
+  diff_amount: number;
+  unexplained_growth: number;
+  growth_pct: number;
+  prev_value: number;
+  current_value: number;
+  prev_month: string;
+  current_month: string;
+  default_date: string;
+}
+
+interface PerfData {
+  points: PerfPoint[];
+  total_return_pct: number | null;
+  has_data: boolean;
+  view: PerfView;
+  deposit_suggestion?: DepositSuggestion | null;
+}
+
+// Month number → Hebrew abbreviated name
+const MONTH_HE: Record<string, string> = {
+  '01': 'ינו', '02': 'פבר', '03': 'מרץ', '04': 'אפר',
+  '05': 'מאי', '06': 'יונ', '07': 'יול', '08': 'אוג',
+  '09': 'ספט', '10': 'אוק', '11': 'נוב', '12': 'דצמ',
+};
+
+function formatPerfLabel(label: string, view: PerfView): string {
+  if (view === 'monthly') {
+    // "2026-09" → "ספט"
+    const month = label.split('-')[1];
+    return MONTH_HE[month] ?? label;
+  }
+  // quarterly: "Q1 2026" → "Q1"  |  yearly: "2026" → "2026"
+  return label.split(' ')[0];
+}
 
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
@@ -92,6 +147,27 @@ const StocksDashboard: React.FC = () => {
   const [chartTab, setChartTab] = useState<'sector' | 'geo'>('sector');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
+
+  // ── Performance Chart ────────────────────────────────────
+  const [perfData, setPerfData] = useState<PerfData | null>(null);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfView, setPerfView] = useState<PerfView>('monthly');
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositDate, setDepositDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [depositSaving, setDepositSaving] = useState(false);
+
+  // ── Detected Deposit Suggestion ───────────────────────────
+  const [suggestionAmount, setSuggestionAmount] = useState('');
+  const [suggestionDate, setSuggestionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [isSavingSuggestion, setIsSavingSuggestion] = useState(false);
+  const [dismissedMonth, setDismissedMonth] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('dismissed_deposit_month');
+    } catch {
+      return null;
+    }
+  });
 
   // ── Live Data Fetch ─────────────────────────────────────────────
   const fetchPortfolioData = useCallback(async (silent = false) => {
@@ -159,6 +235,30 @@ const StocksDashboard: React.FC = () => {
     fetchPortfolioData();
   }, [fetchPortfolioData]);
 
+  // ── Performance Fetch ────────────────────────────────────────────
+  const fetchPerfData = useCallback(async (view: PerfView) => {
+    if (!user) return;
+    setPerfLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/portfolio/performance?view=${view}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: PerfData = await res.json();
+        setPerfData(data);
+      }
+    } catch (err) {
+      console.error('Error fetching performance data:', err);
+    } finally {
+      setPerfLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchPerfData(perfView);
+  }, [fetchPerfData, perfView]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -170,11 +270,79 @@ const StocksDashboard: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      await fetchPortfolioData(true);
+      await Promise.all([fetchPortfolioData(true), fetchPerfData(perfView)]);
     } catch (err) {
       console.error('Error refreshing prices:', err);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleDepositSave = async () => {
+    const amount = parseFloat(depositAmount.replace(/,/g, ''));
+    if (!amount || amount <= 0 || !depositDate || !user) return;
+    setDepositSaving(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/portfolio/deposit`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_ils: amount, date: depositDate }),
+      });
+      if (res.ok) {
+        setIsDepositModalOpen(false);
+        setDepositAmount('');
+        await fetchPerfData(perfView);
+      } else {
+        alert('שגיאה בשמירת ההפקדה');
+      }
+    } catch (err) {
+      console.error('Deposit save error:', err);
+    } finally {
+      setDepositSaving(false);
+    }
+  };
+
+  // Sync suggestion default values when detected
+  useEffect(() => {
+    const suggestion = perfData?.deposit_suggestion;
+    if (suggestion?.detected) {
+      setSuggestionAmount(suggestion.suggested_amount ? String(Math.round(suggestion.suggested_amount)) : '');
+      setSuggestionDate(suggestion.default_date || new Date().toISOString().slice(0, 10));
+    }
+  }, [perfData?.deposit_suggestion]);
+
+  const handleConfirmSuggestion = async () => {
+    const amount = parseFloat(suggestionAmount.replace(/,/g, ''));
+    if (!amount || amount <= 0 || !suggestionDate || !user) return;
+    setIsSavingSuggestion(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_URL}/api/portfolio/deposit`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_ils: amount, date: suggestionDate }),
+      });
+      if (res.ok) {
+        // Re-fetch performance data - the backend will deduct the deposit and suggestion will disappear
+        await fetchPerfData(perfView);
+      } else {
+        alert('שגיאה בשמירת ההפקדה');
+      }
+    } catch (err) {
+      console.error('Error confirming suggested deposit:', err);
+    } finally {
+      setIsSavingSuggestion(false);
+    }
+  };
+
+  const handleDismissSuggestion = () => {
+    const month = perfData?.deposit_suggestion?.current_month;
+    if (month) {
+      setDismissedMonth(month);
+      try {
+        sessionStorage.setItem('dismissed_deposit_month', month);
+      } catch { /* ignore */ }
     }
   };
 
@@ -698,6 +866,229 @@ const StocksDashboard: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+
+            {/* ── Performance Chart ──────────────────────────────────── */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center">
+                    <BarChart2 className="w-4 h-4 text-violet-500" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-tight">תשואת התיק</h2>
+                    <p className="text-[11px] text-slate-400 font-medium">מותאם להפקדות חדשות</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* View tabs */}
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                    {(['monthly', 'quarterly', 'yearly'] as PerfView[]).map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setPerfView(v)}
+                        className={clsx(
+                          'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
+                          perfView === v
+                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                        )}
+                      >
+                        {v === 'monthly' ? 'חודשי' : v === 'quarterly' ? 'רבעוני' : 'שנתי'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Total return badge */}
+                  {perfData?.total_return_pct != null && (
+                    <span className={clsx(
+                      'text-sm font-black px-3 py-1.5 rounded-xl',
+                      perfData.total_return_pct >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                        : 'text-red-500 dark:text-red-400 bg-red-500/10'
+                    )}>
+                      {perfData.total_return_pct >= 0 ? '+' : ''}{perfData.total_return_pct.toFixed(2)}%
+                    </span>
+                  )}
+
+                  {/* Deposit button */}
+                  <button
+                    onClick={() => setIsDepositModalOpen(v => !v)}
+                    title="רישום הפקדה חדשה"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    הפקדה
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Auto-detected Deposit Banner ── */}
+              {perfData?.deposit_suggestion?.detected &&
+                dismissedMonth !== perfData.deposit_suggestion.current_month && (
+                <div className="px-5 py-4 border-b border-amber-200/60 dark:border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-black tracking-wide px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                            זיהוי הפקדה לתיק
+                          </span>
+                          <span className="text-xs font-bold text-amber-900 dark:text-amber-100">
+                            עלייה של {formatILS(perfData.deposit_suggestion.diff_amount)} (+{perfData.deposit_suggestion.growth_pct}%) בשווי התיק
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          נראה שהועבר סכום כסף לתיק המנוהל. כדי שהחישוב לא יציג את הכסף החדש כתשואת מניות, אשר או ערוך את סכום ההפקדה לדיוק:
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action / Edit form */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-amber-300/80 dark:border-amber-600/50 rounded-xl px-3 py-1.5 shadow-sm">
+                        <span className="text-xs font-bold text-slate-400">₪</span>
+                        <input
+                          type="number"
+                          value={suggestionAmount}
+                          onChange={(e) => setSuggestionAmount(e.target.value)}
+                          placeholder="סכום הפקדה"
+                          className="w-28 bg-transparent text-sm font-black text-slate-800 dark:text-slate-100 outline-none text-left"
+                        />
+                      </div>
+                      <input
+                        type="date"
+                        value={suggestionDate}
+                        onChange={(e) => setSuggestionDate(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-amber-300/80 dark:border-amber-600/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm outline-none"
+                      />
+                      <button
+                        onClick={handleConfirmSuggestion}
+                        disabled={isSavingSuggestion || !suggestionAmount}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 text-white text-xs font-black shadow-sm transition-all"
+                      >
+                        <Check className="w-4 h-4" />
+                        {isSavingSuggestion ? 'שומר...' : 'אישור הפקדה'}
+                      </button>
+                      <button
+                        onClick={handleDismissSuggestion}
+                        title="התעלם מההצעה (עליית ערך שוק בלבד)"
+                        className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        התעלם
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Deposit Quick-Entry */}
+              {isDepositModalOpen && (
+                <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-wrap items-center gap-3">
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">רישום הפקדה חדשה לתיק:</p>
+                  <input
+                    type="number"
+                    placeholder="סכום (₪)"
+                    value={depositAmount}
+                    onChange={e => setDepositAmount(e.target.value)}
+                    className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 w-36 focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500 outline-none"
+                  />
+                  <input
+                    type="date"
+                    value={depositDate}
+                    onChange={e => setDepositDate(e.target.value)}
+                    className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 w-40 focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500 outline-none"
+                  />
+                  <button
+                    onClick={handleDepositSave}
+                    disabled={depositSaving || !depositAmount}
+                    className="px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-bold transition-all"
+                  >
+                    {depositSaving ? 'שומר...' : 'שמור'}
+                  </button>
+                  <button
+                    onClick={() => setIsDepositModalOpen(false)}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-medium transition-colors"
+                  >
+                    ביטול
+                  </button>
+                </div>
+              )}
+
+              {/* Chart body */}
+              <div className="p-5">
+                {perfLoading ? (
+                  <div className="h-48 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500" />
+                  </div>
+                ) : !perfData?.has_data ? (
+                  <div className="h-48 flex flex-col items-center justify-center gap-2 text-center">
+                    <BarChart2 className="w-10 h-10 text-slate-200 dark:text-slate-700" />
+                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">אין מספיק נתונים היסטוריים עדיין</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">הגרף יוצג לאחר עדכון מחירים ראשון. לחץ על כפתור הרענון.</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart
+                      data={perfData.points}
+                      margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tickFormatter={(lbl: string) => formatPerfLabel(lbl, perfView)}
+                        tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`}
+                        tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={60}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(15,23,42,0.95)',
+                          borderColor: 'rgba(51,65,85,0.5)',
+                          borderRadius: '0.75rem',
+                          color: '#f8fafc',
+                          backdropFilter: 'blur(8px)',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          direction: 'rtl',
+                        }}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        formatter={(value: any) =>
+                          value != null
+                            ? [`${(value as number) >= 0 ? '+' : ''}${(value as number).toFixed(2)}%`, 'תשואה']
+                            : ['-', 'תשואה']
+                        }
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        labelFormatter={(label: any) => formatPerfLabel(String(label), perfView)}
+                      />
+                      <ReferenceLine y={0} stroke="rgba(148,163,184,0.4)" strokeDasharray="4 3" />
+                      <Line
+                        type="monotone"
+                        dataKey="return_pct"
+                        stroke="#7c3aed"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: '#7c3aed', stroke: '#fff', strokeWidth: 2 }}
+                        activeDot={{ r: 6, fill: '#7c3aed', stroke: '#fff', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
