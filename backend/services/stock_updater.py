@@ -221,4 +221,8 @@ async def _perform_stock_prices_update(uid: str, source_label: str = "REFRESH") 
         # Update the summary too
         db_manager.update_portfolio_summary(uid, summary["total_value"], summary["daily_return"], summary["total_return"])
 
+        # Save a daily snapshot for the YTD performance chart
+        if summary["total_value"] > 0:
+            db_manager.save_portfolio_snapshot(uid, summary["total_value"])
+
     return {"updated": updated_count}

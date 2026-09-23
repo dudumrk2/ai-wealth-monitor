@@ -407,6 +407,147 @@ def get_fx_rate() -> dict | None:
         print(f"💥 [DB_MANAGER] Error getting FX rate: {e}")
         return None
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Portfolio Snapshots  (monthly granularity)
+# Collection: portfolios/{uid}/snapshots/{YYYY-MM}
+# ──────────────────────────────────────────────────────────────────────────────
+
+def save_portfolio_snapshot(uid: str, total_value_ils: float) -> bool:
+    """
+    Save a **monthly** snapshot of portfolio total value (ILS) for the chart.
+    Document ID is the current month (YYYY-MM).  Each update overwrites the
+    existing document for this month, so only the latest run per month is kept.
+    This keeps storage minimal: at most 12 documents per year per user.
+    """
+    if db is None:
+        return False
+    try:
+        month_key = datetime.datetime.now().strftime("%Y-%m")
+        doc_ref = (
+            db.collection("portfolios")
+            .document(uid)
+            .collection("snapshots")
+            .document(month_key)
+        )
+        doc_ref.set({
+            "month": month_key,
+            "total_value_ils": total_value_ils,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+        })
+        print(f"📸 [DB_MANAGER] Monthly snapshot saved for {uid} ({month_key}): ₪{total_value_ils:,.0f}")
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving portfolio snapshot for {uid}: {e}")
+        return False
+
+
+def get_portfolio_snapshots(uid: str, from_month: str | None = None) -> list:
+    """
+    Return monthly snapshots sorted by month ascending.
+
+    Args:
+        uid:        Family UID.
+        from_month: Inclusive lower bound in 'YYYY-MM' format.
+                    Defaults to the start of the current year (YYYY-01).
+
+    Each item: { "month": "YYYY-MM", "total_value_ils": float }
+    """
+    if db is None:
+        return []
+    try:
+        if from_month is None:
+            from_month = f"{datetime.datetime.now().year}-01"
+        docs = (
+            db.collection("portfolios")
+            .document(uid)
+            .collection("snapshots")
+            .where("month", ">=", from_month)
+            .order_by("month")
+            .stream()
+        )
+        result = []
+        for d in docs:
+            data = d.to_dict()
+            result.append({
+                "month": data.get("month", d.id),
+                "total_value_ils": data.get("total_value_ils", 0.0),
+            })
+        print(f"📊 [DB_MANAGER] Loaded {len(result)} snapshots for {uid} (from {from_month})")
+        return result
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching snapshots for {uid}: {e}")
+        return []
+
+
+def save_portfolio_deposit(uid: str, amount_ils: float, date_str: str) -> bool:
+    """
+    Record a cash deposit (new money added to the portfolio).
+    Stored as individual records so the return calculation can subtract
+    deposits and avoid inflating the performance figure.
+
+    Document path: portfolios/{uid}/deposits/{auto_id}
+    """
+    if db is None:
+        return False
+    try:
+        _, doc_ref = (
+            db.collection("portfolios")
+            .document(uid)
+            .collection("deposits")
+            .add({
+                "date": date_str,
+                "month": date_str[:7],  # "YYYY-MM" for easy range queries
+                "amount_ils": amount_ils,
+                "recorded_at": firestore.SERVER_TIMESTAMP,
+            })
+        )
+        print(f"💰 [DB_MANAGER] Deposit recorded for {uid}: ₪{amount_ils:,.0f} on {date_str} (doc: {doc_ref.id})")
+        return True
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error saving deposit for {uid}: {e}")
+        return False
+
+
+def get_portfolio_deposits(uid: str, from_month: str | None = None) -> list:
+    """
+    Return deposit records sorted by date ascending.
+
+    Args:
+        uid:        Family UID.
+        from_month: Inclusive lower bound in 'YYYY-MM' format.
+                    Defaults to the start of the current year.
+
+    Each item: { "date": "YYYY-MM-DD", "month": "YYYY-MM", "amount_ils": float }
+    """
+    if db is None:
+        return []
+    try:
+        if from_month is None:
+            from_month = f"{datetime.datetime.now().year}-01"
+        docs = (
+            db.collection("portfolios")
+            .document(uid)
+            .collection("deposits")
+            .where("month", ">=", from_month)
+            .order_by("month")
+            .stream()
+        )
+        result = []
+        for d in docs:
+            data = d.to_dict()
+            result.append({
+                "date": data.get("date", ""),
+                "month": data.get("month", data.get("date", "")[:7]),
+                "amount_ils": data.get("amount_ils", 0.0),
+            })
+        print(f"💰 [DB_MANAGER] Loaded {len(result)} deposits for {uid} (from {from_month})")
+        return result
+    except Exception as e:
+        print(f"💥 [DB_MANAGER] Error fetching deposits for {uid}: {e}")
+        return []
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Cron Helpers: Portfolios and Holdings
 # ──────────────────────────────────────────────────────────────────────────────
