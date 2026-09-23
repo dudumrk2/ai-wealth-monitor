@@ -8,6 +8,7 @@ import pandas as pd
 import base64
 from typing import Any
 from abc import ABC, abstractmethod
+import datetime
 
 from flow_utils import call_claude_vision, call_gemini_json
 from rag_utils import (
@@ -193,8 +194,13 @@ def _validate_extraction(products: list, expected_summary: dict) -> list[str]:
 
 class PensionFlow(BaseDocumentFlow):
     
-    def __init__(self, f_profile: dict = None):
+    def __init__(self, f_profile: dict = None, owner_key: str = None):
         super().__init__(f_profile)
+        if owner_key:
+            self.owner_key = owner_key
+            self.explicit_owner = True
+        else:
+            self.explicit_owner = False
         self.expected_summary: dict = {}
     
     async def extract_data(self, file_bytes: bytes, filename: str, uid: str) -> list[dict]:
@@ -216,6 +222,28 @@ class PensionFlow(BaseDocumentFlow):
             m2_id = f_pii.get("member2", {}).get("idNumber", "")
             self.owner_key = "spouse" if authenticated_id == m2_id else "user"
             print(f"👤 [FLOW] Document owner detected as '{self.owner_key}' (ID: {authenticated_id})")
+        elif not self.explicit_owner:
+            # Fallback for unencrypted PDFs: detect owner from text matching
+            f_pii = self.f_profile.get("pii_data", {})
+            match_counts = {"user": 0, "spouse": 0}
+            try:
+                for page in doc:
+                    text = page.get_text().lower()
+                    for m_key, o_key in [("member1", "user"), ("member2", "spouse")]:
+                        m_data = f_pii.get(m_key, {})
+                        name = (m_data.get("name") or "").lower().strip()
+                        id_num = (m_data.get("idNumber") or "").strip()
+                        if name and name in text:
+                            match_counts[o_key] += 1
+                        if id_num and id_num in text:
+                            match_counts[o_key] += 1
+                if match_counts["spouse"] > match_counts["user"]:
+                    self.owner_key = "spouse"
+                elif match_counts["user"] > match_counts["spouse"]:
+                    self.owner_key = "user"
+                print(f"👤 [FLOW] Unencrypted PDF owner detected as '{self.owner_key}' (matches: {match_counts})")
+            except Exception as e:
+                print(f"⚠️ [FLOW] Failed text-based owner detection: {e}")
         
         redacted_images_b64 = report_utils._redact_and_render_pdf(doc, pii_targets)
         
@@ -303,6 +331,10 @@ class PensionFlow(BaseDocumentFlow):
             existing_doc["portfolios"][target_key]["ownerName"] = owner_name
             print(f"[FLOW] Set portfolios.{target_key}.ownerName = '{owner_name}'")
 
+        now_iso = datetime.datetime.now().isoformat()
+        existing_doc["portfolios"][target_key]["last_updated"] = now_iso
+        existing_doc["last_updated"] = now_iso
+
         db_manager.save_processed_portfolio(uid, existing_doc)
         # Invalidate cache so next fetch returns fresh data
         db_manager.clear_cache_for_uid(uid)
@@ -323,6 +355,12 @@ class PensionFlow(BaseDocumentFlow):
         filtered_items.extend(action_items)
         existing_doc["action_items"] = filtered_items
         
+        now_iso = datetime.datetime.now().isoformat()
+        target_key = self.owner_key
+        if "portfolios" in existing_doc and target_key in existing_doc["portfolios"]:
+            existing_doc["portfolios"][target_key]["last_updated"] = now_iso
+        existing_doc["last_updated"] = now_iso
+
         db_manager.save_processed_portfolio(uid, existing_doc)
         db_manager.clear_cache_for_uid(uid)
 

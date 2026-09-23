@@ -28,6 +28,7 @@ DEMO_PORTFOLIO_DATA = {
     "portfolios": {
         "user": {
             "name": "אבי",
+            "last_updated": "2026-03-14T00:00:00Z",
             "funds": [
                 {
                     "id": "demo-pension-1",
@@ -79,6 +80,7 @@ DEMO_PORTFOLIO_DATA = {
         },
         "spouse": {
             "name": "דנה",
+            "last_updated": "2026-03-14T00:00:00Z",
             "funds": [
                 {
                     "id": "demo-provident-1",

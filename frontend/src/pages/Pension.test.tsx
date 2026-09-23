@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Pension from './Pension';
@@ -114,5 +114,64 @@ describe('Pension Component', () => {
     });
     
     expect(screen.getByText('אירעה שגיאה בטעינת הנתונים.')).toBeInTheDocument();
+  });
+
+  it('displays and updates last updated date per tab', async () => {
+    const mockPortfolioData = {
+      last_updated: '2026-01-01T00:00:00Z',
+      portfolios: {
+        user: { 
+          last_updated: '2026-02-10T08:30:00Z',
+          funds: [{ balance: 10000, category: 'pension', monthly_deposit: 1000 }], 
+          alternative_investments: [] 
+        },
+        spouse: { 
+          last_updated: '2026-03-20T12:00:00Z',
+          funds: [{ balance: 20000, category: 'study', monthly_deposit: 500 }], 
+          alternative_investments: [] 
+        },
+        joint: { 
+          stock_investments: [], 
+          total_family_wealth: 30000,
+          asset_allocation_percentages: { stocks: 50, bonds: 50, cash_equivalents: 0 },
+          provider_exposure: { "Provider A": 100 }
+        }
+      },
+      action_items: []
+    };
+
+    (globalThis.fetch as any).mockImplementation((url: string) => {
+      if (url.includes('process-inbox')) {
+        return Promise.resolve({ ok: true, json: async () => ({ results: [] }) });
+      }
+      if (url.includes('portfolio')) {
+        return Promise.resolve({ ok: true, json: async () => mockPortfolioData });
+      }
+      return Promise.reject(new Error('not mocked'));
+    });
+
+    renderPension();
+
+    await waitFor(() => {
+      expect(screen.queryByText('טוען ננתונים פיננסיים...')).not.toBeInTheDocument();
+    });
+
+    // In joint view initially, the latest date between user (Feb 10) and spouse (Mar 20) should be shown: 20/03/2026
+    expect(screen.getByText('עדכון אחרון:')).toBeInTheDocument();
+    expect(screen.getByText('20/03/2026')).toBeInTheDocument();
+
+    // Switch to User1 tab
+    const userTabButton = screen.getByRole('button', { name: 'User1' });
+    fireEvent.click(userTabButton);
+
+    // In User1 tab, date should be 10/02/2026
+    expect(screen.getByText('10/02/2026')).toBeInTheDocument();
+
+    // Switch to User2 tab
+    const spouseTabButton = screen.getByRole('button', { name: 'User2' });
+    fireEvent.click(spouseTabButton);
+
+    // In User2 tab, date should be 20/03/2026
+    expect(screen.getByText('20/03/2026')).toBeInTheDocument();
   });
 });

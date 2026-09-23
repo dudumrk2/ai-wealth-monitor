@@ -19,6 +19,7 @@ export interface PortfolioOwner {
   ownerName?: string;
   funds?: Fund[];
   alternative_investments?: AlternativeInvestment[];
+  last_updated?: string;
 }
 
 export interface Fund {

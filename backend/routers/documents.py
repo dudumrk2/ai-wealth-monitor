@@ -810,8 +810,10 @@ async def upload_document(
         if item.get("category") == refresh_category_hebrew
     ]
     
-    existing_portfolio_doc["action_items"] = old_items_to_keep + new_items_to_keep
-    existing_portfolio_doc["last_updated"] = datetime.datetime.now().isoformat()
+    now_iso = datetime.datetime.now().isoformat()
+    existing_portfolio_doc["last_updated"] = now_iso
+    if owner_key in existing_portfolio_doc.get("portfolios", {}):
+        existing_portfolio_doc["portfolios"][owner_key]["last_updated"] = now_iso
     
     db_manager.save_processed_portfolio(uid, existing_portfolio_doc)
     
