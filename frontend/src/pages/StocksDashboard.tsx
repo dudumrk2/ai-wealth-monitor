@@ -144,7 +144,7 @@ const StocksDashboard: React.FC = () => {
   const [openMenu, setOpenMenu]   = useState<string | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [chartTab, setChartTab] = useState<'sector' | 'geo'>('sector');
+  const [chartTab, setChartTab] = useState<'performance' | 'sector' | 'geo'>('performance');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
 
@@ -509,96 +509,307 @@ const StocksDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Center Column: Asset Allocation Donut (Hidden on mobile) */}
-              <div className="hidden lg:flex bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex-col h-full min-h-[460px] transition-all hover:border-slate-300 dark:hover:border-slate-700 order-2">
-            {/* Tab pills */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                <button
-                  id="stocks-chart-tab-sector"
-                  onClick={() => setChartTab('sector')}
-                  className={clsx(
-                    'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
-                    chartTab === 'sector'
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                  )}
-                >
-                  פיזור מגזרי
-                </button>
-                <button
-                  id="stocks-chart-tab-geo"
-                  onClick={() => setChartTab('geo')}
-                  className={clsx(
-                    'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
-                    chartTab === 'geo'
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                  )}
-                >
-                  פיזור גיאוגרפי
-                </button>
-              </div>
-              <Info className="w-3.5 h-3.5 text-slate-400" />
-            </div>
-
-            {/* Donut */}
-            <div className="flex-1 relative min-h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={activeDonut.length > 0 ? activeDonut : [{ name: '', value: 1, color: '#e2e8f0' }]}
-                    cx="50%" cy="50%"
-                    innerRadius="52%" outerRadius="72%"
-                    paddingAngle={activeDonut.length > 1 ? 3 : 0}
-                    dataKey="value"
-                    stroke="none"
-                    animationBegin={0}
-                    animationDuration={900}
-                    animationEasing="ease-out"
-                  >
-                    {activeDonut.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} className="hover:opacity-80 cursor-pointer transition-opacity" />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(51,65,85,0.5)',
-                      borderRadius: '0.75rem', color: '#f8fafc', backdropFilter: 'blur(8px)',
-                      fontSize: '12px', fontWeight: 700, direction: 'rtl',
-                    }}
-                    formatter={(value: any, name: any) => [
-                      `${formatILS(value)} (${activeTotal2 > 0 ? ((value / activeTotal2) * 100).toFixed(1) : 0}%)`, name,
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center label */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <p className="text-slate-400 text-[10px] font-bold mb-0.5">סה"כ</p>
-                <p className="text-slate-900 dark:text-white text-lg font-black">
-                  {totalValueILS > 1_000_000
-                    ? `₪${(totalValueILS / 1_000_000).toFixed(2)}M`
-                    : formatILS(totalValueILS)}
-                </p>
-              </div>
-            </div>
-
-            {/* Custom legend rows */}
-            <div className="mt-3 space-y-1.5">
-              {activeDonut.map((item) => {
-                const pct = activeTotal2 > 0 ? ((item.value / activeTotal2) * 100).toFixed(1) : '0';
-                return (
-                  <div key={item.name} className="flex items-center gap-2 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="text-slate-600 dark:text-slate-400 font-medium flex-1 truncate">{item.name}</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{formatILS(item.value)}</span>
-                    <span className="text-slate-400 font-bold w-12 text-left">{pct}%</span>
+              {/* Center Column: Portfolio Performance & Asset Allocation */}
+              <div className="flex bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 lg:p-5 flex-col h-full min-h-[460px] transition-all hover:border-slate-300 dark:hover:border-slate-700 order-2">
+                {/* Tab pills & Header Actions */}
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                    <button
+                      id="stocks-chart-tab-perf"
+                      onClick={() => setChartTab('performance')}
+                      className={clsx(
+                        'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
+                        chartTab === 'performance'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                      )}
+                    >
+                      תשואת התיק
+                    </button>
+                    <button
+                      id="stocks-chart-tab-sector"
+                      onClick={() => setChartTab('sector')}
+                      className={clsx(
+                        'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
+                        chartTab === 'sector'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                      )}
+                    >
+                      פיזור מגזרי
+                    </button>
+                    <button
+                      id="stocks-chart-tab-geo"
+                      onClick={() => setChartTab('geo')}
+                      className={clsx(
+                        'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
+                        chartTab === 'geo'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                      )}
+                    >
+                      פיזור גיאוגרפי
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+
+                  {chartTab === 'performance' ? (
+                    <div className="flex items-center gap-1.5">
+                      {perfData?.total_return_pct != null && (
+                        <span className={clsx(
+                          'text-xs font-black px-2.5 py-1 rounded-lg',
+                          perfData.total_return_pct >= 0
+                            ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                            : 'text-red-500 dark:text-red-400 bg-red-500/10'
+                        )}>
+                          {perfData.total_return_pct >= 0 ? '+' : ''}{perfData.total_return_pct.toFixed(2)}%
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setIsDepositModalOpen(v => !v)}
+                        title="רישום הפקדה חדשה"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        הפקדה
+                      </button>
+                    </div>
+                  ) : (
+                    <Info className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </div>
+
+                {chartTab === 'performance' ? (
+                  <div className="flex-1 flex flex-col">
+                    {/* View Switcher Bar */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                        {(['monthly', 'quarterly', 'yearly'] as PerfView[]).map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setPerfView(v)}
+                            className={clsx(
+                              'px-2.5 py-1 text-xs font-bold rounded-md transition-all duration-150',
+                              perfView === v
+                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                            )}
+                          >
+                            {v === 'monthly' ? 'חודשי' : v === 'quarterly' ? 'רבעוני' : 'שנתי'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium">מותאם להפקדות (דיץ משוכלל)</p>
+                    </div>
+
+                    {/* Auto-detected Deposit Banner */}
+                    {perfData?.deposit_suggestion?.detected &&
+                      dismissedMonth !== perfData.deposit_suggestion.current_month && (
+                      <div className="mb-3 p-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                            <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                              זוהתה עלייה של {formatILS(perfData.deposit_suggestion.diff_amount)} (+{perfData.deposit_suggestion.growth_pct}%) — הצעה להפקדה
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleDismissSuggestion}
+                            title="התעלם מההצעה"
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap text-xs">
+                          <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-600/50 rounded-lg px-2 py-1">
+                            <span className="text-slate-400 font-bold">₪</span>
+                            <input
+                              type="number"
+                              value={suggestionAmount}
+                              onChange={(e) => setSuggestionAmount(e.target.value)}
+                              className="w-20 bg-transparent font-bold text-slate-800 dark:text-slate-100 outline-none text-left"
+                            />
+                          </div>
+                          <input
+                            type="date"
+                            value={suggestionDate}
+                            onChange={(e) => setSuggestionDate(e.target.value)}
+                            className="bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-600/50 rounded-lg px-2 py-1 font-bold text-slate-700 dark:text-slate-200 outline-none"
+                          />
+                          <button
+                            onClick={handleConfirmSuggestion}
+                            disabled={isSavingSuggestion || !suggestionAmount}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all disabled:opacity-50"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            {isSavingSuggestion ? 'שומר...' : 'אשר'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Deposit Quick-Entry Form */}
+                    {isDepositModalOpen && (
+                      <div className="mb-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="font-bold text-slate-600 dark:text-slate-300">הפקדה לתיק:</span>
+                        <input
+                          type="number"
+                          placeholder="סכום (₪)"
+                          value={depositAmount}
+                          onChange={e => setDepositAmount(e.target.value)}
+                          className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-800 dark:text-slate-200 w-24 outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                        <input
+                          type="date"
+                          value={depositDate}
+                          onChange={e => setDepositDate(e.target.value)}
+                          className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-2 py-1 text-xs font-medium text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                        <button
+                          onClick={handleDepositSave}
+                          disabled={depositSaving || !depositAmount}
+                          className="px-3 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-bold transition-all"
+                        >
+                          {depositSaving ? 'שומר...' : 'שמור'}
+                        </button>
+                        <button
+                          onClick={() => setIsDepositModalOpen(false)}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-medium"
+                        >
+                          ביטול
+                        </button>
+                      </div>
+                    )}
+
+                    {/* LineChart Body */}
+                    <div className="flex-1 flex flex-col justify-center min-h-[220px]">
+                      {perfLoading ? (
+                        <div className="h-48 flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500" />
+                        </div>
+                      ) : !perfData?.has_data ? (
+                        <div className="h-48 flex flex-col items-center justify-center gap-2 text-center">
+                          <BarChart2 className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">אין מספיק נתונים היסטוריים עדיין</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500">הגרף יוצג לאחר עדכון מחירים ראשון.</p>
+                        </div>
+                      ) : (
+                        <div className="w-full h-[220px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={perfData.points} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" vertical={false} />
+                              <XAxis
+                                dataKey="label"
+                                tickFormatter={(lbl: string) => formatPerfLabel(lbl, perfView)}
+                                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                                axisLine={false}
+                                tickLine={false}
+                                interval="preserveStartEnd"
+                              />
+                              <YAxis
+                                tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`}
+                                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                                axisLine={false}
+                                tickLine={false}
+                                width={48}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: 'rgba(15,23,42,0.95)',
+                                  borderColor: 'rgba(51,65,85,0.5)',
+                                  borderRadius: '0.75rem',
+                                  color: '#f8fafc',
+                                  backdropFilter: 'blur(8px)',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  direction: 'rtl',
+                                }}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                formatter={(value: any) =>
+                                  value != null
+                                    ? [`${(value as number) >= 0 ? '+' : ''}${(value as number).toFixed(2)}%`, 'תשואה']
+                                    : ['-', 'תשואה']
+                                }
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                labelFormatter={(label: any) => formatPerfLabel(String(label), perfView)}
+                              />
+                              <ReferenceLine y={0} stroke="rgba(148,163,184,0.4)" strokeDasharray="4 3" />
+                              <Line
+                                type="monotone"
+                                dataKey="return_pct"
+                                stroke="#7c3aed"
+                                strokeWidth={2.5}
+                                dot={{ r: 3.5, fill: '#7c3aed', stroke: '#fff', strokeWidth: 1.5 }}
+                                activeDot={{ r: 5, fill: '#7c3aed', stroke: '#fff', strokeWidth: 2 }}
+                                connectNulls
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col">
+                    {/* Donut */}
+                    <div className="flex-1 relative min-h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={activeDonut.length > 0 ? activeDonut : [{ name: '', value: 1, color: '#e2e8f0' }]}
+                            cx="50%" cy="50%"
+                            innerRadius="52%" outerRadius="72%"
+                            paddingAngle={activeDonut.length > 1 ? 3 : 0}
+                            dataKey="value"
+                            stroke="none"
+                            animationBegin={0}
+                            animationDuration={900}
+                            animationEasing="ease-out"
+                          >
+                            {activeDonut.map((entry, i) => (
+                              <Cell key={i} fill={entry.color} className="hover:opacity-80 cursor-pointer transition-opacity" />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(51,65,85,0.5)',
+                              borderRadius: '0.75rem', color: '#f8fafc', backdropFilter: 'blur(8px)',
+                              fontSize: '12px', fontWeight: 700, direction: 'rtl',
+                            }}
+                            formatter={(value: any, name: any) => [
+                              `${formatILS(value)} (${activeTotal2 > 0 ? ((value / activeTotal2) * 100).toFixed(1) : 0}%)`, name,
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Center label */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <p className="text-slate-400 text-[10px] font-bold mb-0.5">סה"כ</p>
+                        <p className="text-slate-900 dark:text-white text-lg font-black">
+                          {totalValueILS > 1_000_000
+                            ? `₪${(totalValueILS / 1_000_000).toFixed(2)}M`
+                            : formatILS(totalValueILS)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Custom legend rows */}
+                    <div className="mt-3 space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                      {activeDonut.map((item) => {
+                        const pct = activeTotal2 > 0 ? ((item.value / activeTotal2) * 100).toFixed(1) : '0';
+                        return (
+                          <div key={item.name} className="flex items-center gap-2 text-xs">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                            <span className="text-slate-600 dark:text-slate-400 font-medium flex-1 truncate">{item.name}</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{formatILS(item.value)}</span>
+                            <span className="text-slate-400 font-bold w-12 text-left">{pct}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Top Row: Summary Cards (Order 1 on mobile, Col 1 on LG Row 1) */}
               <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2 lg:gap-4 h-full w-full order-1 lg:order-1">
@@ -866,229 +1077,6 @@ const StocksDashboard: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-
-            {/* ── Performance Chart ──────────────────────────────────── */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              {/* Header */}
-              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center">
-                    <BarChart2 className="w-4 h-4 text-violet-500" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-tight">תשואת התיק</h2>
-                    <p className="text-[11px] text-slate-400 font-medium">מותאם להפקדות חדשות</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* View tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                    {(['monthly', 'quarterly', 'yearly'] as PerfView[]).map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setPerfView(v)}
-                        className={clsx(
-                          'px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200',
-                          perfView === v
-                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                        )}
-                      >
-                        {v === 'monthly' ? 'חודשי' : v === 'quarterly' ? 'רבעוני' : 'שנתי'}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Total return badge */}
-                  {perfData?.total_return_pct != null && (
-                    <span className={clsx(
-                      'text-sm font-black px-3 py-1.5 rounded-xl',
-                      perfData.total_return_pct >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
-                        : 'text-red-500 dark:text-red-400 bg-red-500/10'
-                    )}>
-                      {perfData.total_return_pct >= 0 ? '+' : ''}{perfData.total_return_pct.toFixed(2)}%
-                    </span>
-                  )}
-
-                  {/* Deposit button */}
-                  <button
-                    onClick={() => setIsDepositModalOpen(v => !v)}
-                    title="רישום הפקדה חדשה"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    הפקדה
-                  </button>
-                </div>
-              </div>
-
-              {/* ── Auto-detected Deposit Banner ── */}
-              {perfData?.deposit_suggestion?.detected &&
-                dismissedMonth !== perfData.deposit_suggestion.current_month && (
-                <div className="px-5 py-4 border-b border-amber-200/60 dark:border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                        <Sparkles className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-black tracking-wide px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                            זיהוי הפקדה לתיק
-                          </span>
-                          <span className="text-xs font-bold text-amber-900 dark:text-amber-100">
-                            עלייה של {formatILS(perfData.deposit_suggestion.diff_amount)} (+{perfData.deposit_suggestion.growth_pct}%) בשווי התיק
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                          נראה שהועבר סכום כסף לתיק המנוהל. כדי שהחישוב לא יציג את הכסף החדש כתשואת מניות, אשר או ערוך את סכום ההפקדה לדיוק:
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Action / Edit form */}
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-amber-300/80 dark:border-amber-600/50 rounded-xl px-3 py-1.5 shadow-sm">
-                        <span className="text-xs font-bold text-slate-400">₪</span>
-                        <input
-                          type="number"
-                          value={suggestionAmount}
-                          onChange={(e) => setSuggestionAmount(e.target.value)}
-                          placeholder="סכום הפקדה"
-                          className="w-28 bg-transparent text-sm font-black text-slate-800 dark:text-slate-100 outline-none text-left"
-                        />
-                      </div>
-                      <input
-                        type="date"
-                        value={suggestionDate}
-                        onChange={(e) => setSuggestionDate(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border border-amber-300/80 dark:border-amber-600/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm outline-none"
-                      />
-                      <button
-                        onClick={handleConfirmSuggestion}
-                        disabled={isSavingSuggestion || !suggestionAmount}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 text-white text-xs font-black shadow-sm transition-all"
-                      >
-                        <Check className="w-4 h-4" />
-                        {isSavingSuggestion ? 'שומר...' : 'אישור הפקדה'}
-                      </button>
-                      <button
-                        onClick={handleDismissSuggestion}
-                        title="התעלם מההצעה (עליית ערך שוק בלבד)"
-                        className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        התעלם
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Deposit Quick-Entry */}
-              {isDepositModalOpen && (
-                <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-wrap items-center gap-3">
-                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">רישום הפקדה חדשה לתיק:</p>
-                  <input
-                    type="number"
-                    placeholder="סכום (₪)"
-                    value={depositAmount}
-                    onChange={e => setDepositAmount(e.target.value)}
-                    className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 w-36 focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500 outline-none"
-                  />
-                  <input
-                    type="date"
-                    value={depositDate}
-                    onChange={e => setDepositDate(e.target.value)}
-                    className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 w-40 focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500 outline-none"
-                  />
-                  <button
-                    onClick={handleDepositSave}
-                    disabled={depositSaving || !depositAmount}
-                    className="px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-bold transition-all"
-                  >
-                    {depositSaving ? 'שומר...' : 'שמור'}
-                  </button>
-                  <button
-                    onClick={() => setIsDepositModalOpen(false)}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-medium transition-colors"
-                  >
-                    ביטול
-                  </button>
-                </div>
-              )}
-
-              {/* Chart body */}
-              <div className="p-5">
-                {perfLoading ? (
-                  <div className="h-48 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500" />
-                  </div>
-                ) : !perfData?.has_data ? (
-                  <div className="h-48 flex flex-col items-center justify-center gap-2 text-center">
-                    <BarChart2 className="w-10 h-10 text-slate-200 dark:text-slate-700" />
-                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">אין מספיק נתונים היסטוריים עדיין</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">הגרף יוצג לאחר עדכון מחירים ראשון. לחץ על כפתור הרענון.</p>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <LineChart
-                      data={perfData.points}
-                      margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" vertical={false} />
-                      <XAxis
-                        dataKey="label"
-                        tickFormatter={(lbl: string) => formatPerfLabel(lbl, perfView)}
-                        tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
-                        axisLine={false}
-                        tickLine={false}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`}
-                        tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={60}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'rgba(15,23,42,0.95)',
-                          borderColor: 'rgba(51,65,85,0.5)',
-                          borderRadius: '0.75rem',
-                          color: '#f8fafc',
-                          backdropFilter: 'blur(8px)',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          direction: 'rtl',
-                        }}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        formatter={(value: any) =>
-                          value != null
-                            ? [`${(value as number) >= 0 ? '+' : ''}${(value as number).toFixed(2)}%`, 'תשואה']
-                            : ['-', 'תשואה']
-                        }
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        labelFormatter={(label: any) => formatPerfLabel(String(label), perfView)}
-                      />
-                      <ReferenceLine y={0} stroke="rgba(148,163,184,0.4)" strokeDasharray="4 3" />
-                      <Line
-                        type="monotone"
-                        dataKey="return_pct"
-                        stroke="#7c3aed"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, fill: '#7c3aed', stroke: '#fff', strokeWidth: 2 }}
-                        activeDot={{ r: 6, fill: '#7c3aed', stroke: '#fff', strokeWidth: 2 }}
-                        connectNulls
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
               </div>
             </div>
 
