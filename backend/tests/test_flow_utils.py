@@ -187,3 +187,32 @@ async def test_stocks_flow_save_funds_to_db_calculates_total_return(monkeypatch)
     assert mock_save_snapshot.call_count == 1
     assert mock_save_snapshot.call_args[0] == ("test_user", 3700.0)
 
+
+@pytest.mark.asyncio
+async def test_stocks_flow_save_funds_to_db_zero_invested(monkeypatch):
+    """Verify StocksFlow.save_funds_to_db safely handles zero invested/value without errors."""
+    from document_flows import StocksFlow
+    import db_manager
+
+    monkeypatch.setattr(db_manager, "get_processed_portfolio", lambda uid: {"stocks": []})
+    monkeypatch.setattr(db_manager, "save_processed_portfolio", MagicMock())
+    monkeypatch.setattr(db_manager, "clear_cache_for_uid", MagicMock())
+    monkeypatch.setattr(db_manager, "get_fx_rate", lambda: {"rate": 3.70})
+    monkeypatch.setattr(db_manager, "update_family_holding", MagicMock())
+
+    mock_update_summary = MagicMock()
+    monkeypatch.setattr(db_manager, "update_portfolio_summary", mock_update_summary)
+
+    mock_save_snapshot = MagicMock()
+    monkeypatch.setattr(db_manager, "save_portfolio_snapshot", mock_save_snapshot)
+
+    flow = StocksFlow()
+    await flow.save_funds_to_db("test_user", [])
+
+    assert mock_update_summary.call_count == 1
+    call_args = mock_update_summary.call_args[0]
+    assert call_args == ("test_user", 0.0, 0.0, 0.0)
+    # snapshot should not be saved if total_value == 0
+    assert mock_save_snapshot.call_count == 0
+
+
