@@ -133,3 +133,57 @@ def test_call_gemini_json_raises_runtime_error_after_max_retries(monkeypatch):
         flow_utils.call_gemini_json("key", "sys", "user", max_retries=2, retry_delay=0.0)
 
     assert mock_client.models.generate_content.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_stocks_flow_save_funds_to_db_calculates_total_return(monkeypatch):
+    """Verify StocksFlow.save_funds_to_db properly calculates total_return_pct and saves snapshots."""
+    from document_flows import StocksFlow
+    import db_manager
+
+    monkeypatch.setattr(db_manager, "get_processed_portfolio", lambda uid: {"stocks": []})
+    monkeypatch.setattr(db_manager, "save_processed_portfolio", MagicMock())
+    monkeypatch.setattr(db_manager, "clear_cache_for_uid", MagicMock())
+    monkeypatch.setattr(db_manager, "get_fx_rate", lambda: {"rate": 3.70})
+    monkeypatch.setattr(db_manager, "update_family_holding", MagicMock())
+
+    mock_update_summary = MagicMock()
+    monkeypatch.setattr(db_manager, "update_portfolio_summary", mock_update_summary)
+
+    mock_save_snapshot = MagicMock()
+    monkeypatch.setattr(db_manager, "save_portfolio_snapshot", mock_save_snapshot)
+
+    flow = StocksFlow()
+    stocks_data = [
+        {
+            "symbol": "AAPL",
+            "name": "Apple Inc.",
+            "currency": "USD",
+            "totalValueOriginal": 1000.0,
+            "dailyPnlOriginal": 50.0,
+            "totalPnlOriginal": 200.0,
+            "lastPrice": 150.0,
+            "qty": 10.0,
+            "avgCostPrice": 130.0,
+        }
+    ]
+
+    await flow.save_funds_to_db("test_user", stocks_data)
+
+    # total_value = 1000 * 3.70 = 3700.0
+    # total_daily_pnl = 50 * 3.70 = 185.0
+    # total_pnl = 200 * 3.70 = 740.0
+    # total_invested = 3700 - 740 = 2960.0
+    # daily_base = 3700 - 185 = 3515.0
+    # daily_return_pct = 185 / 3515 * 100 = 5.263%
+    # total_return_pct = 740 / 2960 * 100 = 25.0%
+    assert mock_update_summary.call_count == 1
+    call_args = mock_update_summary.call_args[0]
+    assert call_args[0] == "test_user"
+    assert call_args[1] == 3700.0
+    assert abs(call_args[2] - (185.0 / 3515.0 * 100)) < 0.001
+    assert abs(call_args[3] - 25.0) < 0.001
+
+    assert mock_save_snapshot.call_count == 1
+    assert mock_save_snapshot.call_args[0] == ("test_user", 3700.0)
+
