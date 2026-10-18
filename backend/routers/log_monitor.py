@@ -47,7 +47,7 @@ Key backend files (for mapping errors to likely source files):
 - backend/app.py               — FastAPI app, CORS, startup, Gmail OAuth endpoints
 - backend/db_manager.py        — Firestore read/write operations
 - backend/market_data.py       — Yahoo Finance / yfinance calls, Israeli market data
-- backend/stock_agent.py       — LangGraph ReAct agent orchestration
+- backend/stock_agent.py       — Gemini stock agent orchestration (google-genai)
 - backend/stock_agent_tools.py — Telegram alerts, 13F scanner, yfinance tools
 - backend/routers/agent.py     — /api/cron/analyze-stocks endpoint
 - backend/routers/documents.py — PDF processing endpoints
@@ -274,8 +274,8 @@ def _generate_digest(grouped_text: str, scan_from: str, scan_to: str) -> dict[st
         Dict with keys 'telegram_message' and 'email_html'.
         Falls back to plain-text defaults on any Gemini error.
     """
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_core.messages import HumanMessage, SystemMessage
+    from google import genai
+    from google.genai import types
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
@@ -316,23 +316,21 @@ Grouped log entries:
 
     try:
         import config
-        llm = ChatGoogleGenerativeAI(
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
             model=config.GEMINI_MODEL_NAME,
-            google_api_key=api_key,
-            temperature=0,
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0,
+                response_mime_type="application/json",
+            ),
         )
-        response = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_message),
-        ])
-        raw = response.content
-        if isinstance(raw, list):
-            raw = " ".join(
-                block.get("text", "") for block in raw
-                if isinstance(block, dict) and block.get("type") == "text"
-            )
-        result = _json.loads(raw.strip())
-        if "telegram_message" in result and "email_html" in result:
+        raw = (response.text or "").strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE).strip()
+        result = _json.loads(raw)
+        if isinstance(result, dict) and "telegram_message" in result and "email_html" in result:
             return result
         logger.warning("[LOG_MONITOR] Gemini returned unexpected JSON shape — using fallback.")
         return _fallback_digest(grouped_text, scan_from, scan_to)

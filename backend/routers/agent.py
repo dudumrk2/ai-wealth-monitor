@@ -1,7 +1,7 @@
 """
 routers/agent.py
 ================
-FastAPI router for the autonomous LangGraph Financial Analyst Agent.
+FastAPI router for the autonomous Gemini Financial Analyst Agent.
 
 Exposes three endpoints:
   POST /api/cron/analyze-stocks                — cron-secured daily trigger (all families)
@@ -21,15 +21,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 import db_manager
 from auth import verify_token
 
-# NOTE: stock_agent / stock_agent_tools / langchain are intentionally NOT imported
-# at module level — they pull in langchain_google_genai + langgraph + yfinance
-# (~20s of import time). They are exposed lazily (PEP 562 __getattr__ below) so
-# merely registering this router (on every app startup / cold start) stays cheap,
+# NOTE: stock_agent / stock_agent_tools are intentionally NOT imported at module
+# level — they pull in google-genai + yfinance. They are bound lazily so merely
+# registering this router (on every app startup / cold start) stays cheap,
 # while `agent_module.scan_guru_portfolio` etc. remain patchable test seams.
 
 router = APIRouter(tags=["Agent"])
 
-# stock_agent / stock_agent_tools pull in langchain + langgraph + yfinance (heavy).
+# stock_agent / stock_agent_tools pull in google-genai + yfinance (heavy).
 # They are bound lazily on first use (keeping cold start fast) and kept as module
 # globals so tests can patch `agent.scan_guru_portfolio` / `agent.TRACKED_GURUS` /
 # `agent.analyze_portfolio_and_gurus`.
@@ -119,12 +118,12 @@ def _analyze_stocks_for_family(uid: str) -> dict:
       1. Fetch family holdings from Firestore.
       2. Run scan_guru_portfolio for each tracked guru (outside the agent).
       3. Compute which 13F alerts are new (not yet sent).
-      4. Invoke the LangGraph agent with pre-computed guru data.
+      4. Invoke the Gemini stock agent with pre-computed guru data.
       5. Mark new alerts as sent in Firestore on success.
 
     Returns a result dict with uid, success flag, and agent output.
     """
-    _load_agent_deps()  # lazy: import langchain/langgraph/yfinance only when the agent runs
+    _load_agent_deps()  # lazy: import google-genai/yfinance only when the agent runs
 
     print(f"\n🤖 [AGENT] Starting analysis for family: {uid}")
 
@@ -153,7 +152,7 @@ def _analyze_stocks_for_family(uid: str) -> dict:
     guru_results: dict[str, str] = {}
     for guru_name in TRACKED_GURUS.keys():
         print(f"🔍 [AGENT] Scanning guru: {guru_name}")
-        guru_results[guru_name] = scan_guru_portfolio.invoke({"guru_name": guru_name})
+        guru_results[guru_name] = scan_guru_portfolio(guru_name=guru_name)
 
     # Step 3 — Compute new alert keys
     sent_keys = db_manager.get_sent_13f_alert_keys()
@@ -217,7 +216,7 @@ def _analyze_stocks_for_family(uid: str) -> dict:
 @router.post("/api/cron/analyze-stocks")
 async def analyze_stocks_cron(request: Request):
     """
-    Daily cron endpoint to run the autonomous LangGraph stock agent for all families.
+    Daily cron endpoint to run the autonomous Gemini stock agent for all families.
     Fetches live prices, scans Superinvestor 13F filings, and sends Telegram alerts.
     Deduplication prevents repeat 13F alerts across runs.
     Secured via X-Cron-Secret header.
@@ -263,7 +262,7 @@ async def analyze_stocks_cron(request: Request):
 
 @router.post("/api/demo/run-scenario")
 async def run_demo_scenario(request: Request):
-    """Presentation demo endpoint — runs the real LangGraph agent with mock tools.
+    """Presentation demo endpoint — runs the real Gemini agent with mock tools.
 
     Secured via X-Cron-Secret header (same secret as the cron endpoint).
     Accepts body: {"scenario": "price" | "risk" | "alpha" | "clear"}
@@ -282,10 +281,9 @@ async def run_demo_scenario(request: Request):
     body = await request.json()
     scenario_name = body.get("scenario", "clear")
 
-    # Lazy imports — keep langchain/langgraph/agent modules out of the cold-start path.
-    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langgraph.prebuilt import create_react_agent
+    # Lazy imports — keep agent modules out of the cold-start path.
+    from google import genai
+    from google.genai import types
     from stock_agent import AGENT_RECURSION_LIMIT, SYSTEM_PROMPT
     from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools
 
@@ -298,8 +296,6 @@ async def run_demo_scenario(request: Request):
 
     mock_tools = build_demo_tools(scenario_name)
     import config
-    llm = ChatGoogleGenerativeAI(model=config.GEMINI_MODEL_NAME, google_api_key=api_key, temperature=0)
-    agent = create_react_agent(model=llm, tools=mock_tools, prompt=SYSTEM_PROMPT)
 
     tickers = ["AAPL", "ICL.TA", "5131054"]
     human_input = (
@@ -314,24 +310,41 @@ async def run_demo_scenario(request: Request):
 
     def _run():
         start = time.time()
-        result = agent.invoke(
-            {"messages": [HumanMessage(content=human_input)]},
-            config={"recursion_limit": AGENT_RECURSION_LIMIT},
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL_NAME,
+            contents=human_input,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0,
+                tools=mock_tools,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                    maximum_remote_calls=AGENT_RECURSION_LIMIT,
+                ),
+            ),
         )
         logs = []
-        for msg in result["messages"]:
-            tool_calls = getattr(msg, "tool_calls", None)
-            if tool_calls:
-                for tc in tool_calls:
-                    logs.append({"type": "tool_call", "name": tc["name"], "args": tc.get("args", {})})
-            if isinstance(msg, ToolMessage):
-                logs.append({"type": "tool_result", "name": msg.name, "content": msg.content})
-            if isinstance(msg, AIMessage) and not tool_calls:
-                content = msg.content
-                if isinstance(content, list):
-                    content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
-                if content:
-                    logs.append({"type": "final_output", "content": content})
+        for content in (getattr(response, "automatic_function_calling_history", None) or []):
+            for part in (getattr(content, "parts", None) or []):
+                fc = getattr(part, "function_call", None)
+                if fc:
+                    logs.append({
+                        "type": "tool_call",
+                        "name": fc.name,
+                        "args": dict(fc.args or {}),
+                    })
+                fr = getattr(part, "function_response", None)
+                if fr:
+                    resp_dict = fr.response if isinstance(fr.response, dict) else {}
+                    content_val = resp_dict.get("result") or resp_dict.get("error") or ""
+                    logs.append({
+                        "type": "tool_result",
+                        "name": fr.name,
+                        "content": str(content_val),
+                    })
+        final_text = (response.text or "").strip()
+        if final_text:
+            logs.append({"type": "final_output", "content": final_text})
         return {"logs": logs, "duration_seconds": round(time.time() - start, 1)}
 
     try:
