@@ -9,6 +9,9 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
+import os
+os.environ["SKIP_ENV_VALIDATION"] = "1"
+
 import pytest
 from unittest.mock import patch, MagicMock
 

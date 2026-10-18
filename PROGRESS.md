@@ -71,4 +71,12 @@ This document tracks development history, architectural decisions, and current p
 - **Decision:** Migrated weekly stock advisory report and OCR pipeline to Claude Sonnet (`claude-sonnet-4-6`), optimizing prompts and ensuring pre-calculated portfolio totals in Python.
 - **Cloud Scheduler:** Updated `cron-weekly` job schedule in GCP project `finance-family-management` (`us-central1`) from Monday morning (`0 8 * * 1`) to Saturday morning (`0 8 * * 6` Asia/Jerusalem at 08:00 AM).
 
+### 2026-10-18 (Phase 8: Startup Environment Validation & Safe Cloud Run Rollout Guard)
+- **Goal:** Prevent broken Cloud Run deployments caused by missing mandatory environment variables (which previously caused monthly pension cron to fail with 403 / status code 7).
+- **Decision:** Implement fail-fast startup validation in `backend/env_validator.py` running inside FastAPI `lifespan` before port 8080 is opened.
+- **Decision:** If variables are missing in `os.environ`, check Google Cloud Secret Manager and actively inject any found values into `os.environ` so the rest of the application can seamlessly use them.
+- **Decision:** If mandatory variables remain missing, send an HTML-escaped Telegram notification with `K_SERVICE` and `K_REVISION`, deduplicated via Firestore to avoid alert storms during Cloud Run instance retry loops.
+- **Decision:** Raise fatal `RuntimeError` on missing variables. In Cloud Run, failing the startup probe aborts candidate revision rollout and preserves 100% production traffic on the previous healthy revision.
+- **Decision:** Added pre-deployment CLI validator `scripts/verify_env.py` and unit test coverage in `backend/tests/test_env_validator.py` (with `SKIP_ENV_VALIDATION=1` in `conftest.py`).
+
 
