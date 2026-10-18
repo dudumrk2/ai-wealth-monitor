@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import firebase_admin
 import datetime
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ import shutil
 import base64
 import json
 from dotenv import load_dotenv
+from env_validator import validate_environment
 from firebase_admin import auth
 import re
 from services.prime_rate import fetch_israeli_prime_rate
@@ -75,7 +77,15 @@ from report_utils import (
 
 # --- DATABASE HELPERS ---
 
-app = FastAPI(title="AI Family Pension & Wealth Monitor API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Validate environment on startup before opening port 8080
+    validate_environment(fail_fast=True)
+    print("✅ [APP] Backend service started and ready for requests.")
+    sys.stdout.flush()
+    yield
+
+app = FastAPI(title="AI Family Pension & Wealth Monitor API", lifespan=lifespan)
 
 # Setup directories for local drop-folder processing
 # We move these outside the backend folder to prevent uvicorn reloader from restarting
@@ -142,11 +152,6 @@ app.include_router(alternatives.router)
 app.include_router(portfolio.router)
 app.include_router(agent.router)
 app.include_router(log_monitor.router)
-
-@app.on_event("startup")
-async def startup_event():
-    print("✅ [APP] Backend service started and ready for requests.")
-    sys.stdout.flush()
 
 @app.post("/api/auth/demo")
 async def login_demo():
