@@ -243,7 +243,7 @@ def test_summary_captures_price_alert_ticker():
 
 
 def test_analyze_portfolio_and_gurus_invokes_genai_with_afc_limit(monkeypatch):
-    """analyze_portfolio_and_gurus calls google.genai with maximum_remote_calls=50 and pre-analyzed data."""
+    """analyze_portfolio_and_gurus calls google.genai with maximum_remote_calls=25 and pre-analyzed data."""
     import stock_agent
     from google.genai import types
 
@@ -251,6 +251,7 @@ def test_analyze_portfolio_and_gurus_invokes_genai_with_afc_limit(monkeypatch):
 
     fake_response = MagicMock()
     fake_response.text = "Portfolio analysis complete."
+    fake_response.candidates = []
     fake_response.automatic_function_calling_history = [
         types.Content(
             role="model",
@@ -275,6 +276,31 @@ def test_analyze_portfolio_and_gurus_invokes_genai_with_afc_limit(monkeypatch):
     assert 'chat_id="chat-999"' in call_kwargs["contents"]
     assert call_kwargs["config"].automatic_function_calling.maximum_remote_calls == stock_agent.AGENT_RECURSION_LIMIT
     assert call_kwargs["config"].tools == stock_agent.AGENT_TOOLS
+
+
+def test_analyze_portfolio_and_gurus_fails_when_max_remote_calls_exceeded(monkeypatch):
+    """When maximum_remote_calls is reached, response still has a pending function_call -> success=False."""
+    import stock_agent
+    from google.genai import types
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+
+    fake_candidate = MagicMock()
+    fake_candidate.content = types.Content(
+        role="model",
+        parts=[types.Part.from_function_call(name="get_us_stock_data", args={"ticker": "AAPL"})],
+    )
+    fake_response = MagicMock()
+    fake_response.text = None
+    fake_response.candidates = [fake_candidate]
+    fake_response.automatic_function_calling_history = []
+
+    with patch("stock_agent.genai.Client") as mock_client_cls:
+        mock_client_cls.return_value.models.generate_content.return_value = fake_response
+        res = stock_agent.analyze_portfolio_and_gurus(["AAPL"])
+
+    assert res["success"] is False
+    assert "maximum_remote_calls" in res["error"]
 
 
 def test_analyze_portfolio_and_gurus_fails_when_api_key_missing(monkeypatch):
@@ -348,6 +374,8 @@ def test_demo_endpoint_formats_afc_history_with_name_key(demo_client, monkeypatc
         ),
     ]
 
+    # Patched at `google.genai.Client` because `run_demo_scenario` lazily imports
+    # `from google import genai` inside the endpoint handler to keep cold-start fast.
     with patch("google.genai.Client") as mock_client_cls:
         mock_client_cls.return_value.models.generate_content.return_value = fake_response
         resp = demo_client.post(

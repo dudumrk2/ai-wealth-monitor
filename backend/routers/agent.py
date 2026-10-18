@@ -4,7 +4,7 @@ routers/agent.py
 FastAPI router for the autonomous Gemini Financial Analyst Agent.
 
 Exposes three endpoints:
-  POST /api/cron/analyze-stocks                — cron-secured daily trigger (all families)
+  POST /api/cron/analyze-stocks                — cron-secured weekly trigger (all families)
   POST /api/settings/cron/analyze-stocks/run  — authenticated manual trigger (own family)
   POST /api/demo/run-scenario                  — presentation demo with mock tools (cron-secret secured)
 """
@@ -216,7 +216,7 @@ def _analyze_stocks_for_family(uid: str) -> dict:
 @router.post("/api/cron/analyze-stocks")
 async def analyze_stocks_cron(request: Request):
     """
-    Daily cron endpoint to run the autonomous Gemini stock agent for all families.
+    Weekly cron endpoint to run the autonomous Gemini stock agent for all families.
     Fetches live prices, scans Superinvestor 13F filings, and sends Telegram alerts.
     Deduplication prevents repeat 13F alerts across runs.
     Secured via X-Cron-Secret header.
@@ -284,7 +284,7 @@ async def run_demo_scenario(request: Request):
     # Lazy imports — keep agent modules out of the cold-start path.
     from google import genai
     from google.genai import types
-    from stock_agent import AGENT_RECURSION_LIMIT, SYSTEM_PROMPT
+    from stock_agent import AGENT_RECURSION_LIMIT, SYSTEM_PROMPT, iter_afc_parts
     from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools
 
     if scenario_name not in DEMO_SCENARIOS:
@@ -324,24 +324,25 @@ async def run_demo_scenario(request: Request):
             ),
         )
         logs = []
-        for content in (getattr(response, "automatic_function_calling_history", None) or []):
-            for part in (getattr(content, "parts", None) or []):
-                fc = getattr(part, "function_call", None)
-                if fc:
-                    logs.append({
-                        "type": "tool_call",
-                        "name": fc.name,
-                        "args": dict(fc.args or {}),
-                    })
-                fr = getattr(part, "function_response", None)
-                if fr:
-                    resp_dict = fr.response if isinstance(fr.response, dict) else {}
-                    content_val = resp_dict.get("result") or resp_dict.get("error") or ""
-                    logs.append({
-                        "type": "tool_result",
-                        "name": fr.name,
-                        "content": str(content_val),
-                    })
+        afc_history = getattr(response, "automatic_function_calling_history", None)
+        for part in iter_afc_parts(afc_history):
+            fc = getattr(part, "function_call", None)
+            if fc:
+                logs.append({
+                    "type": "tool_call",
+                    "name": fc.name,
+                    "args": dict(fc.args or {}),
+                })
+            fr = getattr(part, "function_response", None)
+            if fr:
+                resp_dict = fr.response if isinstance(fr.response, dict) else {}
+                res_val = resp_dict.get("result")
+                content_val = res_val if res_val is not None else resp_dict.get("error", "")
+                logs.append({
+                    "type": "tool_result",
+                    "name": fr.name,
+                    "content": str(content_val),
+                })
         final_text = (response.text or "").strip()
         if final_text:
             logs.append({"type": "final_output", "content": final_text})

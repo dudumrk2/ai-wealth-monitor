@@ -55,10 +55,11 @@ AGENT_TOOLS = [
     send_telegram_alert,
 ]
 
-# Hard ceiling on automatic function calls per run. A normal run (price checks +
-# news + guru scans + alerts) finishes well under this; the cap is a guardrail
+# Hard ceiling on automatic remote model calls per run. (Equivalent to
+# LangGraph's recursion_limit=50, which counted model + tool super-steps
+# separately.) A normal run finishes well under this; the cap is a guardrail
 # against a runaway LLM looping indefinitely and racking up Gemini calls.
-AGENT_RECURSION_LIMIT = 50
+AGENT_RECURSION_LIMIT = 25
 
 # Extracts the ticker named in a "📊 PRICE ALERT: <b>TICKER</b> ..." message,
 # used to verify the agent only raised price alerts for tickers it was given.
@@ -66,8 +67,30 @@ _PRICE_ALERT_TICKER_RE = re.compile(r"PRICE ALERT:\s*<b>([^<]+)</b>", re.IGNOREC
 
 
 # ---------------------------------------------------------------------------
-# Structured run summary
+# AFC History Helpers & Structured Run Summary
 # ---------------------------------------------------------------------------
+
+def iter_afc_parts(afc_history: list | None):
+    """Yield every Part from a google-genai automatic_function_calling_history list."""
+    for content in (afc_history or []):
+        for part in (getattr(content, "parts", None) or []):
+            yield part
+
+
+def _has_unresolved_function_calls(response: Any) -> bool:
+    """Return True if the final model response still contains a pending tool call.
+
+    When google-genai hits maximum_remote_calls, it stops executing tools and
+    returns the last model response (which still has part.function_call set)
+    instead of raising an exception.
+    """
+    for candidate in (getattr(response, "candidates", None) or []):
+        content = getattr(candidate, "content", None)
+        for part in (getattr(content, "parts", None) or []):
+            if getattr(part, "function_call", None) is not None:
+                return True
+    return False
+
 
 class AgentRunSummary(BaseModel):
     """Structured summary of a single agent run, extracted from AFC history.
@@ -114,48 +137,47 @@ def _extract_run_summary(
     price_alert_tickers: list[str] = []
     total_alerts = price_alerts = risk_alerts = alpha_alerts = 0
 
-    for content in (afc_history or []):
-        for part in (getattr(content, "parts", None) or []):
-            # Part.function_call → what the model requested
-            fc = getattr(part, "function_call", None)
-            if fc:
-                name = fc.name or ""
-                args = dict(fc.args or {})
+    for part in iter_afc_parts(afc_history):
+        # Part.function_call → what the model requested
+        fc = getattr(part, "function_call", None)
+        if fc:
+            name = fc.name or ""
+            args = dict(fc.args or {})
 
-                if name in ("get_us_stock_data", "get_il_stock_data"):
-                    ticker = str(args.get("ticker", "")).strip()
-                    if ticker:
-                        tickers_checked.append(ticker)
+            if name in ("get_us_stock_data", "get_il_stock_data"):
+                ticker = str(args.get("ticker", "")).strip()
+                if ticker:
+                    tickers_checked.append(ticker)
 
-                elif name == "send_telegram_alert":
-                    total_alerts += 1
-                    alert_text = str(args.get("message", ""))
-                    if "PRICE ALERT" in alert_text:
-                        price_alerts += 1
-                        m = _PRICE_ALERT_TICKER_RE.search(alert_text)
-                        if m:
-                            price_alert_tickers.append(m.group(1).strip())
-                    elif "RISK ALERT" in alert_text:
-                        risk_alerts += 1
-                    elif "ALPHA IDEA" in alert_text:
-                        alpha_alerts += 1
+            elif name == "send_telegram_alert":
+                total_alerts += 1
+                alert_text = str(args.get("message", ""))
+                if "PRICE ALERT" in alert_text:
+                    price_alerts += 1
+                    m = _PRICE_ALERT_TICKER_RE.search(alert_text)
+                    if m:
+                        price_alert_tickers.append(m.group(1).strip())
+                elif "RISK ALERT" in alert_text:
+                    risk_alerts += 1
+                elif "ALPHA IDEA" in alert_text:
+                    alpha_alerts += 1
 
-                elif name == "scan_guru_portfolio":
-                    guru = str(args.get("guru_name", "")).strip()
-                    if guru:
-                        gurus_scanned.append(guru)
+            elif name == "scan_guru_portfolio":
+                guru = str(args.get("guru_name", "")).strip()
+                if guru:
+                    gurus_scanned.append(guru)
 
-            # Part.function_response → what the tool returned — capture errors
-            fr = getattr(part, "function_response", None)
-            if fr and isinstance(fr.response, dict):
-                res_val = fr.response.get("result") or ""
-                err_val = fr.response.get("error") or ""
-                if isinstance(res_val, str) and res_val.startswith("ERROR"):
-                    tool_errors.append(res_val[:300])
-                elif err_val:
-                    err_str = str(err_val)
-                    prefix = "" if err_str.startswith("ERROR") else "ERROR: "
-                    tool_errors.append(f"{prefix}{err_str}"[:300])
+        # Part.function_response → what the tool returned — capture errors
+        fr = getattr(part, "function_response", None)
+        if fr and isinstance(fr.response, dict):
+            res_val = fr.response.get("result")
+            err_val = fr.response.get("error")
+            if isinstance(res_val, str) and res_val.startswith("ERROR"):
+                tool_errors.append(res_val[:300])
+            elif err_val is not None and err_val != "":
+                err_str = str(err_val)
+                prefix = "" if err_str.startswith("ERROR") else "ERROR: "
+                tool_errors.append(f"{prefix}{err_str}"[:300])
 
     return AgentRunSummary(
         tickers_checked=tickers_checked,
@@ -377,6 +399,14 @@ def analyze_portfolio_and_gurus(
                 ),
             ),
         )
+
+        # Fail closed if maximum_remote_calls was exhausted while the model
+        # was still requesting tool calls (mirrors LangGraph's GraphRecursionError).
+        if _has_unresolved_function_calls(response):
+            raise RuntimeError(
+                f"Exceeded maximum_remote_calls ({AGENT_RECURSION_LIMIT}): "
+                "agent stopped with unresolved function_call."
+            )
 
         # Build structured summary from AFC history (ground-truth view).
         afc_history = getattr(response, "automatic_function_calling_history", None) or []

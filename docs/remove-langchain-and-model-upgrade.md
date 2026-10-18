@@ -308,14 +308,15 @@ A full search across `backend/**/*.py` identified every reference to `langchain`
 
 #### E. [`backend/requirements.txt`](../backend/requirements.txt)
 - Remove `langchain`, `langchain-google-genai`, `langgraph`, `google-adk`, and `vertexai`.
-- Update `google-genai>=1.0.0` to `google-genai>=2.25.0` to match the tested environment.
+- Update `google-genai>=1.0.0` to `google-genai>=1.75.0` to match the project `.venv` without forcing a major `2.x` upgrade in PR 1.
 
 #### F. Unit Tests (`backend/tests/routers/test_agent.py` & `backend/tests/test_log_monitor.py`)
 1. **[`backend/tests/routers/test_agent.py`](../backend/tests/routers/test_agent.py):**
    - In `_run()` helper (lines 32–35): change `mock_scan.invoke.return_value = guru_output` to `mock_scan.return_value = guru_output`, and remove `assert mock_analyze.call_args.kwargs.get("session_id") == f"user_{uid}"`.
    - In `test_build_demo_tools_returns_five_tools_with_mock_data` and `test_build_demo_tools_unknown_ticker_falls_back` (lines 96–114): index tools by `t.__name__` instead of `t.name`, and call `by_name["get_us_stock_data"](ticker="AAPL")` directly instead of `.invoke(...)`.
    - In news & guardrail tests (lines 134, 146, 157, 163, 169, 175): call `search_financial_news(ticker="AAPL")`, `get_us_stock_data(ticker="not a ticker!!")`, `get_il_stock_data(ticker="AAPL")`, `send_telegram_alert(message="   ", chat_id="123")` directly.
-   - In `test_summary_captures_price_alert_ticker` (lines 182–195): replace `AIMessage` from `langchain_core.messages` with a `google.genai.types.Content` (or `Part.from_function_call`) entry in `afc_history` and verify `_extract_run_summary` extracts `price_alert_tickers == ["AAPL"]`, ` tickers_checked`, `gurus_scanned`, and `tool_errors`.
+   - In `test_summary_captures_price_alert_ticker`: replace `AIMessage` from `langchain_core.messages` with `google.genai.types.Content` entries in `afc_history` and verify `_extract_run_summary` extracts `price_alert_tickers == ["AAPL"]`, `tickers_checked`, `gurus_scanned`, and `tool_errors`.
+   - Add direct unit tests for `analyze_portfolio_and_gurus` including `maximum_remote_calls` exhaustion (`_has_unresolved_function_calls` failing closed with `success=False`).
 2. **[`backend/tests/test_log_monitor.py`](../backend/tests/test_log_monitor.py):**
    - Add direct unit tests for `_generate_digest`:
      - `test_generate_digest_parses_valid_gemini_json_response`: mocks `google.genai.Client` returning valid JSON `{"telegram_message": "...", "email_html": "..."}` and asserts `response_mime_type="application/json"` was configured.
@@ -399,12 +400,12 @@ GEMINI_MODEL_NAME = "gemini-3.8-flash"
 - [x] Untracked ADK files (`backend/agent_adapter.py`, `backend/agent_stock_adk.py`, `backend/tests/test_agent_adapter.py`) deleted with user approval.
 - [x] Dirty working-tree edits reset/stashed and `refactor/remove-langchain` branched cleanly from `master`.
 - [x] Zero references to `langchain`, `langgraph`, `google.adk`, `vertexai`, or `_add_invoke_adapter` anywhere in `backend/`.
-- [x] `AutomaticFunctionCallingConfig(maximum_remote_calls=AGENT_RECURSION_LIMIT)` (`50`) configured in `stock_agent.py` and `routers/agent.py` (`run_demo_scenario`).
+- [x] `AutomaticFunctionCallingConfig(maximum_remote_calls=AGENT_RECURSION_LIMIT)` (`25` remote calls, equivalent to 50 LangGraph super-steps) configured in `stock_agent.py` and `routers/agent.py` (`run_demo_scenario`), failing closed if `maximum_remote_calls` is exhausted (`_has_unresolved_function_calls`).
 - [x] `analyze_portfolio_and_gurus(user_portfolio_tickers, pre_analyzed_guru_data, telegram_chat_id)` preserves its exact signature, prompt construction, and post-run validations.
-- [x] `_extract_run_summary` (`stock_agent.py`) accurately parses `response.automatic_function_calling_history` for `get_us_stock_data`, `get_il_stock_data`, `scan_guru_portfolio`, `send_telegram_alert` (`PRICE ALERT`, `RISK ALERT`, `ALPHA IDEA`), and `"ERROR"` tool responses.
+- [x] `_extract_run_summary` (`stock_agent.py`) accurately parses `response.automatic_function_calling_history` via shared `iter_afc_parts` helper for `get_us_stock_data`, `get_il_stock_data`, `scan_guru_portfolio`, `send_telegram_alert` (`PRICE ALERT`, `RISK ALERT`, `ALPHA IDEA`), and `"ERROR"` tool responses.
 - [x] `run_demo_scenario` (`routers/agent.py`) preserves `"name"` (not `"tool"`) in `tool_call` and `tool_result` log dicts.
 - [x] `_generate_digest` (`routers/log_monitor.py`) migrated to `google.genai` with `response_mime_type="application/json"`.
-- [x] `backend/requirements.txt` cleaned and pinned to `google-genai>=2.25.0`.
+- [x] `backend/requirements.txt` cleaned and pinned to `google-genai>=1.75.0`.
 - [x] Direct unit tests added for `_generate_digest` in `backend/tests/test_log_monitor.py`, and all tests in `backend/tests/routers/test_agent.py` updated to call plain tool functions directly.
 
 ### PR 2 Checklist (`feat/upgrade-models-2026`)

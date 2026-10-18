@@ -323,6 +323,8 @@ def test_generate_digest_parses_valid_gemini_json_response():
     mock_resp = MagicMock()
     mock_resp.text = json.dumps(fake_payload)
 
+    # Patched at `google.genai.Client` because `_generate_digest` lazily imports
+    # `from google import genai` inside the function to keep cold-start fast.
     with patch("google.genai.Client") as mock_client_cls, \
          patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}):
         mock_client_cls.return_value.models.generate_content.return_value = mock_resp
