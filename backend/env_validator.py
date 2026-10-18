@@ -10,6 +10,7 @@ import os
 import sys
 import html
 import logging
+from datetime import datetime, timezone
 import requests
 
 logger = logging.getLogger("env_validator")
@@ -26,6 +27,17 @@ MANDATORY_ENV_VARS = [
 TELEGRAM_HTTP_TIMEOUT = 2.5
 DEFAULT_PROJECT_ID = "finance-family-management"
 
+_sm_client = None
+
+
+def _get_sm_client():
+    """Return a cached SecretManagerServiceClient instance."""
+    global _sm_client
+    if _sm_client is None:
+        from google.cloud import secretmanager
+        _sm_client = secretmanager.SecretManagerServiceClient()
+    return _sm_client
+
 
 def get_firestore_client():
     """Retrieve Firestore client if firebase-admin is available, or return None."""
@@ -33,7 +45,6 @@ def get_firestore_client():
         import firebase_admin
         from firebase_admin import firestore
         if not firebase_admin._apps:
-            # Let db_manager or standard init handle app init, or fallback
             return None
         return firestore.client()
     except Exception as e:
@@ -44,8 +55,7 @@ def get_firestore_client():
 def get_secret_from_sm(key: str, project_id: str | None = None) -> str | None:
     """Fetch secret value from Google Cloud Secret Manager."""
     try:
-        from google.cloud import secretmanager
-        client = secretmanager.SecretManagerServiceClient()
+        client = _get_sm_client()
         target_project = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or DEFAULT_PROJECT_ID
         name = f"projects/{target_project}/secrets/{key}/versions/latest"
         response = client.access_secret_version(request={"name": name})
@@ -92,12 +102,13 @@ def send_startup_failure_alert(missing_vars: list[str]) -> bool:
     k_service = os.getenv("K_SERVICE", "local-dev")
     k_revision = os.getenv("K_REVISION", "local-dev")
 
+    doc_ref = None
     # Deduplication in Cloud Run crash loops using Firestore
     if k_revision != "local-dev":
         try:
             db = get_firestore_client()
             if db:
-                doc_ref = db.collection("system_alerts").document(f"deploy_fail_{k_revision}")
+                doc_ref = db.collection("system_alerts").document(f"startup_fail_{k_revision}")
                 doc_snap = doc_ref.get()
                 if doc_snap and getattr(doc_snap, "exists", False):
                     logger.info(
@@ -105,14 +116,6 @@ def send_startup_failure_alert(missing_vars: list[str]) -> bool:
                         "Skipping retry spam."
                     )
                     return False
-                
-                # Mark as alerted
-                doc_ref.set({
-                    "missing_vars": missing_vars,
-                    "service": k_service,
-                    "revision": k_revision,
-                    "created_at": getattr(doc_snap, "create_time", None) or "now",
-                })
         except Exception as e:
             logger.warning(f"[ENV_VALIDATOR] Deduplication check error (will send alert anyway): {e}")
 
@@ -140,6 +143,16 @@ def send_startup_failure_alert(missing_vars: list[str]) -> bool:
         resp = requests.post(url, json=payload, timeout=TELEGRAM_HTTP_TIMEOUT)
         if resp.status_code == 200:
             logger.info("[ENV_VALIDATOR] Telegram startup failure alert delivered successfully.")
+            if doc_ref is not None:
+                try:
+                    doc_ref.set({
+                        "missing_vars": missing_vars,
+                        "service": k_service,
+                        "revision": k_revision,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                except Exception as db_err:
+                    logger.warning(f"[ENV_VALIDATOR] Failed to record dedup marker in Firestore: {db_err}")
             return True
         else:
             logger.error(

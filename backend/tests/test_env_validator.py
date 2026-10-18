@@ -149,3 +149,11 @@ def test_missing_telegram_credentials_logs_critical_without_crashing():
                 mock_log_crit.assert_called()
                 log_text = mock_log_crit.call_args[0][0]
                 assert "TELEGRAM" in log_text
+
+
+@pytest.mark.asyncio
+async def test_app_lifespan_invokes_validate_environment():
+    import app as backend_app
+    with patch("app.validate_environment") as mock_validate:
+        async with backend_app.lifespan(backend_app.app):
+            mock_validate.assert_called_once_with(fail_fast=True)

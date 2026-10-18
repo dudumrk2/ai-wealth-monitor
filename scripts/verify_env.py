@@ -35,9 +35,9 @@ def main():
     )
     parser.add_argument(
         "--check-secret-manager",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Check Google Cloud Secret Manager for missing variables as fallback",
+        help="Check Google Cloud Secret Manager for missing variables as fallback (use --no-check-secret-manager to disable)",
     )
     args = parser.parse_args()
 
