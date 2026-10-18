@@ -29,7 +29,7 @@ def _run(uid: str, holdings, sent_keys: set, guru_output: str, agent_success: bo
          patch.object(agent_module, "_send_agent_summary_email"), \
          patch.object(agent_module, "TRACKED_GURUS", _TEST_GURUS):
 
-        mock_scan.invoke.return_value = guru_output
+        mock_scan.return_value = guru_output
         result = agent_module._analyze_stocks_for_family(uid)
         return result, mock_mark
 
@@ -95,19 +95,19 @@ def test_build_demo_tools_returns_five_tools_with_mock_data():
     tools = build_demo_tools("price")
     assert len(tools) == 5
 
-    by_name = {t.name: t for t in tools}
+    by_name = {t.__name__: t for t in tools}
     # The price scenario defines AAPL up +6.10% — the mock must return it verbatim.
-    assert "+6.10%" in by_name["get_us_stock_data"].invoke({"ticker": "AAPL"})
+    assert "+6.10%" in by_name["get_us_stock_data"](ticker="AAPL")
     # search_financial_news mock includes the seeded headline + URL.
-    assert "OpenAI" in by_name["search_financial_news"].invoke({"ticker": "AAPL"})
+    assert "OpenAI" in by_name["search_financial_news"](ticker="AAPL")
     # send_telegram_alert is a no-op stub in demo mode (never hits the network).
-    assert "successfully" in by_name["send_telegram_alert"].invoke({"message": "hi"})
+    assert "successfully" in by_name["send_telegram_alert"](message="hi")
 
 
 def test_build_demo_tools_unknown_ticker_falls_back():
-    tools = {t.name: t for t in build_demo_tools("clear")}
+    tools = {t.__name__: t for t in build_demo_tools("clear")}
     # An unseeded ticker should not raise — it returns a generic fallback string.
-    out = tools["get_us_stock_data"].invoke({"ticker": "ZZZZ"})
+    out = tools["get_us_stock_data"](ticker="ZZZZ")
     assert "ZZZZ" in out
 
 
@@ -129,7 +129,7 @@ def test_search_news_drops_articles_older_than_window(monkeypatch):
     ]
     monkeypatch.setattr(stock_agent_tools.yf, "Ticker", lambda t: fake)
 
-    out = search_financial_news.invoke({"ticker": "AAPL"})
+    out = search_financial_news(ticker="AAPL")
     assert "FreshStory" in out
     assert "StaleStory" not in out
     # Each retained line is prefixed with its publish date.
@@ -141,7 +141,7 @@ def test_search_news_returns_message_when_all_stale(monkeypatch):
     fake.news = [_news_item("OldNews", days_ago=99)]
     monkeypatch.setattr(stock_agent_tools.yf, "Ticker", lambda t: fake)
 
-    out = search_financial_news.invoke({"ticker": "AAPL"})
+    out = search_financial_news(ticker="AAPL")
     assert "last 7 days" in out
     assert "OldNews" not in out
 
@@ -152,47 +152,168 @@ from stock_agent_tools import get_us_stock_data, get_il_stock_data, send_telegra
 
 
 def test_us_tool_rejects_malformed_ticker():
-    out = get_us_stock_data.invoke({"ticker": "not a ticker!!"})
+    out = get_us_stock_data(ticker="not a ticker!!")
     assert out.startswith("ERROR")
     assert "valid US ticker" in out
 
 
 def test_il_tool_rejects_non_numeric_code():
-    out = get_il_stock_data.invoke({"ticker": "AAPL"})
+    out = get_il_stock_data(ticker="AAPL")
     assert out.startswith("ERROR")
     assert "valid Israeli fund code" in out
 
 
 def test_news_tool_rejects_israeli_numeric_code():
-    out = search_financial_news.invoke({"ticker": "5131054"})
+    out = search_financial_news(ticker="5131054")
     assert out.startswith("ERROR")
 
 
 def test_telegram_rejects_empty_message(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
-    out = send_telegram_alert.invoke({"message": "   ", "chat_id": "123"})
+    out = send_telegram_alert(message="   ", chat_id="123")
     assert out.startswith("ERROR")
     assert "empty" in out
 
 
-# ── Run summary: price-alert hallucination check ──────────────────────────────
+# ── Run summary: price-alert hallucination check & AFC history ────────────────
 
 def test_summary_captures_price_alert_ticker():
     """The summary records the ticker named in a PRICE ALERT for hallucination checks."""
     import stock_agent
-    from langchain_core.messages import AIMessage
+    from google.genai import types
 
-    msg = AIMessage(content="", tool_calls=[{
-        "name": "send_telegram_alert",
-        "args": {"message": "📊 PRICE ALERT: <b>AAPL</b> moved <b>+6%</b> today."},
-        "id": "1",
-    }])
-    summary = stock_agent._extract_run_summary([msg], start_time=0.0)
+    afc_history = [
+        types.Content(
+            role="model",
+            parts=[
+                types.Part.from_function_call(
+                    name="get_us_stock_data",
+                    args={"ticker": "AAPL"},
+                ),
+                types.Part.from_function_call(
+                    name="get_il_stock_data",
+                    args={"ticker": "5131054"},
+                ),
+                types.Part.from_function_call(
+                    name="scan_guru_portfolio",
+                    args={"guru_name": "Berkshire Hathaway"},
+                ),
+                types.Part.from_function_call(
+                    name="send_telegram_alert",
+                    args={"message": "📊 PRICE ALERT: <b>AAPL</b> moved <b>+6%</b> today."},
+                ),
+                types.Part.from_function_call(
+                    name="send_telegram_alert",
+                    args={"message": "🚨 RISK ALERT: <b>Berkshire Hathaway</b> exited <b>AAPL</b>."},
+                ),
+                types.Part.from_function_call(
+                    name="send_telegram_alert",
+                    args={"message": "💡 ALPHA IDEA: <b>Berkshire Hathaway</b> initiated <b>OXY</b>."},
+                ),
+            ],
+        ),
+        types.Content(
+            role="user",
+            parts=[
+                types.Part.from_function_response(
+                    name="get_us_stock_data",
+                    response={"result": "AAPL last price: $213.40 USD"},
+                ),
+                types.Part.from_function_response(
+                    name="send_telegram_alert",
+                    response={"result": "ERROR [send_telegram_alert]: timeout"},
+                ),
+                types.Part.from_function_response(
+                    name="scan_guru_portfolio",
+                    response={"error": "Network timeout"},
+                ),
+            ],
+        ),
+    ]
+    summary = stock_agent._extract_run_summary(afc_history, start_time=0.0)
+    assert summary.tickers_checked == ["AAPL", "5131054"]
+    assert summary.gurus_scanned == ["Berkshire Hathaway"]
     assert summary.price_alert_tickers == ["AAPL"]
     assert summary.price_alerts_sent == 1
+    assert summary.risk_alerts_sent == 1
+    assert summary.alpha_alerts_sent == 1
+    assert summary.total_alerts_sent == 3
+    assert len(summary.tool_errors) == 2
+    assert all(err.startswith("ERROR") for err in summary.tool_errors)
 
 
-# ── Demo endpoint auth (fail-closed) ──────────────────────────────────────────
+def test_analyze_portfolio_and_gurus_invokes_genai_with_afc_limit(monkeypatch):
+    """analyze_portfolio_and_gurus calls google.genai with maximum_remote_calls=25 and pre-analyzed data."""
+    import stock_agent
+    from google.genai import types
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+
+    fake_response = MagicMock()
+    fake_response.text = "Portfolio analysis complete."
+    fake_response.candidates = []
+    fake_response.automatic_function_calling_history = [
+        types.Content(
+            role="model",
+            parts=[types.Part.from_function_call(name="get_us_stock_data", args={"ticker": "AAPL"})],
+        ),
+    ]
+
+    with patch("stock_agent.genai.Client") as mock_client_cls:
+        mock_client_cls.return_value.models.generate_content.return_value = fake_response
+        res = stock_agent.analyze_portfolio_and_gurus(
+            user_portfolio_tickers=["AAPL"],
+            pre_analyzed_guru_data={"Berkshire Hathaway": "Q1 2025: None"},
+            telegram_chat_id="chat-999",
+        )
+
+    assert res["success"] is True
+    assert res["output"] == "Portfolio analysis complete."
+    assert res["summary"]["tickers_checked"] == ["AAPL"]
+
+    call_kwargs = mock_client_cls.return_value.models.generate_content.call_args.kwargs
+    assert "PRE-COMPUTED 13F DATA" in call_kwargs["contents"]
+    assert 'chat_id="chat-999"' in call_kwargs["contents"]
+    assert call_kwargs["config"].automatic_function_calling.maximum_remote_calls == stock_agent.AGENT_RECURSION_LIMIT
+    assert call_kwargs["config"].tools == stock_agent.AGENT_TOOLS
+
+
+def test_analyze_portfolio_and_gurus_fails_when_max_remote_calls_exceeded(monkeypatch):
+    """When maximum_remote_calls is reached, response still has a pending function_call -> success=False."""
+    import stock_agent
+    from google.genai import types
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+
+    fake_candidate = MagicMock()
+    fake_candidate.content = types.Content(
+        role="model",
+        parts=[types.Part.from_function_call(name="get_us_stock_data", args={"ticker": "AAPL"})],
+    )
+    fake_response = MagicMock()
+    fake_response.text = None
+    fake_response.candidates = [fake_candidate]
+    fake_response.automatic_function_calling_history = []
+
+    with patch("stock_agent.genai.Client") as mock_client_cls:
+        mock_client_cls.return_value.models.generate_content.return_value = fake_response
+        res = stock_agent.analyze_portfolio_and_gurus(["AAPL"])
+
+    assert res["success"] is False
+    assert "maximum_remote_calls" in res["error"]
+
+
+def test_analyze_portfolio_and_gurus_fails_when_api_key_missing(monkeypatch):
+    """Missing GEMINI_API_KEY returns success=False with configuration error."""
+    import stock_agent
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = stock_agent.analyze_portfolio_and_gurus(["AAPL"])
+    assert res["success"] is False
+    assert "GEMINI_API_KEY" in res["error"]
+
+
+# ── Demo endpoint auth & execution (fail-closed) ──────────────────────────────
 
 @pytest.fixture
 def demo_client():
@@ -231,3 +352,43 @@ def test_demo_endpoint_rejects_unknown_scenario(demo_client, monkeypatch):
         headers={"X-Cron-Secret": "right-secret"},
     )
     assert resp.status_code == 400
+
+
+def test_demo_endpoint_formats_afc_history_with_name_key(demo_client, monkeypatch):
+    """Demo endpoint returns logs with 'name' key (not 'tool') from AFC history."""
+    from google.genai import types
+
+    monkeypatch.setenv("CRON_SECRET", "right-secret")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+
+    fake_response = MagicMock()
+    fake_response.text = "All checks complete."
+    fake_response.automatic_function_calling_history = [
+        types.Content(
+            role="model",
+            parts=[types.Part.from_function_call(name="get_us_stock_data", args={"ticker": "AAPL"})],
+        ),
+        types.Content(
+            role="user",
+            parts=[types.Part.from_function_response(name="get_us_stock_data", response={"result": "AAPL $213.40"})],
+        ),
+    ]
+
+    # Patched at `google.genai.Client` because `run_demo_scenario` lazily imports
+    # `from google import genai` inside the endpoint handler to keep cold-start fast.
+    with patch("google.genai.Client") as mock_client_cls:
+        mock_client_cls.return_value.models.generate_content.return_value = fake_response
+        resp = demo_client.post(
+            "/api/demo/run-scenario",
+            json={"scenario": "price"},
+            headers={"X-Cron-Secret": "right-secret"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["scenario"] == "price"
+    assert data["logs"] == [
+        {"type": "tool_call", "name": "get_us_stock_data", "args": {"ticker": "AAPL"}},
+        {"type": "tool_result", "name": "get_us_stock_data", "content": "AAPL $213.40"},
+        {"type": "final_output", "content": "All checks complete."},
+    ]

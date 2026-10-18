@@ -1,8 +1,8 @@
 """
 stock_agent.py
 ==============
-Orchestrates the Autonomous Financial Analyst Agent using LangGraph
-(create_react_agent) backed by Google Gemini Flash.
+Orchestrates the Autonomous Financial Analyst Agent using the Google GenAI SDK
+(google-genai Automatic Function Calling) backed by Google Gemini Flash.
 
 The agent operates in a "Sense → Think → Act" loop:
   Sense  — fetches live prices for every ticker in the user's portfolio.
@@ -26,9 +26,8 @@ import re
 import time
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import create_react_agent
+from google import genai
+from google.genai import types
 from pydantic import BaseModel
 
 import config
@@ -56,11 +55,11 @@ AGENT_TOOLS = [
     send_telegram_alert,
 ]
 
-# Hard ceiling on the ReAct loop's super-steps. A normal run (price checks +
-# news + guru scans + alerts) finishes well under this; the cap is a guardrail
+# Hard ceiling on automatic remote model calls per run. (Equivalent to
+# LangGraph's recursion_limit=50, which counted model + tool super-steps
+# separately.) A normal run finishes well under this; the cap is a guardrail
 # against a runaway LLM looping indefinitely and racking up Gemini calls.
-# LangGraph raises GraphRecursionError when exceeded.
-AGENT_RECURSION_LIMIT = 50
+AGENT_RECURSION_LIMIT = 25
 
 # Extracts the ticker named in a "📊 PRICE ALERT: <b>TICKER</b> ..." message,
 # used to verify the agent only raised price alerts for tickers it was given.
@@ -68,11 +67,33 @@ _PRICE_ALERT_TICKER_RE = re.compile(r"PRICE ALERT:\s*<b>([^<]+)</b>", re.IGNOREC
 
 
 # ---------------------------------------------------------------------------
-# Structured run summary
+# AFC History Helpers & Structured Run Summary
 # ---------------------------------------------------------------------------
 
+def iter_afc_parts(afc_history: list | None):
+    """Yield every Part from a google-genai automatic_function_calling_history list."""
+    for content in (afc_history or []):
+        for part in (getattr(content, "parts", None) or []):
+            yield part
+
+
+def _has_unresolved_function_calls(response: Any) -> bool:
+    """Return True if the final model response still contains a pending tool call.
+
+    When google-genai hits maximum_remote_calls, it stops executing tools and
+    returns the last model response (which still has part.function_call set)
+    instead of raising an exception.
+    """
+    for candidate in (getattr(response, "candidates", None) or []):
+        content = getattr(candidate, "content", None)
+        for part in (getattr(content, "parts", None) or []):
+            if getattr(part, "function_call", None) is not None:
+                return True
+    return False
+
+
 class AgentRunSummary(BaseModel):
-    """Structured summary of a single agent run, extracted from message history.
+    """Structured summary of a single agent run, extracted from AFC history.
 
     Built by inspecting the actual tool calls made during the run — not by
     parsing the agent's free-text output.  This gives a reliable, programmatic
@@ -92,19 +113,20 @@ class AgentRunSummary(BaseModel):
 
 
 def _extract_run_summary(
-    messages_history: list,
+    afc_history: list,
     start_time: float,
 ) -> AgentRunSummary:
-    """Build an AgentRunSummary by inspecting LangGraph's message history.
+    """Build an AgentRunSummary by inspecting google-genai's AFC history.
 
-    LangGraph stores every tool call (AIMessage.tool_calls) and tool response
-    (ToolMessage.content) as messages.  Walking those messages gives a ground-
-    truth view of what the agent actually invoked, independent of its final
-    text summary.
+    google-genai stores every tool call (Part.function_call) and tool response
+    (Part.function_response) inside response.automatic_function_calling_history.
+    Walking those Content items gives a ground-truth view of what the agent
+    actually invoked, independent of its final text summary.
 
     Args:
-        messages_history: Full list of messages from agent.invoke() result.
-        start_time: Unix timestamp recorded immediately before agent.invoke().
+        afc_history: List of google.genai.types.Content from
+            response.automatic_function_calling_history.
+        start_time: Unix timestamp recorded immediately before generate_content().
 
     Returns:
         AgentRunSummary with per-tool counts and any error strings encountered.
@@ -115,41 +137,47 @@ def _extract_run_summary(
     price_alert_tickers: list[str] = []
     total_alerts = price_alerts = risk_alerts = alpha_alerts = 0
 
-    for msg in messages_history:
-        # AIMessage with tool_calls → what the agent requested
-        tool_calls = getattr(msg, "tool_calls", None)
-        if tool_calls:
-            for tc in tool_calls:
-                name = tc.get("name", "")
-                args = tc.get("args", {})
+    for part in iter_afc_parts(afc_history):
+        # Part.function_call → what the model requested
+        fc = getattr(part, "function_call", None)
+        if fc:
+            name = fc.name or ""
+            args = dict(fc.args or {})
 
-                if name in ("get_us_stock_data", "get_il_stock_data"):
-                    ticker = args.get("ticker", "").strip()
-                    if ticker:
-                        tickers_checked.append(ticker)
+            if name in ("get_us_stock_data", "get_il_stock_data"):
+                ticker = str(args.get("ticker", "")).strip()
+                if ticker:
+                    tickers_checked.append(ticker)
 
-                elif name == "send_telegram_alert":
-                    total_alerts += 1
-                    alert_text = args.get("message", "")
-                    if "PRICE ALERT" in alert_text:
-                        price_alerts += 1
-                        m = _PRICE_ALERT_TICKER_RE.search(alert_text)
-                        if m:
-                            price_alert_tickers.append(m.group(1).strip())
-                    elif "RISK ALERT" in alert_text:
-                        risk_alerts += 1
-                    elif "ALPHA IDEA" in alert_text:
-                        alpha_alerts += 1
+            elif name == "send_telegram_alert":
+                total_alerts += 1
+                alert_text = str(args.get("message", ""))
+                if "PRICE ALERT" in alert_text:
+                    price_alerts += 1
+                    m = _PRICE_ALERT_TICKER_RE.search(alert_text)
+                    if m:
+                        price_alert_tickers.append(m.group(1).strip())
+                elif "RISK ALERT" in alert_text:
+                    risk_alerts += 1
+                elif "ALPHA IDEA" in alert_text:
+                    alpha_alerts += 1
 
-                elif name == "scan_guru_portfolio":
-                    guru = args.get("guru_name", "").strip()
-                    if guru:
-                        gurus_scanned.append(guru)
+            elif name == "scan_guru_portfolio":
+                guru = str(args.get("guru_name", "")).strip()
+                if guru:
+                    gurus_scanned.append(guru)
 
-        # ToolMessage → what the tool returned — capture errors
-        content = getattr(msg, "content", None)
-        if isinstance(content, str) and content.startswith("ERROR"):
-            tool_errors.append(content[:300])
+        # Part.function_response → what the tool returned — capture errors
+        fr = getattr(part, "function_response", None)
+        if fr and isinstance(fr.response, dict):
+            res_val = fr.response.get("result")
+            err_val = fr.response.get("error")
+            if isinstance(res_val, str) and res_val.startswith("ERROR"):
+                tool_errors.append(res_val[:300])
+            elif err_val is not None and err_val != "":
+                err_str = str(err_val)
+                prefix = "" if err_str.startswith("ERROR") else "ERROR: "
+                tool_errors.append(f"{prefix}{err_str}"[:300])
 
     return AgentRunSummary(
         tickers_checked=tickers_checked,
@@ -231,19 +259,17 @@ OPERATING RULES
 """
 
 # ---------------------------------------------------------------------------
-# LLM + Agent Builder
+# GenAI Client Builder
 # ---------------------------------------------------------------------------
 
 
-def _build_agent_executor():
-    """Construct and return a LangGraph ReAct agent (CompiledStateGraph).
+def _get_genai_client() -> genai.Client:
+    """Construct and return a configured google.genai Client.
 
-    Uses Gemini Flash (matching config.GEMINI_MODEL_NAME across the project)
-    with tool-calling enabled via langgraph.prebuilt.create_react_agent.
-    The agent is built fresh on each invocation to respect hot-rotated env vars.
+    Built fresh on each invocation to respect hot-rotated env vars.
 
     Returns:
-        A compiled LangGraph agent ready to be invoked with a message list.
+        A configured genai.Client instance.
 
     Raises:
         EnvironmentError: If GEMINI_API_KEY is not set.
@@ -254,21 +280,7 @@ def _build_agent_executor():
             "GEMINI_API_KEY is not set. "
             "Cannot initialise the Financial Analyst Agent."
         )
-
-    # temperature=0: deterministic, rule-following — no creative hallucination.
-    llm = ChatGoogleGenerativeAI(
-        model=config.GEMINI_MODEL_NAME,
-        google_api_key=api_key,
-        temperature=0,
-    )
-
-    # create_react_agent wires the LLM, tools, and system prompt into a
-    # LangGraph CompiledStateGraph that handles the tool-call loop internally.
-    return create_react_agent(
-        model=llm,
-        tools=AGENT_TOOLS,
-        prompt=SYSTEM_PROMPT,
-    )
+    return genai.Client(api_key=api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -371,18 +383,34 @@ def analyze_portfolio_and_gurus(
 
     try:
         start_time = time.time()
-        agent = _build_agent_executor()
-        # LangGraph agents accept a list of BaseMessage objects.
-        messages = [HumanMessage(content=human_input)]
-        # recursion_limit caps the ReAct loop so a misbehaving LLM cannot spin
-        # forever; LangGraph raises GraphRecursionError when the cap is hit.
-        result = agent.invoke(
-            {"messages": messages},
-            config={"recursion_limit": AGENT_RECURSION_LIMIT},
+        client = _get_genai_client()
+
+        # maximum_remote_calls caps the automatic function calling loop so a
+        # misbehaving LLM cannot spin forever.
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL_NAME,
+            contents=human_input,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0,
+                tools=AGENT_TOOLS,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                    maximum_remote_calls=AGENT_RECURSION_LIMIT,
+                ),
+            ),
         )
 
-        # Build structured summary from message history (ground-truth view).
-        summary = _extract_run_summary(result["messages"], start_time)
+        # Fail closed if maximum_remote_calls was exhausted while the model
+        # was still requesting tool calls (mirrors LangGraph's GraphRecursionError).
+        if _has_unresolved_function_calls(response):
+            raise RuntimeError(
+                f"Exceeded maximum_remote_calls ({AGENT_RECURSION_LIMIT}): "
+                "agent stopped with unresolved function_call."
+            )
+
+        # Build structured summary from AFC history (ground-truth view).
+        afc_history = getattr(response, "automatic_function_calling_history", None) or []
+        summary = _extract_run_summary(afc_history, start_time)
 
         # Validate: warn if the agent skipped any tickers.
         skipped = set(user_portfolio_tickers) - set(summary.tickers_checked)
@@ -412,19 +440,7 @@ def analyze_portfolio_and_gurus(
                 f"{summary.tool_errors}"
             )
 
-        # The final answer is the content of the last AI message.
-        # Gemini may return content as a list of typed blocks (text + grounding
-        # metadata) rather than a plain string — extract the text portions only.
-        last_msg = result["messages"][-1]
-        raw_content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
-        if isinstance(raw_content, list):
-            output = "\n".join(
-                block.get("text", "")
-                for block in raw_content
-                if isinstance(block, dict) and block.get("type") == "text"
-            ).strip() or str(raw_content)
-        else:
-            output = raw_content
+        output = (response.text or "").strip()
 
         logger.info(
             f"[AGENT] Run complete in {summary.run_duration_seconds}s — "

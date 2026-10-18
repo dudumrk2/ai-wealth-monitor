@@ -779,7 +779,7 @@ export default function Settings() {
               {/* Row: title + toggle + run button */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex-1">
-                  <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">סוכן מניות אוטונומי (LangGraph)</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">סוכן מניות אוטונומי (Gemini)</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     בודק מחירים ודוחות 13F של Superinvestors ושולח התראות לטלגרם (או מייל כ-fallback)
                   </p>

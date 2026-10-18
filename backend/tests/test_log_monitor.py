@@ -307,3 +307,75 @@ def test_group_log_entries_ignores_empty_and_fallback_payloads():
     assert groups[0]["signature"] == "Real warning message"
 
 
+# ---------------------------------------------------------------------------
+# Tests for _generate_digest (google-genai JSON mode)
+# ---------------------------------------------------------------------------
+
+def test_generate_digest_parses_valid_gemini_json_response():
+    """Should call google.genai Client with response_mime_type='application/json' and return parsed dict."""
+    import json
+    from routers.log_monitor import _generate_digest
+
+    fake_payload = {
+        "telegram_message": "🔍 1 issue found",
+        "email_html": "<html><body>Brief</body></html>",
+    }
+    mock_resp = MagicMock()
+    mock_resp.text = json.dumps(fake_payload)
+
+    # Patched at `google.genai.Client` because `_generate_digest` lazily imports
+    # `from google import genai` inside the function to keep cold-start fast.
+    with patch("google.genai.Client") as mock_client_cls, \
+         patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}):
+        mock_client_cls.return_value.models.generate_content.return_value = mock_resp
+        result = _generate_digest("[ERROR] DB timeout", "2026-10-01", "2026-10-08")
+
+    assert result == fake_payload
+    mock_client_cls.assert_called_once_with(api_key="test-gemini-key")
+    call_kwargs = mock_client_cls.return_value.models.generate_content.call_args.kwargs
+    assert call_kwargs["config"].response_mime_type == "application/json"
+
+
+def test_generate_digest_falls_back_on_gemini_exception():
+    """Should return _fallback_digest when google.genai raises an exception."""
+    from routers.log_monitor import _generate_digest
+
+    with patch("google.genai.Client") as mock_client_cls, \
+         patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}):
+        mock_client_cls.return_value.models.generate_content.side_effect = RuntimeError("API down")
+        result = _generate_digest("[ERROR] DB timeout", "2026-10-01", "2026-10-08")
+
+    assert "Gemini digest unavailable" in result["telegram_message"]
+    assert "DB timeout" in result["email_html"]
+
+
+def test_generate_digest_strips_markdown_fences_and_falls_back_on_bad_shape():
+    """Should strip ```json fences if returned, and fall back if required keys are missing."""
+    import json
+    from routers.log_monitor import _generate_digest
+
+    fake_payload = {
+        "telegram_message": "🔍 fenced JSON works",
+        "email_html": "<html><body>Fenced</body></html>",
+    }
+    mock_resp = MagicMock()
+    mock_resp.text = f"```json\n{json.dumps(fake_payload)}\n```"
+
+    with patch("google.genai.Client") as mock_client_cls, \
+         patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}):
+        mock_client_cls.return_value.models.generate_content.return_value = mock_resp
+        result = _generate_digest("[ERROR] DB timeout", "2026-10-01", "2026-10-08")
+
+    assert result == fake_payload
+
+    # Missing required keys -> fallback
+    mock_resp.text = json.dumps({"unexpected_key": 123})
+    with patch("google.genai.Client") as mock_client_cls, \
+         patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}):
+        mock_client_cls.return_value.models.generate_content.return_value = mock_resp
+        fallback_res = _generate_digest("[ERROR] DB timeout", "2026-10-01", "2026-10-08")
+
+    assert "Gemini digest unavailable" in fallback_res["telegram_message"]
+
+
+

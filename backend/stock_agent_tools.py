@@ -1,7 +1,7 @@
 """
 stock_agent_tools.py
 ====================
-LangChain @tool definitions for the Autonomous Financial Analyst Agent.
+Tool function definitions for the Autonomous Financial Analyst Agent.
 
 These tools equip the LLM agent with the ability to:
   1. Fetch live US stock prices via yfinance.
@@ -27,7 +27,6 @@ from datetime import datetime, timezone, timedelta
 import requests
 from bs4 import BeautifulSoup
 import yfinance as yf
-from langchain_core.tools import tool
 
 # Import the existing TASE web-scraping function to avoid duplicating logic.
 # fetch_bizportal_fund_data scrapes Bizportal.co.il for Israeli mutual funds /
@@ -146,7 +145,7 @@ DEMO_SCENARIOS: dict[str, dict[str, str]] = {
 
 
 def build_demo_tools(scenario_name: str) -> list:
-    """Return mock LangChain tools for a named demo scenario.
+    """Return mock tool functions for a named demo scenario.
 
     The returned tools have identical signatures to the real AGENT_TOOLS so the
     agent's system prompt and tool-calling logic work without any changes.
@@ -157,18 +156,15 @@ def build_demo_tools(scenario_name: str) -> list:
     def _get(key: str, fallback: str) -> str:
         return mock.get(key, fallback)
 
-    @tool
     def get_us_stock_data(ticker: str) -> str:  # noqa: F811
         """Fetch the latest closing price for a US-listed stock or ETF from Yahoo Finance."""
         ticker = ticker.strip().upper()
         return _get(f"get_us_stock_data:{ticker}", f"{ticker} last price: $150.00 USD  ▲ +0.50%")
 
-    @tool
     def get_il_stock_data(ticker: str) -> str:  # noqa: F811
         """Fetch the latest price for an Israeli security (TASE mutual fund or ETF) from Bizportal."""
         return _get(f"get_il_stock_data:{ticker.strip()}", f"Israeli fund/ETF {ticker} last price: ₪12.00 NIS  ▲ +0.10%")
 
-    @tool
     def scan_guru_portfolio(guru_name: str) -> str:  # noqa: F811
         """Scan the latest 13F filing activity for a tracked Superinvestor.
 
@@ -179,13 +175,11 @@ def build_demo_tools(scenario_name: str) -> list:
             f"{guru_name} — Q1 2025 13F Activity:\n  🆕 New positions: None\n  🚪 Liquidated positions: None",
         )
 
-    @tool
     def search_financial_news(ticker: str) -> str:  # noqa: F811
         """Fetch the 3 most recent financial news headlines for a US-listed stock via Yahoo Finance."""
         ticker = ticker.strip().upper()
         return _get(f"search_financial_news:{ticker}", f"No recent news found for {ticker}.")
 
-    @tool
     def send_telegram_alert(message: str, chat_id: str = "") -> str:  # noqa: F811
         """Send a push notification message to the family Telegram chat via the configured bot."""
         logger.info(f"[DEMO send_telegram_alert] {message[:120]}")
@@ -198,7 +192,6 @@ def build_demo_tools(scenario_name: str) -> list:
 # Tool 1 — US Stock Data
 # ---------------------------------------------------------------------------
 
-@tool
 def get_us_stock_data(ticker: str) -> str:
     """Fetch the latest closing price for a US-listed stock or ETF from Yahoo Finance.
 
@@ -256,7 +249,6 @@ def get_us_stock_data(ticker: str) -> str:
 # Tool 2 — Israeli (TASE) Stock / Fund Data
 # ---------------------------------------------------------------------------
 
-@tool
 def get_il_stock_data(ticker: str) -> str:
     """Fetch the latest price for an Israeli security (TASE mutual fund or ETF) from Bizportal.
 
@@ -344,7 +336,6 @@ def _parse_news_pub_date(content: dict) -> datetime | None:
         return None
 
 
-@tool
 def search_financial_news(ticker: str) -> str:
     """Fetch recent financial news headlines for a US-listed stock via Yahoo Finance.
 
@@ -430,7 +421,6 @@ def search_financial_news(ticker: str) -> str:
 # Tool 4 — Telegram Alert
 # ---------------------------------------------------------------------------
 
-@tool
 def send_telegram_alert(message: str, chat_id: str = "") -> str:
     """Send a push notification message to the family Telegram chat via the configured bot.
 
@@ -569,7 +559,6 @@ def _extract_ticker(stock_cell_text: str) -> str:
     return stock_cell_text.split(" - ")[0].strip().upper()
 
 
-@tool
 def scan_guru_portfolio(guru_name: str) -> str:
     """Scan the latest 13F filing activity for a tracked Superinvestor and extract alpha signals.
 
