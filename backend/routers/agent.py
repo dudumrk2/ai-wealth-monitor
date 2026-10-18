@@ -284,7 +284,12 @@ async def run_demo_scenario(request: Request):
     # Lazy imports — keep agent modules out of the cold-start path.
     from google import genai
     from google.genai import types
-    from stock_agent import AGENT_RECURSION_LIMIT, SYSTEM_PROMPT, iter_afc_parts
+    from stock_agent import (
+        AGENT_RECURSION_LIMIT,
+        SYSTEM_PROMPT,
+        _has_unresolved_function_calls,
+        iter_afc_parts,
+    )
     from stock_agent_tools import DEMO_SCENARIOS, build_demo_tools
 
     if scenario_name not in DEMO_SCENARIOS:
@@ -323,6 +328,11 @@ async def run_demo_scenario(request: Request):
                 ),
             ),
         )
+        if _has_unresolved_function_calls(response):
+            raise HTTPException(
+                status_code=502,
+                detail=f"Exceeded maximum_remote_calls ({AGENT_RECURSION_LIMIT}): agent stopped with unresolved function_call.",
+            )
         logs = []
         afc_history = getattr(response, "automatic_function_calling_history", None)
         for part in iter_afc_parts(afc_history):

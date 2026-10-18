@@ -18,7 +18,7 @@ An earlier draft proposed migrating the Stock Analysis Agent from `LangGraph` to
 1. **Cold-start is already solved in-process:** [`backend/routers/agent.py`](../backend/routers/agent.py#L41-L46) uses lazy imports (`_load_agent_deps()`), so heavy agent libraries are never loaded on standard API requests—only when the cron or manual/demo endpoint runs.
 2. **Zero benefit from remote `Agent Engine`:** Deploying a separate Reasoning Engine in `us-central1` while Cloud Run runs in `me-west1` introduces cross-region network latency, a second CI/CD deployment target, Vertex AI IAM permissions, and recurring GCP compute charges—replacing a workload that currently runs for **$0.00** inside the Cloud Run Free Tier.
 3. **Cross-run `session_id` memory is counterproductive:** Deduplication of 13F guru alerts is already handled deterministically in Firestore (`db_manager.get_sent_13f_alert_keys()` / `db_manager.mark_13f_alert_sent()` in [`backend/routers/agent.py`](../backend/routers/agent.py#L161-L197)). Retaining conversational history across runs inflates input token costs and risks confusing the model with stale stock prices from prior runs.
-4. **Native `google-genai` Automatic Function Calling is already installed:** The backend already uses `google-genai` (`2.25.0` installed locally) across 5 modules (`flow_utils.py`, `rag_utils.py`, `dashboard_chat.py`, `documents.py`, `insurance.py`). Its native `client.models.generate_content()` method supports **Automatic Function Calling (AFC)** out of the box—accepting plain Python functions, executing tool loops automatically, respecting `maximum_remote_calls`, and recording the full call/response trace in `response.automatic_function_calling_history`.
+4. **Native `google-genai` Automatic Function Calling is already installed:** The backend already uses `google-genai` (`1.75.0` installed in `.venv`) across 5 modules (`flow_utils.py`, `rag_utils.py`, `dashboard_chat.py`, `documents.py`, `insurance.py`). Its native `client.models.generate_content()` method supports **Automatic Function Calling (AFC)** out of the box—accepting plain Python functions, executing tool loops automatically, respecting `maximum_remote_calls`, and recording the full call/response trace in `response.automatic_function_calling_history`.
 
 ### 1.2 Target Architecture
 
@@ -31,7 +31,7 @@ flowchart TD
         CronWeekly["POST /api/cron/weekly-stock-summary"]
         OCR["report_utils.py / flow_utils.py<br/>(Pension & Insurance PDF OCR)"]
 
-        CronStock --> StockAgent["backend/stock_agent.py<br/>analyze_portfolio_and_gurus()<br/>google.genai AFC (max_calls=50)"]
+        CronStock --> StockAgent["backend/stock_agent.py<br/>analyze_portfolio_and_gurus()<br/>google.genai AFC (max_calls=25)"]
         DemoStock --> DemoRunner["backend/routers/agent.py<br/>run_demo_scenario()<br/>google.genai AFC + Demo Tools"]
         CronLogs --> LogMonitor["backend/routers/log_monitor.py<br/>_generate_digest()<br/>google.genai JSON Mode"]
         CronWeekly --> WeeklySummary["backend/app.py<br/>_weekly_stock_summary_for_family()<br/>google.genai Text Generation"]
@@ -61,7 +61,7 @@ The workspace is currently on branch `feat/gemini-adk-stock-agent` (created from
 | `backend/stock_agent.py` | Uses `ChatGoogleGenerativeAI` + `create_react_agent` | Unmodified (same as `master`) | Uses `google.genai` with Automatic Function Calling |
 | `backend/routers/agent.py` | Imports `analyze_portfolio_and_gurus` from `stock_agent`; uses `.invoke()` on `scan_guru_portfolio`; `run_demo_scenario` uses `langgraph` | Modified (`M`): imports `run_stock_agent` from `agent_adapter` and passes `session_id=f"user_{uid}"` | Imports `analyze_portfolio_and_gurus` from `stock_agent` (no `session_id`); calls `scan_guru_portfolio(guru_name=...)` directly; `run_demo_scenario` uses `google.genai` |
 | `backend/routers/log_monitor.py` | `_generate_digest` uses `ChatGoogleGenerativeAI`, `SystemMessage`, `HumanMessage` | Unmodified (same as `master`) | `_generate_digest` uses `google.genai` with `response_mime_type="application/json"` |
-| `backend/requirements.txt` | Contains `langchain*` and `langgraph`, `google-genai>=1.0.0` | Modified (`M`): `langchain*`/`langgraph` removed, `google-adk` & `vertexai` added | Remove `langchain*`, `langgraph`, `google-adk`, `vertexai`; pin `google-genai>=2.25.0` |
+| `backend/requirements.txt` | Contains `langchain*` and `langgraph`, `google-genai>=1.0.0` | Modified (`M`): `langchain*`/`langgraph` removed, `google-adk` & `vertexai` added | Remove `langchain*`, `langgraph`, `google-adk`, `vertexai`; pin `google-genai>=1.75.0` |
 | `backend/tests/routers/test_agent.py` | Calls `.invoke({...})` on tools and `AIMessage` in `_extract_run_summary` test | Modified (`M`): added `session_id` assertion | Remove `session_id` assertion; call plain tool functions directly; test `_extract_run_summary` with `google.genai` AFC history |
 
 ### 2.2 Clean Branching Steps (Avoiding Carrying Unwanted Dirty State)
@@ -96,7 +96,7 @@ A full search across `backend/**/*.py` identified every reference to `langchain`
    - Lines 277–278 (inside `_generate_digest`): Imports `ChatGoogleGenerativeAI` from `langchain_google_genai` and `HumanMessage, SystemMessage` from `langchain_core.messages`.
    - Lines 319–333: Calls `llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_message)])`.
 5. **[`backend/requirements.txt`](../backend/requirements.txt)**
-   - Remove `langchain`, `langchain-google-genai`, `langgraph`, `google-adk`, and `vertexai`. Pin `google-genai>=2.25.0`.
+   - Remove `langchain`, `langchain-google-genai`, `langgraph`, `google-adk`, and `vertexai`. Pin `google-genai>=1.75.0`.
 
 ---
 
